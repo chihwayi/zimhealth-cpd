@@ -12,6 +12,7 @@ import {
   ClipboardList,
   CreditCard,
   ShieldAlert,
+  X,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import clsx from 'clsx';
@@ -86,7 +87,14 @@ const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'System Admin',
 };
 
-export function Sidebar() {
+interface SidebarProps {
+  className?: string;
+  mobile?: boolean;
+  onNavigate?: () => void;
+  onClose?: () => void;
+}
+
+export function Sidebar({ className, mobile = false, onNavigate, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const { pathname } = useLocation();
   if (!user) return null;
@@ -94,11 +102,30 @@ export function Sidebar() {
   const navItems = NAV_BY_ROLE[user.role] ?? LEARNER_NAV;
 
   return (
-    <aside className="w-60 flex-shrink-0 bg-white border-r border-slate-200 h-screen sticky top-0 flex flex-col">
+    <aside
+      className={clsx(
+        'w-72 sm:w-80 md:w-60 flex-shrink-0 bg-white border-r border-slate-200 h-dvh md:h-screen md:sticky md:top-0 flex flex-col',
+        className,
+      )}
+    >
       {/* Logo + role accent */}
       <div className={clsx('px-5 py-5 border-b-4', ROLE_ACCENT[user.role])}>
-        <div className="font-bold text-lg text-slate-900 tracking-tight">NursePro CPD</div>
-        <div className="text-xs text-slate-500 mt-0.5">{ROLE_LABEL[user.role]}</div>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-bold text-lg text-slate-900 tracking-tight">NursePro CPD</div>
+            <div className="text-xs text-slate-500 mt-0.5">{ROLE_LABEL[user.role]}</div>
+          </div>
+          {mobile && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="md:hidden inline-flex items-center justify-center rounded-lg p-2 text-slate-500 hover:bg-white/60 hover:text-slate-900"
+              aria-label="Close menu"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Nav items */}
@@ -109,6 +136,7 @@ export function Sidebar() {
             <Link
               key={to}
               to={to}
+              onClick={onNavigate}
               className={clsx(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors duration-150',
                 active

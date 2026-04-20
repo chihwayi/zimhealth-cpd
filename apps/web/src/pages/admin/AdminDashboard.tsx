@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Users,
@@ -143,11 +143,21 @@ function formatDateTime(value: string): string {
 }
 
 function getSection(pathname: string) {
-  return ADMIN_SECTIONS.find((section) => pathname === section.path || pathname.startsWith(`${section.path}/`))?.key ?? 'dashboard';
+  // Important: `/admin` is a prefix of every admin route, so we must not match it
+  // for sub-pages like `/admin/users` or `/admin/settings`.
+  const matches = (section: (typeof ADMIN_SECTIONS)[number]) => {
+    if (section.path === '/admin') return pathname === '/admin';
+    return pathname === section.path || pathname.startsWith(`${section.path}/`);
+  };
+
+  // Prefer the most specific (longest) match.
+  const sorted = [...ADMIN_SECTIONS].sort((a, b) => b.path.length - a.path.length);
+  return sorted.find(matches)?.key ?? 'dashboard';
 }
 
 export default function AdminDashboard() {
   const location = useLocation();
+  const navigate = useNavigate();
   const section = getSection(location.pathname);
 
   return (
@@ -159,13 +169,32 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit overflow-x-auto">
+      {/* On small screens, use a dropdown to avoid horizontal scrolling. */}
+      <div className="sm:hidden">
+        <label className="block text-xs font-medium text-slate-600 mb-1.5">Section</label>
+        <select
+          value={section}
+          onChange={(e) => {
+            const next = ADMIN_SECTIONS.find((s) => s.key === e.target.value)?.path ?? '/admin';
+            navigate(next);
+          }}
+          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+        >
+          {ADMIN_SECTIONS.map((item) => (
+            <option key={item.key} value={item.key}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="hidden sm:flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl w-full">
         {ADMIN_SECTIONS.map((item) => (
           <Link
             key={item.key}
             to={item.path}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-              section === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            className={`px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              section === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-700'
             }`}
           >
             {item.label}
@@ -423,7 +452,9 @@ function UsersSection() {
               className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
             />
           </div>
+          <label htmlFor="user-role-filter" className="sr-only">Filter by role</label>
           <select
+            id="user-role-filter"
             value={role}
             onChange={(event) => {
               setRole(event.target.value as (typeof ROLE_OPTIONS)[number]);
