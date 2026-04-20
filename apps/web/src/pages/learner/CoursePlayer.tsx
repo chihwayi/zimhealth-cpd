@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { QuizPlayer } from '../../components/course/QuizPlayer';
 
 type ContentSection = {
   id: string;
@@ -12,12 +13,18 @@ type ContentSection = {
   mediaUrl?: string | null;
 };
 
+type Quiz = {
+  id: string;
+  title: string;
+};
+
 type Module = {
   id: string;
   title: string;
   order: number;
   isOfflineReady: boolean;
   sections: ContentSection[];
+  quizzes?: Quiz[];
 };
 
 type CourseDetail = {
@@ -53,6 +60,15 @@ export default function CoursePlayerPage() {
     const sectionId = activeSectionId ?? allSections[0].section.id;
     return allSections.find((x) => x.section.id === sectionId) ?? allSections[0];
   }, [allSections, activeSectionId]);
+
+  const activeQuizId = useMemo(() => {
+    if (!active || active.section.type !== 'QUIZ') return null;
+    const quizzes = active.module.quizzes ?? [];
+    if (!quizzes.length) return null;
+    // Convention: section.content may contain a quiz id; otherwise fallback to first quiz in module
+    const byContent = quizzes.find((q) => q.id === active.section.content)?.id ?? null;
+    return byContent ?? quizzes[0].id;
+  }, [active]);
 
   useEffect(() => {
     if (!activeSectionId && allSections.length) {
@@ -149,7 +165,11 @@ export default function CoursePlayerPage() {
                 ) : null}
 
                 {active.section.type === 'QUIZ' ? (
-                  <div className="text-sm text-slate-600">Quiz section (Sprint 10 implements quiz player).</div>
+                  activeQuizId ? (
+                    <QuizPlayer quizId={activeQuizId} />
+                  ) : (
+                    <div className="text-sm text-slate-600">No quiz found for this section.</div>
+                  )
                 ) : null}
               </div>
             </>
