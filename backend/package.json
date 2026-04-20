@@ -6,7 +6,7 @@
     "dev": "dotenv -e ../.env -- nodemon --exec ts-node src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
-    "test": "dotenv -e ../.env -- vitest run",
+    "test": "dotenv -e ../.env -- prisma migrate reset --force && dotenv -e ../.env -- prisma migrate dev && dotenv -e ../.env -- prisma generate && dotenv -e ../.env -- ts-node prisma/seed.ts && dotenv -e ../.env -- vitest run",
     "type-check": "tsc --noEmit",
     "db:migrate": "dotenv -e ../.env -- prisma migrate dev",
     "db:generate": "dotenv -e ../.env -- prisma generate",
