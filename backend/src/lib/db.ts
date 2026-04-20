@@ -1,14 +1,18 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
 
-// In CI, we may not have a checked-in `../.env`, but the workflow can still provide DATABASE_URL.
-// Prisma reads DATABASE_URL at client initialization time, so ensure it's present for tests.
-if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'test') {
-  process.env.DATABASE_URL = 'postgresql://localhost:5432/nursepro';
+// Prisma reads DATABASE_URL when its client module is loaded/initialized.
+// Ensure it's non-empty for test runs before requiring `@prisma/client`.
+if (process.env.NODE_ENV === 'test' && (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '')) {
+  // Matches `.github/workflows/ci.yml` postgres service credentials.
+  process.env.DATABASE_URL = 'postgresql://nursepro:nursepro_dev@localhost:5432/nursepro';
 }
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { PrismaClient } = require('@prisma/client') as { PrismaClient: typeof import('@prisma/client').PrismaClient };
 
 declare global {
   // eslint-disable-next-line no-var
-  var __prisma: PrismaClient | undefined;
+  var __prisma: PrismaClientType | undefined;
 }
 
 export const db =

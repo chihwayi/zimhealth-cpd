@@ -2,8 +2,9 @@ import { describe, it, expect, afterAll } from 'vitest';
 import request from 'supertest';
 import app from '../app';
 import { db } from '../lib/db';
+import { randomUUID } from 'crypto';
 
-const TEST_EMAIL = `test+${Date.now()}@nursepro.co.zw`;
+const TEST_EMAIL = `test+${randomUUID()}@nursepro.co.zw`;
 const TEST_PASSWORD = 'Test@1234';
 
 describe('Auth API', () => {
