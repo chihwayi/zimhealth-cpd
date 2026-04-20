@@ -7,6 +7,7 @@ import morgan from 'morgan';
 import authRouter from './routes/auth';
 import pointsRouter from './routes/points';
 import coursesRouter from './routes/courses';
+import mediaRouter from './routes/media';
 
 const app: express.Express = express();
 const PORT = process.env.PORT ?? 4000;
@@ -21,6 +22,7 @@ app.use(morgan('dev'));
 app.use('/api/auth', authRouter);
 app.use('/api/points', pointsRouter);
 app.use('/api/courses', coursesRouter);
+app.use('/api/media', mediaRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'nursepro-api', timestamp: new Date().toISOString() });
