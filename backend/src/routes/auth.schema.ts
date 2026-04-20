@@ -21,3 +21,20 @@ export const RefreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
+const emptyToNull = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? null : v);
+
+const CADRE_ENUM = z.enum(['NURSE', 'MIDWIFE', 'PHARMACIST', 'CLINICAL_OFFICER', 'LAB_TECH']);
+
+export const UpdateProfileSchema = z
+  .object({
+    fullName: z.string().min(2).max(120).optional(),
+    phone: z.preprocess(emptyToNull, z.union([z.string().max(30), z.null()]).optional()),
+    institution: z.preprocess(emptyToNull, z.union([z.string().max(200), z.null()]).optional()),
+    province: z.preprocess(emptyToNull, z.union([z.string().max(100), z.null()]).optional()),
+    district: z.preprocess(emptyToNull, z.union([z.string().max(100), z.null()]).optional()),
+    cadre: z.preprocess(emptyToNull, z.union([CADRE_ENUM, z.null()]).optional()),
+    nczRegistrationNumber: z.preprocess(emptyToNull, z.union([z.string().max(50), z.null()]).optional()),
+    avatarUrl: z.preprocess(emptyToNull, z.union([z.string().url(), z.null()]).optional()),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'No profile fields to update' });
+

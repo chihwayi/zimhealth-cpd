@@ -100,6 +100,28 @@ router.post('/', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (re
   }
 });
 
+// GET /api/courses/:id/quizzes — quizzes for this course (creator/admin)
+router.get(
+  '/:id/quizzes',
+  requireAuth,
+  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  async (req: AuthRequest, res) => {
+    try {
+      const owned = await getOwnedCourse(req.params.id, req);
+      if (owned.error) return res.status(owned.error.status).json(owned.error.body);
+
+      const quizzes = await db.quiz.findMany({
+        where: { courseId: req.params.id },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, title: true, moduleId: true },
+      });
+      res.json({ quizzes });
+    } catch {
+      res.status(500).json({ error: 'Could not fetch quizzes' });
+    }
+  },
+);
+
 // PATCH /api/courses/:id
 router.patch(
   '/:id',

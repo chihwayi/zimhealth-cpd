@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -16,12 +17,14 @@ import {
   Plus,
   Save,
   Send,
+  Upload,
   Video,
   Wand2,
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { api } from '../../lib/api';
+import { useAuthStore } from '../../store/auth.store';
 import { toast } from '../../components/ui/Toast';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -54,9 +57,10 @@ type Section = {
   mediaUrl?: string | null;
 };
 
-type Quiz = {
+type QuizRow = {
   id: string;
   title: string;
+  moduleId: string | null;
 };
 
 type Module = {
@@ -64,7 +68,7 @@ type Module = {
   title: string;
   order: number;
   sections: Section[];
-  quizzes?: Quiz[];
+  quizzes?: QuizRow[];
 };
 
 type CourseResponse = CourseFormData & {
@@ -115,11 +119,20 @@ function sectionIcon(type: ContentType) {
   return <FileText size={14} />;
 }
 
+function mediaUploadAccept(sectionType: ContentType): string {
+  if (sectionType === ContentType.VIDEO) return 'video/*';
+  if (sectionType === ContentType.AUDIO) return 'audio/*';
+  return 'video/*,audio/*,application/pdf,.pdf,.zip,.html';
+}
+
 export default function CourseBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isNew = !id || id === 'new';
+  const token = useAuthStore((s) => s.accessToken);
+  const baseUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000') as string;
+  const mediaFileRef = useRef<HTMLInputElement>(null);
 
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -127,6 +140,8 @@ export default function CourseBuilder() {
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [sectionDraft, setSectionDraft] = useState<SectionDraft | null>(null);
   const [tagInput, setTagInput] = useState('');
+  const [rightPanel, setRightPanel] = useState<'content' | 'settings'>('settings');
+  const [mediaUploading, setMediaUploading] = useState(false);
 
   const {
     register,
@@ -148,6 +163,14 @@ export default function CourseBuilder() {
     queryFn: () => api.get(`/api/courses/${id}`),
     enabled: !!id && !isNew,
   });
+
+  const { data: courseQuizzesPayload } = useQuery<{ quizzes: QuizRow[] }>({
+    queryKey: ['course-quizzes', id],
+    queryFn: () => api.get(`/api/courses/${id}/quizzes`),
+    enabled: !!id && !isNew,
+  });
+
+  const courseQuizOptions = courseQuizzesPayload?.quizzes ?? [];
 
   useEffect(() => {
     if (!course) return;
@@ -214,9 +237,13 @@ export default function CourseBuilder() {
         order: payload.order,
         content: '',
       }),
-    onSuccess: () => {
+    onSuccess: (createdSection: any) => {
       toast.success('Section added');
       queryClient.invalidateQueries({ queryKey: ['course-builder', id] });
+      if (createdSection?.id) {
+        setSelectedSectionId(createdSection.id);
+        setRightPanel('content');
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -245,7 +272,7 @@ export default function CourseBuilder() {
 
   const createQuizMutation = useMutation({
     mutationFn: (payload: { moduleId: string; title: string }) =>
-      api.post<Quiz>('/api/quizzes', {
+      api.post<QuizRow>('/api/quizzes', {
         courseId: id,
         moduleId: payload.moduleId,
         title: payload.title,
@@ -261,8 +288,8 @@ export default function CourseBuilder() {
         sectionId: activeSection.id,
         data: { content: quiz.id },
       });
-      toast.success('Quiz created');
-      navigate(`/creator/quizzes/${quiz.id}`);
+      queryClient.invalidateQueries({ queryKey: ['course-quizzes', id] });
+      toast.success('Quiz created and linked. Open Quiz Builder when you are ready to add questions.');
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -332,13 +359,17 @@ export default function CourseBuilder() {
       content: activeSection.content ?? '',
       mediaUrl: activeSection.mediaUrl ?? '',
     });
+    setRightPanel('content');
   }, [activeSection]);
 
   const linkedQuiz = useMemo(() => {
-    if (!activeSection || !activeModule || activeSection.type !== ContentType.QUIZ) return null;
-    const quizzes = activeModule.quizzes ?? [];
-    return quizzes.find((quiz) => quiz.id === activeSection.content) ?? quizzes[0] ?? null;
-  }, [activeModule, activeSection]);
+    if (!activeSection || activeSection.type !== ContentType.QUIZ) return null;
+    const raw = activeSection.content?.trim();
+    if (!raw) return null;
+    const fromCourse = courseQuizOptions.find((q) => q.id === raw);
+    const fromModule = activeModule?.quizzes?.find((q) => q.id === raw);
+    return fromCourse ?? fromModule ?? ({ id: raw, title: 'Linked quiz', moduleId: activeModule?.id ?? null } satisfies QuizRow);
+  }, [activeModule, activeSection, courseQuizOptions]);
 
   const handleManualSave = handleSubmit((values) => {
     setSaveState('saving');
@@ -399,6 +430,42 @@ export default function CourseBuilder() {
     });
   };
 
+  const handleSectionMediaUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !token || !sectionDraft) return;
+    const endpoint =
+      sectionDraft.type === ContentType.VIDEO ? '/api/media/video' : '/api/media/document';
+    setMediaUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`${baseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: unknown };
+        const msg =
+          typeof body.error === 'string' ? body.error : `Upload failed (${res.status})`;
+        throw new Error(msg);
+      }
+      const json = (await res.json()) as { url?: string; originalUrl?: string };
+      const url =
+        sectionDraft.type === ContentType.VIDEO
+          ? json.originalUrl ?? json.url
+          : json.url ?? json.originalUrl;
+      if (!url) throw new Error('Upload response missing URL');
+      setSectionDraft((current) => (current ? { ...current, mediaUrl: url } : current));
+      toast.success('Uploaded. Save the section to persist the media URL.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setMediaUploading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 max-w-6xl mx-auto">
@@ -419,13 +486,20 @@ export default function CourseBuilder() {
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-slate-900">
-                {watchedValues.title || 'Untitled Course'}
-              </h1>
+              <input
+                value={watchedValues.title}
+                onChange={(e) => setValue('title', e.target.value, { shouldDirty: true, shouldValidate: true })}
+                placeholder="Name your course…"
+                className={clsx(
+                  'text-2xl font-bold text-slate-900 bg-transparent rounded-lg px-2 py-1 -mx-2 focus:outline-none focus:ring-2 focus:ring-primary-100',
+                  errors.title ? 'ring-2 ring-red-100' : 'hover:bg-slate-50',
+                )}
+              />
               <Badge variant={course?.status === 'UNDER_REVIEW' ? 'warning' : course?.status === 'PUBLISHED' ? 'success' : 'default'}>
                 {formatLabel(course?.status ?? 'DRAFT')}
               </Badge>
             </div>
+            {errors.title ? <p className="mt-1 text-xs text-red-600">{errors.title.message}</p> : null}
             <p className="text-sm text-slate-500 mt-1">
               Build the curriculum, tune the learning experience, and submit when the draft is ready.
             </p>
@@ -584,6 +658,238 @@ export default function CourseBuilder() {
         </aside>
 
         <section className="space-y-6">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setRightPanel('content')}
+              className={clsx(
+                'rounded-full px-3 py-1.5 text-xs font-semibold border',
+                rightPanel === 'content'
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50',
+              )}
+            >
+              Section Editor
+            </button>
+            <button
+              type="button"
+              onClick={() => setRightPanel('settings')}
+              className={clsx(
+                'rounded-full px-3 py-1.5 text-xs font-semibold border',
+                rightPanel === 'settings'
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50',
+              )}
+            >
+              Course Settings
+            </button>
+          </div>
+
+          {rightPanel === 'content' ? (
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100">
+                <h2 className="text-base font-semibold text-slate-900">Section Editor</h2>
+                <p className="text-sm text-slate-500 mt-1">Select a section from the curriculum to edit its content.</p>
+              </div>
+
+              <div className="p-6">
+                {!activeSection || !activeModule || !sectionDraft ? (
+                  <EmptyState
+                    icon={<Layout size={28} />}
+                    title="Select a section"
+                    description="Pick a section from the left panel, or add a module and content block to begin."
+                  />
+                ) : (
+                  <div className="space-y-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="default">Module {activeModule.order}</Badge>
+                      <Badge variant="info">{formatLabel(sectionDraft.type)}</Badge>
+                      <span className="text-xs text-slate-500">{activeModule.title}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-1.5">Section title</label>
+                        <input
+                          value={sectionDraft.title}
+                          onChange={(event) =>
+                            setSectionDraft((current) => (current ? { ...current, title: event.target.value } : current))
+                          }
+                          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-1.5">Content type</label>
+                        <select
+                          value={sectionDraft.type}
+                          onChange={(event) =>
+                            setSectionDraft((current) =>
+                              current ? { ...current, type: event.target.value as ContentType } : current,
+                            )
+                          }
+                          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                        >
+                          {CONTENT_TYPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {(sectionDraft.type === ContentType.VIDEO ||
+                      sectionDraft.type === ContentType.AUDIO ||
+                      sectionDraft.type === ContentType.INTERACTIVE) ? (
+                      <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-slate-900 mb-1.5">Media URL</label>
+                        <input
+                          value={sectionDraft.mediaUrl}
+                          onChange={(event) =>
+                            setSectionDraft((current) => (current ? { ...current, mediaUrl: event.target.value } : current))
+                          }
+                          placeholder="https://..."
+                          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                        />
+                        <input
+                          ref={mediaFileRef}
+                          type="file"
+                          accept={mediaUploadAccept(sectionDraft.type)}
+                          className="hidden"
+                          onChange={(e) => void handleSectionMediaUpload(e)}
+                        />
+                        <div className="flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => mediaFileRef.current?.click()}
+                            disabled={mediaUploading || !token}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {mediaUploading ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Upload size={16} />
+                            )}
+                            Upload file
+                          </button>
+                          <span className="text-xs text-slate-500">
+                            {sectionDraft.type === ContentType.VIDEO
+                              ? 'Videos are uploaded then transcoded when processing is enabled.'
+                              : sectionDraft.type === ContentType.AUDIO
+                                ? 'Upload audio (MP3, AAC, etc.) via the document pipeline.'
+                                : 'Upload PDFs, packages, or other lesson assets.'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {sectionDraft.type === ContentType.QUIZ ? (
+                      <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 space-y-4">
+                        <div className="flex items-center gap-2 text-violet-900">
+                          <Wand2 size={16} />
+                          <p className="text-sm font-semibold">Quiz section</p>
+                        </div>
+                        <p className="text-sm text-slate-600">
+                          Link an existing quiz for this course or create a new one, then save the section. The section&apos;s
+                          content field stores the quiz id.
+                        </p>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-900 mb-1.5">Link existing quiz</label>
+                          <select
+                            value={sectionDraft.content}
+                            onChange={(event) =>
+                              setSectionDraft((current) =>
+                                current ? { ...current, content: event.target.value } : current,
+                              )
+                            }
+                            className="w-full rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                          >
+                            <option value="">Select a quiz…</option>
+                            {courseQuizOptions.map((quiz) => (
+                              <option key={quiz.id} value={quiz.id}>
+                                {quiz.title}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              createQuizMutation.mutate({
+                                moduleId: activeModule.id,
+                                title: `${activeModule.title} Quiz`,
+                              })
+                            }
+                            disabled={createQuizMutation.isPending}
+                            className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                          >
+                            {createQuizMutation.isPending ? 'Creating quiz…' : 'Create new quiz'}
+                          </button>
+                          {linkedQuiz ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/creator/quizzes/${linkedQuiz.id}`)}
+                                className="rounded-xl border border-violet-300 bg-white px-4 py-2 text-sm font-semibold text-violet-900 hover:bg-violet-100"
+                              >
+                                Open Quiz Builder
+                              </button>
+                              <span className="text-xs text-violet-800">
+                                Linked: <span className="font-mono">{linkedQuiz.id}</span> · {linkedQuiz.title}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs text-violet-800">No quiz linked yet.</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-1.5">
+                          {sectionDraft.type === ContentType.READING ? 'Reading content' : 'Section content'}
+                        </label>
+                        {sectionDraft.type === ContentType.READING ? (
+                          <ReadingContentEditor
+                            value={sectionDraft.content}
+                            onChange={(value) =>
+                              setSectionDraft((current) => (current ? { ...current, content: value } : current))
+                            }
+                          />
+                        ) : (
+                          <textarea
+                            value={sectionDraft.content}
+                            onChange={(event) =>
+                              setSectionDraft((current) =>
+                                current ? { ...current, content: event.target.value } : current,
+                              )
+                            }
+                            rows={6}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                            placeholder="Add supporting text or embed references for this section."
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => void handleSectionSave()}
+                        disabled={updateSectionMutation.isPending}
+                        className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                      >
+                        {updateSectionMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                        Save Section
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {rightPanel === 'settings' ? (
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100">
               <h2 className="text-base font-semibold text-slate-900">Course Settings</h2>
@@ -733,149 +1039,39 @@ export default function CourseBuilder() {
               </div>
             </form>
           </div>
+          ) : null}
 
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100">
-              <h2 className="text-base font-semibold text-slate-900">Section Editor</h2>
-              <p className="text-sm text-slate-500 mt-1">Select a section from the curriculum to edit its content.</p>
-            </div>
-
-            <div className="p-6">
-              {!activeSection || !activeModule || !sectionDraft ? (
-                <EmptyState
-                  icon={<Layout size={28} />}
-                  title="Select a section"
-                  description="Pick a section from the left panel, or add a module and content block to begin."
-                />
-              ) : (
-                <div className="space-y-5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="default">Module {activeModule.order}</Badge>
-                    <Badge variant="info">{formatLabel(sectionDraft.type)}</Badge>
-                    <span className="text-xs text-slate-500">{activeModule.title}</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-1.5">Section title</label>
-                      <input
-                        value={sectionDraft.title}
-                        onChange={(event) =>
-                          setSectionDraft((current) => (current ? { ...current, title: event.target.value } : current))
-                        }
-                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-1.5">Content type</label>
-                      <select
-                        value={sectionDraft.type}
-                        onChange={(event) =>
-                          setSectionDraft((current) =>
-                            current ? { ...current, type: event.target.value as ContentType } : current,
-                          )
-                        }
-                        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                      >
-                        {CONTENT_TYPE_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {(sectionDraft.type === ContentType.VIDEO ||
-                    sectionDraft.type === ContentType.AUDIO ||
-                    sectionDraft.type === ContentType.INTERACTIVE) ? (
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-1.5">Media URL</label>
-                      <input
-                        value={sectionDraft.mediaUrl}
-                        onChange={(event) =>
-                          setSectionDraft((current) => (current ? { ...current, mediaUrl: event.target.value } : current))
-                        }
-                        placeholder="https://..."
-                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                      />
-                    </div>
-                  ) : null}
-
-                  {sectionDraft.type === ContentType.QUIZ ? (
-                    <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 space-y-3">
-                      <div className="flex items-center gap-2 text-violet-900">
-                        <Wand2 size={16} />
-                        <p className="text-sm font-semibold">Quiz builder handoff</p>
-                      </div>
-                      <p className="text-sm text-slate-600">
-                        Connect this section to a quiz for assessment and remediation.
-                      </p>
-                      <div className="flex flex-wrap gap-3">
-                        {linkedQuiz ? (
-                          <button
-                            onClick={() => navigate(`/creator/quizzes/${linkedQuiz.id}`)}
-                            className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
-                          >
-                            Open Quiz Builder
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() =>
-                              createQuizMutation.mutate({
-                                moduleId: activeModule.id,
-                                title: `${activeModule.title} Quiz`,
-                              })
-                            }
-                            disabled={createQuizMutation.isPending}
-                            className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
-                          >
-                            {createQuizMutation.isPending ? 'Creating quiz...' : 'Create Quiz'}
-                          </button>
-                        )}
-                        {linkedQuiz ? (
-                          <span className="text-xs text-violet-800 self-center">Linked to {linkedQuiz.title}</span>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-1.5">
-                        {sectionDraft.type === ContentType.READING ? 'Reading content' : 'Section content'}
-                      </label>
-                      <textarea
-                        value={sectionDraft.content}
-                        onChange={(event) =>
-                          setSectionDraft((current) => (current ? { ...current, content: event.target.value } : current))
-                        }
-                        rows={sectionDraft.type === ContentType.READING ? 10 : 6}
-                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                        placeholder={
-                          sectionDraft.type === ContentType.READING
-                            ? 'Add the lesson body, guidance, or reference notes.'
-                            : 'Add supporting text or embed references for this section.'
-                        }
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => void handleSectionSave()}
-                      disabled={updateSectionMutation.isPending}
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-                    >
-                      {updateSectionMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                      Save Section
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function ReadingContentEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: value,
+    immediatelyRender: false,
+    onUpdate: ({ editor: currentEditor }) => {
+      onChange(currentEditor.getHTML());
+    },
+  });
+
+  useEffect(() => {
+    if (!editor) return;
+    if (editor.getHTML() === value) return;
+    editor.commands.setContent(value || '', false);
+  }, [editor, value]);
+
+  return (
+    <div className="rounded-xl border border-slate-300 overflow-hidden focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100">
+      <EditorContent editor={editor} className="prose prose-sm max-w-none min-h-[260px] px-4 py-3 text-slate-900" />
     </div>
   );
 }

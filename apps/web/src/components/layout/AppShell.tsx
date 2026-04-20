@@ -44,7 +44,7 @@ export function AppShell({ children }: Props) {
             aria-label="Close menu overlay"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-[85vw] max-w-[22rem] shadow-2xl">
+          <div className="absolute left-0 top-0 bottom-0 w-[85vw] max-w-[22rem] rounded-r-2xl overflow-hidden shadow-2xl bg-white">
             <Sidebar mobile onClose={() => setMobileMenuOpen(false)} onNavigate={() => setMobileMenuOpen(false)} />
           </div>
         </div>

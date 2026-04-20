@@ -197,6 +197,7 @@ model Quiz {
 
   questions    Question[]
   quizAttempts QuizAttempt[]
+  cpdRecords   CPDRecord[]
 }
 
 model Question {
@@ -260,6 +261,8 @@ model CPDRecord {
   learner          User         @relation(fields: [learnerId], references: [id])
   courseId         String?
   course           Course?      @relation(fields: [courseId], references: [id])
+  quizId           String?
+  quiz             Quiz?        @relation(fields: [quizId], references: [id])
   activityType     ActivityType
   pointsEarned     Int
   quizScore        Float?
@@ -271,6 +274,7 @@ model CPDRecord {
   overrideNote     String?
 
   @@index([learnerId, cycleYear])
+  @@index([learnerId, quizId, cycleYear])
   @@index([syncedToNcz])
 }
 

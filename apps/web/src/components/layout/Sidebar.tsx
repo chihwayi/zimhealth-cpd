@@ -13,6 +13,7 @@ import {
   CreditCard,
   ShieldAlert,
   X,
+  LogOut,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import clsx from 'clsx';
@@ -96,6 +97,7 @@ interface SidebarProps {
 
 export function Sidebar({ className, mobile = false, onNavigate, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
   const { pathname } = useLocation();
   if (!user) return null;
 
@@ -104,7 +106,8 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
   return (
     <aside
       className={clsx(
-        'w-72 sm:w-80 md:w-60 flex-shrink-0 bg-white border-r border-slate-200 h-dvh md:h-screen md:sticky md:top-0 flex flex-col',
+        'w-72 sm:w-80 md:w-60 flex-shrink-0 bg-white h-dvh md:h-screen md:sticky md:top-0 flex flex-col',
+        mobile ? 'ring-1 ring-slate-200' : 'border-r border-slate-200',
         className,
       )}
     >
@@ -167,6 +170,18 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
             <div className="text-xs text-slate-500 truncate">{user.email}</div>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            clearAuth();
+            window.location.href = '/login';
+          }}
+          className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          <LogOut size={16} />
+          Logout
+        </button>
       </div>
     </aside>
   );

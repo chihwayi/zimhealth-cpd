@@ -26,14 +26,13 @@ type AttemptResult = {
   passed: boolean;
   score: number; // 0..100
   pointsEarned: number;
-  correctAnswers: string[];
+  attemptsRemaining: number;
   feedback: Array<{
     questionId: string;
     selectedOptionId: string | null;
     correctOptionId: string | null;
     isCorrect: boolean;
   }>;
-  attemptsRemaining: number;
 };
 
 export function QuizPlayer({ quizId }: { quizId: string }) {
@@ -90,7 +89,8 @@ export function QuizPlayer({ quizId }: { quizId: string }) {
   if (!quiz) return <div className="text-sm text-slate-500">Quiz not found.</div>;
 
   if (result) {
-    const canRetake = result.attemptsRemaining > 0 && !result.passed;
+    const remaining = result.attemptsRemaining ?? 0;
+    const canRetake = remaining > 0 && !result.passed;
     return (
       <div className="space-y-5">
         {/* Result summary card */}
@@ -116,8 +116,8 @@ export function QuizPlayer({ quizId }: { quizId: string }) {
             </h3>
             <p className="text-sm mt-1 text-slate-600">
               Pass mark: <span className="font-medium">{Math.round(quiz.passMark * 100)}%</span>
-              {result.attemptsRemaining > 0
-                ? ` · ${result.attemptsRemaining} attempt${result.attemptsRemaining !== 1 ? 's' : ''} remaining`
+              {remaining > 0
+                ? ` · ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining`
                 : ' · No attempts remaining'}
             </p>
             {result.passed && result.pointsEarned > 0 && (

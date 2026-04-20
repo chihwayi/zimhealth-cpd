@@ -6,16 +6,20 @@ import path from 'path';
 export const s3 = new S3Client({
   region: process.env.S3_REGION ?? 'af-south-1',
   credentials: {
-    accessKeyId: process.env.S3_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
   },
   // For Cloudflare R2, uncomment and set endpoint:
   // endpoint: process.env.S3_ENDPOINT,
   // forcePathStyle: true,
 });
 
-export const BUCKET = process.env.S3_BUCKET_NAME!;
+export const BUCKET = process.env.S3_BUCKET_NAME;
 export const CDN_BASE = process.env.CDN_BASE_URL ?? '';
+
+export function isS3Configured(): boolean {
+  return Boolean(process.env.S3_BUCKET_NAME && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY);
+}
 
 export function generateS3Key(folder: string, originalFilename: string): string {
   const ext = path.extname(originalFilename).toLowerCase();
@@ -28,6 +32,9 @@ export function cdnUrl(key: string): string {
 }
 
 export async function uploadToS3(key: string, body: Buffer, contentType: string): Promise<string> {
+  if (!BUCKET || !isS3Configured()) {
+    throw new Error('S3 is not configured. Set S3_BUCKET_NAME, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY (and optionally CDN_BASE_URL).');
+  }
   await s3.send(
     new PutObjectCommand({
       Bucket: BUCKET,
@@ -41,10 +48,14 @@ export async function uploadToS3(key: string, body: Buffer, contentType: string)
 }
 
 export async function deleteFromS3(key: string): Promise<void> {
+  if (!BUCKET || !isS3Configured()) return;
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 }
 
 export async function getSignedDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+  if (!BUCKET || !isS3Configured()) {
+    throw new Error('S3 is not configured. Cannot sign download URLs.');
+  }
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn });
 }
 

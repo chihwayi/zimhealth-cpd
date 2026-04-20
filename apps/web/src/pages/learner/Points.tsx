@@ -17,19 +17,19 @@ type CPDRecord = {
 };
 
 const ACTIVITY_LABELS: Record<string, string> = {
+  VIDEO_WATCH: 'Video completed',
   QUIZ_PASS: 'Quiz passed',
-  COURSE_COMPLETE: 'Course completed',
+  READING: 'Reading completed',
   WEBINAR: 'Webinar attended',
-  WORKSHOP: 'Workshop',
-  MANUAL: 'Manual entry',
+  WHATSAPP_QUIZ: 'WhatsApp quiz',
 };
 
 const ACTIVITY_COLOURS: Record<string, string> = {
+  VIDEO_WATCH: 'bg-sky-100 text-sky-800',
   QUIZ_PASS: 'bg-teal-100 text-teal-700',
-  COURSE_COMPLETE: 'bg-green-100 text-green-700',
+  READING: 'bg-slate-100 text-slate-700',
   WEBINAR: 'bg-blue-100 text-blue-700',
-  WORKSHOP: 'bg-violet-100 text-violet-700',
-  MANUAL: 'bg-amber-100 text-amber-700',
+  WHATSAPP_QUIZ: 'bg-green-100 text-green-800',
 };
 
 export default function PointsPage() {

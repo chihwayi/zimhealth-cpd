@@ -10,6 +10,11 @@ interface AuthUser {
   subscriptionExpiresAt?: string;
   avatarUrl?: string;
   nczRegistrationNumber?: string | null;
+  cadre?: string | null;
+  phone?: string | null;
+  institution?: string | null;
+  province?: string | null;
+  district?: string | null;
 }
 
 interface AuthState {

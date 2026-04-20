@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { QuizPlayer } from '../../components/course/QuizPlayer';
@@ -39,8 +39,14 @@ type Enrollment = {
   progress: number;
 };
 
+type EnrollmentListRow = {
+  id: string;
+  progressPercent: number;
+};
+
 export default function CoursePlayerPage() {
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
 
@@ -49,6 +55,18 @@ export default function CoursePlayerPage() {
     queryFn: () => api.get(`/api/courses/${id}`),
     enabled: !!id,
   });
+
+  const { data: enrollmentRows } = useQuery<EnrollmentListRow[]>({
+    queryKey: ['enrollment-course', id],
+    queryFn: () => api.get(`/api/enrollments?courseId=${encodeURIComponent(id!)}`),
+    enabled: !!id,
+  });
+
+  useEffect(() => {
+    const row = enrollmentRows?.[0];
+    if (!row) return;
+    setEnrollment({ id: row.id, progress: row.progressPercent / 100 });
+  }, [enrollmentRows]);
 
   const allSections = useMemo(() => {
     const modules = course?.modules ?? [];
@@ -78,15 +96,23 @@ export default function CoursePlayerPage() {
 
   const enrollMutation = useMutation({
     mutationFn: async () => api.post<Enrollment>(`/api/courses/${id}/enroll`),
-    onSuccess: (res) => setEnrollment(res),
+    onSuccess: (res) => {
+      setEnrollment(res);
+      void queryClient.invalidateQueries({ queryKey: ['enrollment-course', id] });
+      void queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+    },
   });
 
   const markCompleteMutation = useMutation({
     mutationFn: async () => {
       if (!enrollment) throw new Error('Not enrolled');
-      return api.patch(`/api/enrollments/${enrollment.id}/progress`, { progress: 1 });
+      return api.patch<Enrollment>(`/api/enrollments/${enrollment.id}/progress`, { progress: 1 });
     },
-    onSuccess: () => setEnrollment((e) => (e ? { ...e, progress: 1 } : e)),
+    onSuccess: (updated) => {
+      setEnrollment({ id: updated.id, progress: updated.progress });
+      void queryClient.invalidateQueries({ queryKey: ['enrollment-course', id] });
+      void queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+    },
   });
 
   if (isLoading) {

@@ -9,7 +9,7 @@ import {
   hashPassword,
   verifyPassword,
 } from '../services/auth.service';
-import { RegisterSchema, LoginSchema, RefreshSchema } from './auth.schema';
+import { RegisterSchema, LoginSchema, RefreshSchema, UpdateProfileSchema } from './auth.schema';
 import { requireAuth } from '../middleware/auth.middleware';
 import jwt from 'jsonwebtoken';
 
@@ -113,33 +113,59 @@ router.post('/logout', async (req, res) => {
   }
 });
 
+const ME_SELECT = {
+  id: true,
+  email: true,
+  fullName: true,
+  role: true,
+  cadre: true,
+  nczRegistrationNumber: true,
+  institution: true,
+  province: true,
+  district: true,
+  phone: true,
+  avatarUrl: true,
+  subscriptionTier: true,
+  subscriptionExpiresAt: true,
+  isActive: true,
+  createdAt: true,
+} as const;
+
 // GET /api/auth/me (requires auth)
 router.get('/me', requireAuth, async (req: any, res) => {
   try {
     const user = await db.user.findUnique({
       where: { id: req.user.id },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        role: true,
-        cadre: true,
-        nczRegistrationNumber: true,
-        institution: true,
-        province: true,
-        district: true,
-        phone: true,
-        avatarUrl: true,
-        subscriptionTier: true,
-        subscriptionExpiresAt: true,
-        isActive: true,
-        createdAt: true,
-      },
+      select: ME_SELECT,
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
   } catch {
     res.status(500).json({ error: 'Could not fetch user' });
+  }
+});
+
+// PATCH /api/auth/me — update own profile (name, professional fields, avatar URL)
+router.patch('/me', requireAuth, async (req: any, res) => {
+  try {
+    const data = UpdateProfileSchema.parse(req.body);
+
+    try {
+      const updated = await db.user.update({
+        where: { id: req.user.id },
+        data,
+        select: ME_SELECT,
+      });
+      res.json(updated);
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        return res.status(409).json({ error: 'That phone number or NCZ registration number is already used on another account.' });
+      }
+      throw err;
+    }
+  } catch (err: any) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    res.status(500).json({ error: 'Could not update profile' });
   }
 });
 

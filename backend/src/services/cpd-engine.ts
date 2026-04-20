@@ -6,6 +6,8 @@ import { logger } from '../lib/logger';
 export interface CreditPointsInput {
   learnerId: string;
   courseId?: string;
+  /** When set (e.g. web quiz pass), duplicate detection is per quiz instead of whole course. */
+  quizId?: string;
   activityType: ActivityType;
   quizScore?: number;
   pointsOverride?: number; // Admin manual override
@@ -30,8 +32,16 @@ export interface CPDSummary {
 export async function creditPoints(
   input: CreditPointsInput,
 ): Promise<{ recordId: string; pointsEarned: number }> {
-  const { learnerId, courseId, activityType, quizScore, pointsOverride, overrideNote, isManualOverride } =
-    input;
+  const {
+    learnerId,
+    courseId,
+    quizId,
+    activityType,
+    quizScore,
+    pointsOverride,
+    overrideNote,
+    isManualOverride,
+  } = input;
 
   // Determine points to award
   let pointsEarned: number;
@@ -46,14 +56,24 @@ export async function creditPoints(
 
   const cycleYear = getCurrentCycleYear();
 
-  // Check for duplicate: same learner + course + activityType in same cycle year
-  if (courseId) {
-    const existing = await db.cPDRecord.findFirst({
-      where: { learnerId, courseId, activityType, cycleYear },
-    });
-    if (existing && !isManualOverride) {
-      logger.warn('Duplicate CPD credit prevented', { learnerId, courseId, activityType });
-      return { recordId: existing.id, pointsEarned: 0 };
+  // Duplicate prevention: quiz passes are deduped per quiz when quizId is set; otherwise same learner + course + activity + year.
+  if (!isManualOverride) {
+    if (activityType === 'QUIZ_PASS' && quizId) {
+      const existing = await db.cPDRecord.findFirst({
+        where: { learnerId, quizId, activityType, cycleYear },
+      });
+      if (existing) {
+        logger.warn('Duplicate quiz CPD credit prevented', { learnerId, quizId, activityType });
+        return { recordId: existing.id, pointsEarned: 0 };
+      }
+    } else if (courseId) {
+      const existing = await db.cPDRecord.findFirst({
+        where: { learnerId, courseId, activityType, cycleYear },
+      });
+      if (existing) {
+        logger.warn('Duplicate CPD credit prevented', { learnerId, courseId, activityType });
+        return { recordId: existing.id, pointsEarned: 0 };
+      }
     }
   }
 
@@ -61,6 +81,7 @@ export async function creditPoints(
     data: {
       learnerId,
       courseId,
+      quizId,
       activityType,
       pointsEarned,
       quizScore,
@@ -77,7 +98,7 @@ export async function creditPoints(
       action: isManualOverride ? 'CPD_POINTS_MANUAL_OVERRIDE' : 'CPD_POINTS_CREDITED',
       entityType: 'CPDRecord',
       entityId: record.id,
-      meta: { pointsEarned, activityType, courseId, quizScore, overrideNote },
+      meta: { pointsEarned, activityType, courseId, quizId, quizScore, overrideNote },
     },
   });
 

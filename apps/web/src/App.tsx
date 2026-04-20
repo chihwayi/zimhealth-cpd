@@ -18,9 +18,11 @@ const LearnerProfile = lazy(() => import('./pages/learner/Profile'));
 const LearnerSubscription = lazy(() => import('./pages/learner/Subscription'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const CreatorDashboard = lazy(() => import('./pages/creator/CreatorDashboard'));
+const CreatorCourses = lazy(() => import('./pages/creator/CreatorCourses'));
 const CourseBuilder = lazy(() => import('./pages/creator/CourseBuilder'));
 const QuizBuilder = lazy(() => import('./pages/creator/QuizBuilder'));
 const CreatorAnalytics = lazy(() => import('./pages/creator/Analytics'));
+const MediaLibrary = lazy(() => import('./pages/creator/MediaLibrary'));
 const NczDashboard = lazy(() => import('./pages/ncz/NczDashboard'));
 
 const Loader = () => (
@@ -160,6 +162,16 @@ export default function App() {
           }
         />
         <Route
+          path="/creator/courses"
+          element={
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+              <AppShell>
+                <CreatorCourses />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/creator/courses/new"
           element={
             <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
@@ -185,6 +197,16 @@ export default function App() {
             <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
               <AppShell>
                 <CreatorAnalytics />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/creator/media"
+          element={
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+              <AppShell>
+                <MediaLibrary />
               </AppShell>
             </ProtectedRoute>
           }

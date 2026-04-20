@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Router as ExpressRouter } from 'express';
+import { Prisma } from '@prisma/client';
 import { db } from '../lib/db';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
@@ -15,6 +16,13 @@ function shuffle<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+class AttemptLimitError extends Error {
+  constructor() {
+    super('Attempt limit reached');
+    this.name = 'AttemptLimitError';
+  }
 }
 
 const router: ExpressRouter = Router();
@@ -187,37 +195,79 @@ router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: Aut
     });
     if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
 
-    const attemptCount = await db.quizAttempt.count({
-      where: { learnerId: req.user!.id, quizId: quiz.id },
-    });
-    if (attemptCount >= quiz.attemptLimit) {
-      return res.status(400).json({ error: 'Attempt limit reached' });
+    const questionIds = new Set(quiz.questions.map((q) => q.id));
+    for (const key of Object.keys(answers)) {
+      if (!questionIds.has(key)) {
+        return res.status(400).json({ error: `Unknown question id: ${key}` });
+      }
     }
 
     const totalQuestions = quiz.questions.length;
+    if (totalQuestions === 0) {
+      return res.status(400).json({ error: 'This quiz has no questions' });
+    }
+
     const feedback = quiz.questions.map((q) => {
-      const correctOption = q.options.find((o) => o.isCorrect) ?? null;
+      const correctIds = q.options.filter((o) => o.isCorrect).map((o) => o.id);
+      const correctSet = new Set(correctIds);
       const selectedOptionId = answers[q.id] ?? null;
-      const isCorrect = !!correctOption && selectedOptionId === correctOption.id;
-      return { questionId: q.id, selectedOptionId, correctOptionId: correctOption?.id ?? null, isCorrect };
+      const isCorrect =
+        selectedOptionId !== null && correctSet.size > 0 && correctSet.has(selectedOptionId);
+      const correctOptionId = correctIds.length === 1 ? correctIds[0] : correctIds[0] ?? null;
+      return { questionId: q.id, selectedOptionId, correctOptionId, isCorrect };
     });
 
     const correctCount = feedback.filter((f) => f.isCorrect).length;
-    const score = totalQuestions === 0 ? 0 : (correctCount / totalQuestions) * 100;
+    const score = (correctCount / totalQuestions) * 100;
     const passed = score / 100 >= quiz.passMark;
 
-    const attempt = await db.quizAttempt.create({
-      data: { learnerId: req.user!.id, quizId: quiz.id, score, passed, answers },
-    });
+    let attemptsRemaining = 0;
+    const attempt = await db.$transaction(
+      async (tx) => {
+        const attemptCount = await tx.quizAttempt.count({
+          where: { learnerId: req.user!.id, quizId: quiz.id },
+        });
+        if (attemptCount >= quiz.attemptLimit) {
+          throw new AttemptLimitError();
+        }
+
+        attemptsRemaining = Math.max(0, quiz.attemptLimit - (attemptCount + 1));
+
+        return tx.quizAttempt.create({
+          data: { learnerId: req.user!.id, quizId: quiz.id, score, passed, answers },
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 5000,
+        timeout: 10000,
+      },
+    );
 
     let pointsEarned = 0;
     if (passed) {
-      const credited = await creditPoints({ learnerId: req.user!.id, courseId: quiz.courseId, activityType: 'QUIZ_PASS', quizScore: score });
+      const credited = await creditPoints({
+        learnerId: req.user!.id,
+        courseId: quiz.courseId,
+        quizId: quiz.id,
+        activityType: 'QUIZ_PASS',
+        quizScore: score,
+      });
       pointsEarned = credited.pointsEarned;
     }
 
-    res.json({ attemptId: attempt.id, passed, score, pointsEarned, feedback: quiz.showAnswersAfter ? feedback : [] });
+    res.json({
+      attemptId: attempt.id,
+      passed,
+      score,
+      pointsEarned,
+      attemptsRemaining,
+      feedback: quiz.showAnswersAfter ? feedback : [],
+    });
   } catch (err: any) {
+    if (err instanceof AttemptLimitError) {
+      return res.status(400).json({ error: 'Attempt limit reached' });
+    }
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
     res.status(500).json({ error: 'Could not submit attempt' });
   }

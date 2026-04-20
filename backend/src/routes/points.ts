@@ -14,6 +14,30 @@ const BotCreditSchema = z.object({
   quizScore: z.number().min(0).max(100).optional(),
 });
 
+// GET /api/points — learner's CPD records (optional year + limit; default recent across years)
+router.get('/', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '50'), 10) || 50, 1), 100);
+    const yearRaw = req.query.year;
+    const where: { learnerId: string; cycleYear?: number } = { learnerId: req.user!.id };
+    if (yearRaw !== undefined && yearRaw !== '') {
+      const y = parseInt(String(yearRaw), 10);
+      if (!Number.isNaN(y)) where.cycleYear = y;
+    }
+
+    const records = await db.cPDRecord.findMany({
+      where,
+      orderBy: { completedAt: 'desc' },
+      take: limit,
+      include: { course: { select: { title: true, category: true } } },
+    });
+
+    res.json(records);
+  } catch {
+    res.status(500).json({ error: 'Could not fetch CPD records' });
+  }
+});
+
 // GET /api/points/summary — learner's own summary
 router.get('/summary', requireAuth, async (req: AuthRequest, res) => {
   try {

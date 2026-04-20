@@ -29,7 +29,7 @@ export default function CreatorDashboard() {
           <h1 className="text-2xl font-bold text-slate-900">Creator Portal</h1>
           <p className="text-sm text-slate-600 mt-1">Manage your CPD courses</p>
         </div>
-        <Link to="/creator/courses/new" className="flex items-center gap-2 bg-primary-600 text-white font-bold px-4 py-2.5 rounded-lg hover:bg-primary-700 transition-colors shadow-sm text-sm">
+        <Link to="/creator/courses/new" className="flex items-center gap-2 bg-primary-700 text-white font-bold px-4 py-2.5 rounded-lg hover:bg-primary-700 transition-colors shadow-sm text-sm">
           <Plus size={16} /> New Course
         </Link>
       </div>
