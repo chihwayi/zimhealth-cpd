@@ -10,6 +10,7 @@ import coursesRouter from './routes/courses';
 import mediaRouter from './routes/media';
 import enrollmentsRouter from './routes/enrollments';
 import quizzesRouter from './routes/quizzes';
+import paymentsRouter from './routes/payments';
 
 const app: express.Express = express();
 const PORT = process.env.PORT ?? 4000;
@@ -17,7 +18,12 @@ const PORT = process.env.PORT ?? 4000;
 app.use(helmet());
 app.use(cors({ origin: process.env.WEB_URL ?? 'http://localhost:3000', credentials: true }));
 app.use(compression());
-app.use(express.json({ limit: '10mb' }));
+// Stripe webhooks require the raw request body for signature verification.
+// We skip JSON parsing for this path and let the payments router attach express.raw().
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/payments/webhook/stripe') return next();
+  return express.json({ limit: '10mb' })(req, res, next);
+});
 app.use(morgan('dev'));
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
@@ -27,6 +33,7 @@ app.use('/api/courses', coursesRouter);
 app.use('/api/media', mediaRouter);
 app.use('/api/enrollments', enrollmentsRouter);
 app.use('/api/quizzes', quizzesRouter);
+app.use('/api/payments', paymentsRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'nursepro-api', timestamp: new Date().toISOString() });

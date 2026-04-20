@@ -12,6 +12,7 @@ const LearnerMyLearning = lazy(() => import('./pages/learner/MyLearning'));
 const LearnerPoints = lazy(() => import('./pages/learner/Points'));
 const LearnerCertificates = lazy(() => import('./pages/learner/Certificates'));
 const LearnerProfile = lazy(() => import('./pages/learner/Profile'));
+const LearnerSubscription = lazy(() => import('./pages/learner/Subscription'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const CreatorDashboard = lazy(() => import('./pages/creator/CreatorDashboard'));
 const NczDashboard = lazy(() => import('./pages/ncz/NczDashboard'));
@@ -97,6 +98,16 @@ export default function App() {
             <ProtectedRoute allowedRoles={['LEARNER']}>
               <AppShell>
                 <LearnerProfile />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/subscription"
+          element={
+            <ProtectedRoute allowedRoles={['LEARNER']}>
+              <AppShell>
+                <LearnerSubscription />
               </AppShell>
             </ProtectedRoute>
           }

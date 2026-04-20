@@ -7,6 +7,7 @@ interface AuthUser {
   fullName: string;
   role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'LEARNER';
   subscriptionTier?: string;
+  subscriptionExpiresAt?: string;
   avatarUrl?: string;
 }
 

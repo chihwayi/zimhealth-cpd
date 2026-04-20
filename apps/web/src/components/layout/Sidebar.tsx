@@ -22,6 +22,7 @@ const LEARNER_NAV = [
   { to: '/my-learning', icon: ClipboardList, label: 'My Learning' },
   { to: '/points', icon: Award, label: 'My Points' },
   { to: '/certificates', icon: FileCheck, label: 'Certificates' },
+  { to: '/subscription', icon: CreditCard, label: 'Subscription' },
   { to: '/profile', icon: User, label: 'Profile' },
 ];
 
