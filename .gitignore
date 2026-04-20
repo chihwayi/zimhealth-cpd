@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+
+# Turbo
+.turbo/
+
+# Prisma
+backend/src/db/migrations/**/migration_lock.toml
+
+# Mobile
+apps/mobile/.expo/
+apps/mobile/android/
+apps/mobile/ios/

@@ -1,0 +1,365 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  CONTENT_MANAGER
+  NCZ_OFFICER
+  LEARNER
+}
+
+enum SubscriptionTier {
+  FREE
+  STANDARD
+  INSTITUTION
+  DIASPORA
+}
+
+enum Cadre {
+  NURSE
+  MIDWIFE
+  PHARMACIST
+  CLINICAL_OFFICER
+  LAB_TECH
+}
+
+enum CourseStatus {
+  DRAFT
+  UNDER_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CPDCategory {
+  CLINICAL
+  MANAGEMENT
+  ETHICS
+  RESEARCH
+}
+
+enum Difficulty {
+  FOUNDATION
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum Language {
+  ENGLISH
+  SHONA
+  NDEBELE
+}
+
+enum ContentType {
+  VIDEO
+  READING
+  AUDIO
+  INTERACTIVE
+  QUIZ
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  MATCHING
+  IMAGE_MCQ
+}
+
+enum ActivityType {
+  VIDEO_WATCH
+  QUIZ_PASS
+  READING
+  WEBINAR
+  WHATSAPP_QUIZ
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id                    String           @id @default(cuid())
+  email                 String           @unique
+  passwordHash          String
+  fullName              String
+  role                  Role             @default(LEARNER)
+  cadre                 Cadre?
+  nczRegistrationNumber String?          @unique
+  institution           String?
+  province              String?
+  district              String?
+  phone                 String?          @unique
+  avatarUrl             String?
+  subscriptionTier      SubscriptionTier @default(FREE)
+  subscriptionExpiresAt DateTime?
+  isActive              Boolean          @default(true)
+  isApproved            Boolean          @default(true) // false for new CONTENT_MANAGER until Admin approves
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  // Relations
+  coursesCreated   Course[]       @relation("CourseCreator")
+  enrollments      Enrollment[]
+  cpdRecords       CPDRecord[]
+  certificates     Certificate[]
+  quizAttempts     QuizAttempt[]
+  nczFlags         NczFlag[]
+  auditLogs        AuditLog[]
+
+  @@index([email])
+  @@index([nczRegistrationNumber])
+  @@index([role])
+}
+
+model Course {
+  id                 String       @id @default(cuid())
+  title              String
+  subtitle           String?
+  description        String
+  thumbnailUrl       String?
+  promoVideoUrl      String?
+  category           CPDCategory
+  targetCadres       String[]
+  specialtyArea      String?
+  difficulty         Difficulty   @default(FOUNDATION)
+  language           Language     @default(ENGLISH)
+  cpdPoints          Int
+  estimatedMinutes   Int
+  accreditationBody  String?
+  tags               String[]
+  status             CourseStatus @default(DRAFT)
+  expiresAt          DateTime?
+  priceOverride      Decimal?
+  creatorId          String
+  creator            User         @relation("CourseCreator", fields: [creatorId], references: [id])
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  // Relations
+  modules     Module[]
+  enrollments Enrollment[]
+  cpdRecords  CPDRecord[]
+  reviews     CourseReview[]
+
+  @@index([status])
+  @@index([creatorId])
+  @@index([category])
+}
+
+model Module {
+  id            String  @id @default(cuid())
+  courseId      String
+  course        Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title         String
+  order         Int
+  isOfflineReady Boolean @default(false)
+
+  sections ContentSection[]
+  quizzes  Quiz[]
+
+  @@index([courseId])
+  @@unique([courseId, order])
+}
+
+model ContentSection {
+  id                  String      @id @default(cuid())
+  moduleId            String
+  module              Module      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  type                ContentType
+  title               String
+  order               Int
+  content             String      // rich text or URL
+  mediaUrl            String?
+  mediaKey            String?     // S3 key
+  completionThreshold Float       @default(0.8) // 80% watch time for video
+  createdAt           DateTime    @default(now())
+
+  @@index([moduleId])
+}
+
+model Quiz {
+  id                 String   @id @default(cuid())
+  moduleId           String?
+  module             Module?  @relation(fields: [moduleId], references: [id])
+  courseId           String
+  title              String
+  passMark           Float    @default(0.7) // 70%
+  attemptLimit       Int      @default(3)
+  timeLimitMinutes   Int?
+  randomiseQuestions Boolean  @default(false)
+  showAnswersAfter   Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  questions    Question[]
+  quizAttempts QuizAttempt[]
+}
+
+model Question {
+  id            String       @id @default(cuid())
+  quizId        String
+  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type          QuestionType
+  text          String
+  imageUrl      String?
+  points        Int          @default(1)
+  difficultyTag String?
+  topicTag      String?
+  order         Int
+  createdAt     DateTime     @default(now())
+
+  options QuestionOption[]
+
+  @@index([quizId])
+}
+
+model QuestionOption {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+}
+
+model QuizAttempt {
+  id           String    @id @default(cuid())
+  learnerId    String
+  learner      User      @relation(fields: [learnerId], references: [id])
+  quizId       String
+  quiz         Quiz      @relation(fields: [quizId], references: [id])
+  score        Float
+  passed       Boolean
+  answers      Json      // { questionId: optionId }
+  completedAt  DateTime  @default(now())
+
+  @@index([learnerId, quizId])
+}
+
+model Enrollment {
+  id           String    @id @default(cuid())
+  learnerId    String
+  learner      User      @relation(fields: [learnerId], references: [id])
+  courseId     String
+  course       Course    @relation(fields: [courseId], references: [id])
+  enrolledAt   DateTime  @default(now())
+  completedAt  DateTime?
+  progress     Float     @default(0) // 0–1
+  lastAccessAt DateTime?
+
+  @@unique([learnerId, courseId])
+  @@index([learnerId])
+}
+
+model CPDRecord {
+  id           String       @id @default(cuid())
+  learnerId    String
+  learner      User         @relation(fields: [learnerId], references: [id])
+  courseId     String?
+  course       Course?      @relation(fields: [courseId], references: [id])
+  activityType ActivityType
+  pointsEarned Int
+  quizScore    Float?
+  completedAt  DateTime     @default(now())
+  cycleYear    Int
+  syncedToNcz  Boolean      @default(false)
+  nczSyncedAt  DateTime?
+  isManualOverride Boolean  @default(false)
+  overrideNote String?
+
+  @@index([learnerId, cycleYear])
+  @@index([syncedToNcz])
+}
+
+model Certificate {
+  id               String   @id @default(cuid())
+  learnerId        String
+  learner          User     @relation(fields: [learnerId], references: [id])
+  certificateUuid  String   @unique @default(uuid())
+  cycleYear        Int
+  totalPoints      Int
+  coursesCompleted String[]
+  issuedAt         DateTime @default(now())
+  pdfUrl           String?
+  pdfKey           String?  // S3 key
+
+  @@index([learnerId])
+  @@index([certificateUuid])
+}
+
+model CourseReview {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id])
+  learnerId   String
+  rating      Int      // 1–5
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  @@unique([courseId, learnerId])
+}
+
+model MediaAsset {
+  id           String   @id @default(cuid())
+  ownerId      String
+  s3Key        String   @unique
+  cdnUrl       String
+  fileName     String
+  mimeType     String
+  sizeBytes    BigInt
+  width        Int?
+  height       Int?
+  durationSecs Int?
+  isProcessed  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model NczFlag {
+  id         String   @id @default(cuid())
+  learnerId  String
+  learner    User     @relation(fields: [learnerId], references: [id])
+  officerId  String
+  note       String
+  createdAt  DateTime @default(now())
+
+  @@index([learnerId])
+}
+
+model NczSyncLog {
+  id           String   @id @default(cuid())
+  triggeredBy  String?  // userId or "cron"
+  recordCount  Int
+  success      Boolean
+  errorMessage String?
+  syncedAt     DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entityType String?
+  entityId   String?
+  meta       Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id          String           @id @default(cuid())
+  learnerId   String           @unique
+  tier        SubscriptionTier
+  startsAt    DateTime
+  expiresAt   DateTime
+  paymentRef  String?
+  gateway     String?          // "paynow" | "stripe"
+  createdAt   DateTime         @default(now())
+}
