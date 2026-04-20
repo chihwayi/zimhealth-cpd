@@ -11,6 +11,7 @@ import mediaRouter from './routes/media';
 import enrollmentsRouter from './routes/enrollments';
 import quizzesRouter from './routes/quizzes';
 import paymentsRouter from './routes/payments';
+import certificatesRouter from './routes/certificates';
 
 const app: express.Express = express();
 const PORT = process.env.PORT ?? 4000;
@@ -34,6 +35,7 @@ app.use('/api/media', mediaRouter);
 app.use('/api/enrollments', enrollmentsRouter);
 app.use('/api/quizzes', quizzesRouter);
 app.use('/api/payments', paymentsRouter);
+app.use('/api/certificates', certificatesRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'nursepro-api', timestamp: new Date().toISOString() });

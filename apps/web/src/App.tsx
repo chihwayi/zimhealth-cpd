@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
 import Login from './pages/Login';
+import VerifyCertificatePage from './pages/VerifyCertificate';
 
 // Lazy-load all portals
 const LearnerDashboard = lazy(() => import('./pages/learner/Dashboard'));
@@ -29,6 +30,7 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/login" element={<Login />} />
+        <Route path="/verify/:uuid" element={<VerifyCertificatePage />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
 
         {/* Learner */}
