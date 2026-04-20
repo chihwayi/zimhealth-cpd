@@ -37,7 +37,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -C backend prisma generate
+      # Avoid `pnpm -C` portability issues in CI runners; use workspace filter instead.
+      - run: pnpm --filter @nursepro/backend exec prisma generate
       - run: pnpm type-check
       - run: pnpm lint
       - run: pnpm test
