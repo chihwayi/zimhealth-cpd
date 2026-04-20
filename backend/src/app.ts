@@ -5,6 +5,7 @@ import compression from 'compression';
 import morgan from 'morgan';
 
 import authRouter from './routes/auth';
+import pointsRouter from './routes/points';
 
 const app: express.Express = express();
 const PORT = process.env.PORT ?? 4000;
@@ -17,6 +18,7 @@ app.use(morgan('dev'));
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRouter);
+app.use('/api/points', pointsRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'nursepro-api', timestamp: new Date().toISOString() });
