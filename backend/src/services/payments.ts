@@ -165,6 +165,9 @@ export async function handlePaynowWebhook(body: any) {
   if (!pollUrl || !reference) throw new Error('Missing Paynow pollUrl/reference');
 
   const paynow = new Paynow(integrationId, integrationKey);
+  if (!paynow.verifyHash(body)) {
+    throw new Error('Invalid Paynow callback hash');
+  }
   const status = await paynow.pollTransaction(pollUrl);
 
   const paid =
@@ -191,4 +194,3 @@ export async function handlePaynowWebhook(body: any) {
 
   return { ok: true, paid: true };
 }
-

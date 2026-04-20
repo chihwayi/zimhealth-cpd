@@ -1,0 +1,29 @@
+{
+  "name": "@nursepro/whatsapp-bot",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0",
+    "@nursepro/ai-client": "workspace:*",
+    "@nursepro/types": "workspace:*",
+    "bull": "^4.12.0",
+    "express": "^4.19.0",
+    "ioredis": "^5.3.0",
+    "twilio": "^5.1.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.0.0",
+    "nodemon": "^3.1.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.4.0"
+  }
+}
+

@@ -8,10 +8,21 @@ import {
   UpdateCourseSchema,
   CreateModuleSchema,
   CreateSectionSchema,
+  CourseApprovalSchema,
 } from './courses.schema';
 import type { AuthRequest } from '../middleware/auth.middleware';
 
 const router: ExpressRouter = Router();
+
+async function getOwnedCourse(courseId: string, req: AuthRequest) {
+  const course = await db.course.findUnique({ where: { id: courseId } });
+  if (!course) return { error: { status: 404, body: { error: 'Course not found' } } };
+  if (req.user!.role === 'CONTENT_MANAGER' && course.creatorId !== req.user!.id) {
+    return { error: { status: 403, body: { error: 'Not authorised to edit this course' } } };
+  }
+
+  return { course };
+}
 
 // ─── Course CRUD ─────────────────────────────────────────────────────────────
 
@@ -141,15 +152,24 @@ router.post(
 // POST /api/courses/:id/approve — Admin approves or rejects
 router.post('/:id/approve', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
   try {
-    const { action, reason } = req.body as { action: 'APPROVE' | 'REJECT'; reason?: string };
+    const { action, reason } = CourseApprovalSchema.parse(req.body);
     const newStatus = action === 'APPROVE' ? 'PUBLISHED' : 'DRAFT';
     const updated = await db.course.update({
       where: { id: req.params.id },
       data: { status: newStatus },
     });
-    // TODO S22: send notification to creator
+    await db.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: action === 'APPROVE' ? 'ADMIN_COURSE_APPROVED' : 'ADMIN_COURSE_REJECTED',
+        entityType: 'Course',
+        entityId: req.params.id,
+        meta: { action, reason, newStatus },
+      },
+    });
     res.json({ course: updated, action, reason });
-  } catch {
+  } catch (err: any) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
     res.status(500).json({ error: 'Could not process approval' });
   }
 });
@@ -164,6 +184,9 @@ router.post(
   async (req: AuthRequest, res) => {
     try {
       const data = CreateModuleSchema.parse(req.body);
+      const owned = await getOwnedCourse(req.params.id, req);
+      if (owned.error) return res.status(owned.error.status).json(owned.error.body);
+
       const module = await db.module.create({ data: { ...data, courseId: req.params.id } });
       res.status(201).json(module);
     } catch (err: any) {
@@ -181,11 +204,47 @@ router.post(
   async (req: AuthRequest, res) => {
     try {
       const data = CreateSectionSchema.parse(req.body);
+      const owned = await getOwnedCourse(req.params.courseId, req);
+      if (owned.error) return res.status(owned.error.status).json(owned.error.body);
+
+      const module = await db.module.findFirst({
+        where: { id: req.params.moduleId, courseId: req.params.courseId },
+      });
+      if (!module) return res.status(404).json({ error: 'Module not found' });
+
       const section = await db.contentSection.create({ data: { ...data, moduleId: req.params.moduleId } });
       res.status(201).json(section);
     } catch (err: any) {
       if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
       res.status(500).json({ error: 'Could not create section' });
+    }
+  },
+);
+
+// PATCH /api/courses/:courseId/modules/:moduleId/sections/:sectionId
+router.patch(
+  '/:courseId/modules/:moduleId/sections/:sectionId',
+  requireAuth,
+  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  async (req: AuthRequest, res) => {
+    try {
+      const data = CreateSectionSchema.partial().parse(req.body);
+      const owned = await getOwnedCourse(req.params.courseId, req);
+      if (owned.error) return res.status(owned.error.status).json(owned.error.body);
+
+      const section = await db.contentSection.findFirst({
+        where: { id: req.params.sectionId, moduleId: req.params.moduleId },
+      });
+      if (!section) return res.status(404).json({ error: 'Section not found' });
+
+      const updated = await db.contentSection.update({
+        where: { id: req.params.sectionId },
+        data,
+      });
+      res.json(updated);
+    } catch (err: any) {
+      if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+      res.status(500).json({ error: 'Could not update section' });
     }
   },
 );
@@ -205,4 +264,3 @@ router.post('/:id/enroll', requireAuth, requireRole('LEARNER'), async (req: Auth
 });
 
 export default router;
-

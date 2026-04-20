@@ -1,9 +1,11 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
+import { Toaster } from './components/ui/Toast';
 import Login from './pages/Login';
 import VerifyCertificatePage from './pages/VerifyCertificate';
+import { useAuthStore } from './store/auth.store';
 
 // Lazy-load all portals
 const LearnerDashboard = lazy(() => import('./pages/learner/Dashboard'));
@@ -16,6 +18,9 @@ const LearnerProfile = lazy(() => import('./pages/learner/Profile'));
 const LearnerSubscription = lazy(() => import('./pages/learner/Subscription'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const CreatorDashboard = lazy(() => import('./pages/creator/CreatorDashboard'));
+const CourseBuilder = lazy(() => import('./pages/creator/CourseBuilder'));
+const QuizBuilder = lazy(() => import('./pages/creator/QuizBuilder'));
+const CreatorAnalytics = lazy(() => import('./pages/creator/Analytics'));
 const NczDashboard = lazy(() => import('./pages/ncz/NczDashboard'));
 
 const Loader = () => (
@@ -25,7 +30,35 @@ const Loader = () => (
 );
 
 export default function App() {
+  const user = useAuthStore((state) => state.user);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:4000'}/api/admin/config/public`)
+      .then((res) => res.json())
+      .then((data: { maintenanceMode?: boolean }) => setMaintenanceMode(Boolean(data.maintenanceMode)))
+      .catch(() => setMaintenanceMode(false));
+  }, []);
+
+  if (maintenanceMode && user?.role !== 'ADMIN') {
+    return (
+      <>
+        <Toaster />
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+          <div className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-sm p-8 text-center">
+            <h1 className="text-2xl font-bold text-slate-900">Scheduled Maintenance</h1>
+            <p className="text-sm text-slate-500 mt-3">
+              NursePro CPD is temporarily unavailable while system maintenance is in progress. Please check back shortly.
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
+    <>
+    <Toaster />
     <Suspense fallback={<Loader />}>
       <Routes>
         {/* Public */}
@@ -117,11 +150,51 @@ export default function App() {
 
         {/* Creator */}
         <Route
-          path="/creator/*"
+          path="/creator"
           element={
-            <ProtectedRoute allowedRoles={['CONTENT_MANAGER']}>
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
               <AppShell>
                 <CreatorDashboard />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/creator/courses/new"
+          element={
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+              <AppShell>
+                <CourseBuilder />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/creator/courses/:id/edit"
+          element={
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+              <AppShell>
+                <CourseBuilder />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/creator/analytics"
+          element={
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+              <AppShell>
+                <CreatorAnalytics />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/creator/quizzes/:id"
+          element={
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+              <AppShell>
+                <QuizBuilder />
               </AppShell>
             </ProtectedRoute>
           }
@@ -131,7 +204,7 @@ export default function App() {
         <Route
           path="/ncz/*"
           element={
-            <ProtectedRoute allowedRoles={['NCZ_OFFICER']}>
+            <ProtectedRoute allowedRoles={['NCZ_OFFICER', 'ADMIN']}>
               <AppShell>
                 <NczDashboard />
               </AppShell>
@@ -154,6 +227,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Suspense>
+    </>
   );
 }
-

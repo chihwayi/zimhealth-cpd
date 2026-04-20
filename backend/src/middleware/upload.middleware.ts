@@ -1,4 +1,5 @@
 import multer from 'multer';
+import path from 'path';
 
 const ALLOWED_MIME: Record<string, number> = {
   'image/jpeg': 5 * 1024 * 1024, // 5 MB
@@ -15,6 +16,13 @@ export const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // hard max 2GB
   fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const blockedExt = ['.exe', '.sh', '.bat', '.cmd', '.msi', '.php', '.js'];
+    if (blockedExt.includes(ext)) {
+      cb(new Error(`File extension not allowed: ${ext}`));
+      return;
+    }
+
     if (ALLOWED_MIME[file.mimetype] !== undefined) {
       cb(null, true);
     } else {
@@ -22,4 +30,3 @@ export const upload = multer({
     }
   },
 });
-

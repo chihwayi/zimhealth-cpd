@@ -20,3 +20,11 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   }
 }
 
+export function requireBotSecret(req: Request, res: Response, next: NextFunction) {
+  const secret = req.headers['x-bot-secret'];
+  if (secret !== process.env.BOT_SECRET) {
+    return res.status(401).json({ error: 'Invalid bot secret' });
+  }
+  next();
+}
+

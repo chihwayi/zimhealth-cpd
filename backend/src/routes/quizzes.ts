@@ -6,6 +6,7 @@ import { requireRole } from '../middleware/role.middleware';
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { SubmitQuizAttemptSchema } from './quizzes.schema';
 import { creditPoints } from '../services/cpd-engine';
+import { generateQuestionsFromText } from '../services/ai-question-gen';
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -18,8 +19,8 @@ function shuffle<T>(arr: T[]): T[] {
 
 const router: ExpressRouter = Router();
 
-// GET /api/quizzes/:id — fetch quiz with questions (randomized if configured)
-router.get('/:id', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
+// GET /api/quizzes/:id — fetch quiz with questions
+router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const quiz = await db.quiz.findUnique({
       where: { id: req.params.id },
@@ -32,66 +33,165 @@ router.get('/:id', requireAuth, requireRole('LEARNER'), async (req: AuthRequest,
     });
     if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
 
-    const attemptCount = await db.quizAttempt.count({
-      where: { learnerId: req.user!.id, quizId: quiz.id },
-    });
-    const attemptsRemaining = Math.max(0, quiz.attemptLimit - attemptCount);
+    // If learner, hide correct answers and apply randomization
+    if (req.user!.role === 'LEARNER') {
+      const attemptCount = await db.quizAttempt.count({
+        where: { learnerId: req.user!.id, quizId: quiz.id },
+      });
+      const attemptsRemaining = Math.max(0, quiz.attemptLimit - attemptCount);
+      const questions = quiz.randomiseQuestions ? shuffle(quiz.questions) : quiz.questions;
 
-    const questions = quiz.randomiseQuestions ? shuffle(quiz.questions) : quiz.questions;
+      return res.json({
+        id: quiz.id,
+        title: quiz.title,
+        passMark: quiz.passMark,
+        attemptLimit: quiz.attemptLimit,
+        timeLimitMinutes: quiz.timeLimitMinutes,
+        randomiseQuestions: quiz.randomiseQuestions,
+        showAnswersAfter: quiz.showAnswersAfter,
+        attemptsRemaining,
+        questions: questions.map((q) => ({
+          id: q.id,
+          type: q.type,
+          text: q.text,
+          imageUrl: q.imageUrl,
+          points: q.points,
+          options: q.options.map((o) => ({ id: o.id, text: o.text })),
+        })),
+      });
+    }
 
-    // Do not leak correct answers to client
-    const safeQuiz = {
-      id: quiz.id,
-      title: quiz.title,
-      passMark: quiz.passMark,
-      attemptLimit: quiz.attemptLimit,
-      timeLimitMinutes: quiz.timeLimitMinutes,
-      randomiseQuestions: quiz.randomiseQuestions,
-      showAnswersAfter: quiz.showAnswersAfter,
-      attemptsRemaining,
-      questions: questions.map((q) => ({
-        id: q.id,
-        type: q.type,
-        text: q.text,
-        imageUrl: q.imageUrl,
-        points: q.points,
-        options: q.options.map((o) => ({ id: o.id, text: o.text })),
-      })),
-    };
-
-    res.json(safeQuiz);
+    // Otherwise (Creator/Admin), return full quiz with correct answers
+    res.json(quiz);
   } catch {
     res.status(500).json({ error: 'Could not fetch quiz' });
   }
 });
 
-// POST /api/quizzes/:id/attempt — submit answers, calculate score, credit points if passed
+// POST /api/quizzes — create quiz for a module
+router.post('/', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    const { courseId, moduleId, title, passMark, attemptLimit, timeLimitMinutes, randomiseQuestions, showAnswersAfter } = req.body;
+    const quiz = await db.quiz.create({
+      data: {
+        courseId,
+        moduleId,
+        title,
+        passMark: passMark ?? 0.8,
+        attemptLimit: attemptLimit ?? 3,
+        timeLimitMinutes,
+        randomiseQuestions: randomiseQuestions ?? false,
+        showAnswersAfter: showAnswersAfter ?? true,
+      },
+    });
+    res.json(quiz);
+  } catch {
+    res.status(500).json({ error: 'Could not create quiz' });
+  }
+});
+
+// PATCH /api/quizzes/:id — update quiz settings
+router.patch('/:id', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    const { title, passMark, attemptLimit, timeLimitMinutes, randomiseQuestions, showAnswersAfter } = req.body;
+    const quiz = await db.quiz.update({
+      where: { id: req.params.id },
+      data: {
+        title,
+        passMark,
+        attemptLimit,
+        timeLimitMinutes,
+        randomiseQuestions,
+        showAnswersAfter,
+      },
+    });
+    res.json(quiz);
+  } catch {
+    res.status(500).json({ error: 'Could not update quiz' });
+  }
+});
+
+// POST /api/quizzes/:id/questions — add question
+router.post('/:id/questions', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    const { type, text, points, options } = req.body;
+    const questionCount = await db.question.count({ where: { quizId: req.params.id } });
+    const question = await db.question.create({
+      data: {
+        quizId: req.params.id,
+        type,
+        text,
+        points: points ?? 1,
+        order: questionCount + 1,
+        options: {
+          create: options.map((o: any) => ({
+            text: o.text,
+            isCorrect: o.isCorrect,
+          })),
+        },
+      },
+      include: { options: true },
+    });
+    res.json(question);
+  } catch {
+    res.status(500).json({ error: 'Could not add question' });
+  }
+});
+
+// PATCH /api/quizzes/:id/questions/:qid — update question
+router.patch('/:id/questions/:qid', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    const { text, points, options } = req.body;
+    await db.question.update({
+      where: { id: req.params.qid },
+      data: { text, points },
+    });
+    if (options) {
+      await db.questionOption.deleteMany({ where: { questionId: req.params.qid } });
+      await db.questionOption.createMany({
+        data: options.map((o: any) => ({
+          questionId: req.params.qid,
+          text: o.text,
+          isCorrect: o.isCorrect,
+        })),
+      });
+    }
+    const updated = await db.question.findUnique({
+      where: { id: req.params.qid },
+      include: { options: true },
+    });
+    res.json(updated);
+  } catch {
+    res.status(500).json({ error: 'Could not update question' });
+  }
+});
+
+// DELETE /api/quizzes/:id/questions/:qid — delete question
+router.delete('/:id/questions/:qid', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    await db.question.delete({ where: { id: req.params.qid } });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'Could not delete question' });
+  }
+});
+
+// POST /api/quizzes/:id/attempt — submit answers
 router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
   try {
     const { answers } = SubmitQuizAttemptSchema.parse(req.body);
 
     const quiz = await db.quiz.findUnique({
       where: { id: req.params.id },
-      include: {
-        questions: { include: { options: true } },
-      },
+      include: { questions: { include: { options: true } } },
     });
     if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
 
     const attemptCount = await db.quizAttempt.count({
       where: { learnerId: req.user!.id, quizId: quiz.id },
     });
-    const attemptsRemainingBefore = Math.max(0, quiz.attemptLimit - attemptCount);
-    if (attemptsRemainingBefore <= 0) {
-      return res.status(400).json({ error: 'Attempt limit reached', attemptsRemaining: 0 });
-    }
-
-    // Validate submitted question IDs belong to quiz
-    const quizQuestionIds = new Set(quiz.questions.map((q) => q.id));
-    for (const qid of Object.keys(answers)) {
-      if (!quizQuestionIds.has(qid)) {
-        return res.status(400).json({ error: 'Invalid question id in answers', questionId: qid });
-      }
+    if (attemptCount >= quiz.attemptLimit) {
+      return res.status(400).json({ error: 'Attempt limit reached' });
     }
 
     const totalQuestions = quiz.questions.length;
@@ -99,58 +199,40 @@ router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: Aut
       const correctOption = q.options.find((o) => o.isCorrect) ?? null;
       const selectedOptionId = answers[q.id] ?? null;
       const isCorrect = !!correctOption && selectedOptionId === correctOption.id;
-      return {
-        questionId: q.id,
-        selectedOptionId,
-        correctOptionId: correctOption?.id ?? null,
-        isCorrect,
-      };
+      return { questionId: q.id, selectedOptionId, correctOptionId: correctOption?.id ?? null, isCorrect };
     });
 
-    const correctAnswers = feedback.filter((f) => f.isCorrect).map((f) => f.questionId);
-    const correctCount = correctAnswers.length;
+    const correctCount = feedback.filter((f) => f.isCorrect).length;
     const score = totalQuestions === 0 ? 0 : (correctCount / totalQuestions) * 100;
-
-    // Prisma schema stores passMark as 0..1
     const passed = score / 100 >= quiz.passMark;
 
     const attempt = await db.quizAttempt.create({
-      data: {
-        learnerId: req.user!.id,
-        quizId: quiz.id,
-        score,
-        passed,
-        answers,
-      },
+      data: { learnerId: req.user!.id, quizId: quiz.id, score, passed, answers },
     });
 
     let pointsEarned = 0;
     if (passed) {
-      const credited = await creditPoints({
-        learnerId: req.user!.id,
-        courseId: quiz.courseId,
-        activityType: 'QUIZ_PASS',
-        quizScore: score,
-      });
+      const credited = await creditPoints({ learnerId: req.user!.id, courseId: quiz.courseId, activityType: 'QUIZ_PASS', quizScore: score });
       pointsEarned = credited.pointsEarned;
     }
 
-    const attemptsRemaining = Math.max(0, quiz.attemptLimit - (attemptCount + 1));
-
-    res.json({
-      attemptId: attempt.id,
-      passed,
-      score,
-      pointsEarned,
-      correctAnswers,
-      feedback: quiz.showAnswersAfter ? feedback : [],
-      attemptsRemaining,
-    });
+    res.json({ attemptId: attempt.id, passed, score, pointsEarned, feedback: quiz.showAnswersAfter ? feedback : [] });
   } catch (err: any) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
     res.status(500).json({ error: 'Could not submit attempt' });
   }
 });
 
-export default router;
+// POST /api/quizzes/:id/generate-questions — AI question generation
+router.post('/:id/generate-questions', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req, res) => {
+  try {
+    const { sourceText, count = 5 } = req.body;
+    if (!sourceText || sourceText.length < 50) return res.status(400).json({ error: 'sourceText must be at least 50 characters' });
+    const questions = await generateQuestionsFromText(sourceText, Math.min(count, 10));
+    res.json({ questions, isDraft: true, message: 'Review and edit these questions before adding to your quiz.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message ?? 'AI question generation failed' });
+  }
+});
 
+export default router;

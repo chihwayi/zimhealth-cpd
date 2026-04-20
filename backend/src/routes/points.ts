@@ -6,8 +6,13 @@ import { requireRole } from '../middleware/role.middleware';
 import { getLearnerCPDSummary, creditPoints } from '../services/cpd-engine';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth.middleware';
+import { requireBotSecret } from '../middleware/auth.middleware';
 
 const router: ExpressRouter = Router();
+const BotCreditSchema = z.object({
+  phone: z.string().min(8),
+  quizScore: z.number().min(0).max(100).optional(),
+});
 
 // GET /api/points/summary — learner's own summary
 router.get('/summary', requireAuth, async (req: AuthRequest, res) => {
@@ -32,6 +37,36 @@ router.get('/records', requireAuth, async (req: AuthRequest, res) => {
     res.json(records);
   } catch {
     res.status(500).json({ error: 'Could not fetch CPD records' });
+  }
+});
+
+// GET /api/points/bot/:phone — bot queries learner points by phone
+router.get('/bot/:phone', requireBotSecret, async (req, res) => {
+  try {
+    const learner = await db.user.findUnique({ where: { phone: req.params.phone } });
+    if (!learner) return res.status(404).json({ error: 'Learner not found' });
+    const summary = await getLearnerCPDSummary(learner.id);
+    res.json({ ...summary, learnerId: learner.id, fullName: learner.fullName });
+  } catch {
+    res.status(500).json({ error: 'Could not fetch points' });
+  }
+});
+
+// POST /api/points/bot/credit — bot credits WhatsApp quiz points
+router.post('/bot/credit', requireBotSecret, async (req, res) => {
+  try {
+    const { phone, quizScore } = BotCreditSchema.parse(req.body);
+    const learner = await db.user.findUnique({ where: { phone } });
+    if (!learner) return res.status(404).json({ error: 'Learner not found' });
+    const result = await creditPoints({
+      learnerId: learner.id,
+      activityType: 'WHATSAPP_QUIZ' as any,
+      quizScore,
+    });
+    res.json(result);
+  } catch (err: any) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    res.status(500).json({ error: 'Could not credit points' });
   }
 });
 
@@ -79,4 +114,3 @@ router.get('/learner/:id', requireAuth, requireRole('ADMIN', 'NCZ_OFFICER'), asy
 });
 
 export default router;
-

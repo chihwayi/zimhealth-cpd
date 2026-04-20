@@ -19,6 +19,11 @@ export const CreateCourseSchema = z.object({
 
 export const UpdateCourseSchema = CreateCourseSchema.partial();
 
+export const CourseApprovalSchema = z.object({
+  action: z.enum(['APPROVE', 'REJECT']),
+  reason: z.string().max(500).optional(),
+});
+
 export const CreateModuleSchema = z.object({
   title: z.string().min(2).max(200),
   order: z.number().int().min(1),
@@ -33,4 +38,3 @@ export const CreateSectionSchema = z.object({
   mediaUrl: z.string().url().optional(),
   completionThreshold: z.number().min(0).max(1).default(0.8),
 });
-

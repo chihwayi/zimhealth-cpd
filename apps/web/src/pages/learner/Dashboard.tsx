@@ -1,114 +1,48 @@
-import { Award, BookOpen, Calendar } from 'lucide-react';
+import { Award, BookOpen, Calendar, CheckCircle2, ArrowRight, Sparkles } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
 import { useCPDPoints } from '../../hooks/useCPDPoints';
 import { StatCard } from '../../components/ui/StatCard';
 import { ProgressRing } from '../../components/ui/ProgressRing';
+import { api } from '../../lib/api';
+import { CourseCard } from '../../components/course/CourseCard';
 
-export default function LearnerDashboard() {
-  const user = useAuthStore((s) => s.user);
-  const { data: cpd, isLoading } = useCPDPoints();
+type InProgressEnrollment = {
+  id: string;
+  progressPercent: number;
+  course: {
+    id: string;
+    title: string;
+    category: string;
+    thumbnailUrl?: string | null;
+    estimatedMinutes: number;
+    cpdPoints: number;
+  };
+};
 
-  const renewalDeadline = new Date(new Date().getFullYear(), 11, 31); // Dec 31
-  const daysLeft = Math.ceil((renewalDeadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  const isUrgent = daysLeft <= 60;
+type RecentActivity = {
+  id: string;
+  activityType: string;
+  pointsEarned: number;
+  completedAt: string;
+  course?: { title: string } | null;
+};
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">
-          Good {getGreeting()}, {user?.fullName.split(' ')[0]}
-        </h1>
-        <p className="text-slate-500 mt-1">
-          {new Date().toLocaleDateString('en-ZW', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
-        </p>
-      </div>
-
-      {/* Stats + Progress Ring */}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* CPD Ring — spans 1 col */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col items-center justify-center gap-3">
-          {isLoading ? (
-            <div className="w-40 h-40 bg-slate-100 rounded-full animate-pulse" />
-          ) : (
-            <ProgressRing
-              value={cpd?.percentComplete ?? 0}
-              label={`${cpd?.totalPoints ?? 0}`}
-              sublabel={`/ ${cpd?.requiredPoints ?? 12} pts`}
-              color={isUrgent ? '#f59e0b' : '#14b8a6'}
-            />
-          )}
-          <p className="text-sm font-medium text-slate-600">
-            {cpd?.percentComplete === 100 ? 'CPD Complete' : 'CPD Progress'}
-          </p>
-        </div>
-
-        {/* 3 stat cards */}
-        <StatCard
-          title="Points Earned"
-          value={isLoading ? '–' : `${cpd?.totalPoints ?? 0}`}
-          subtitle={`of ${cpd?.requiredPoints ?? 12} required`}
-          icon={<Award size={20} />}
-          accent="teal"
-        />
-        <StatCard
-          title="Points Needed"
-          value={isLoading ? '–' : Math.max(0, (cpd?.requiredPoints ?? 12) - (cpd?.totalPoints ?? 0))}
-          subtitle="to complete renewal"
-          icon={<BookOpen size={20} />}
-          accent="amber"
-        />
-        <StatCard
-          title="Days to Renewal"
-          value={daysLeft}
-          subtitle={`Deadline: ${renewalDeadline.toLocaleDateString('en-ZW')}`}
-          icon={<Calendar size={20} />}
-          accent={isUrgent ? 'red' : 'green'}
-        />
-      </div>
-
-      {/* Placeholder for in-progress courses — Sprint 09 builds CourseCard */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Continue Learning</h2>
-        <p className="text-slate-400 text-sm">
-          Enrol in a course to see it here.{' '}
-          <a href="/courses" className="text-primary-600 hover:underline">
-            Browse courses →
-          </a>
-        </p>
-      </div>
-
-      {/* WhatsApp shortcut */}
-      <div className="bg-[#f0fdf4] border border-green-200 rounded-xl p-5 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center flex-shrink-0">
-          <svg viewBox="0 0 24 24" className="w-6 h-6 fill-white">
-            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
-            <path d="M12 0C5.373 0 0 5.373 0 12c0 2.098.544 4.071 1.494 5.785L.057 24l6.347-1.664A11.943 11.943 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.006-1.368l-.359-.213-3.72.976.993-3.63-.234-.372A9.818 9.818 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z" />
-          </svg>
-        </div>
-        <div>
-          <p className="font-semibold text-slate-900 text-sm">Learn on WhatsApp</p>
-          <p className="text-slate-500 text-xs mt-0.5">
-            No app needed. Get micro-lessons and earn CPD points via WhatsApp.
-          </p>
-        </div>
-        <a
-          href="https://wa.me/263771234567"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="ml-auto flex-shrink-0 bg-[#25D366] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#20ba5a] transition-colors"
-        >
-          Start now →
-        </a>
-      </div>
-    </div>
-  );
-}
+type RecommendedCourse = {
+  id: string;
+  title: string;
+  category: string;
+  difficulty?: string;
+  thumbnailUrl?: string | null;
+  estimatedMinutes: number;
+  cpdPoints: number;
+  averageRating?: number | null;
+  reviewCount?: number | null;
+  creatorName?: string | null;
+  modules?: Array<{ isOfflineReady: boolean }>;
+  aiReason?: string;
+};
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -117,3 +51,284 @@ function getGreeting(): string {
   return 'evening';
 }
 
+const CATEGORY_COLOURS: Record<string, string> = {
+  CLINICAL: 'bg-blue-100',
+  MANAGEMENT: 'bg-violet-100',
+  ETHICS: 'bg-orange-100',
+  RESEARCH: 'bg-teal-100',
+};
+
+export default function LearnerDashboard() {
+  const user = useAuthStore((s) => s.user);
+  const { data: cpd, isLoading: cpdLoading } = useCPDPoints();
+
+  const { data: inProgress, isLoading: inProgressLoading } = useQuery<InProgressEnrollment[]>({
+    queryKey: ['enrollments', 'in-progress'],
+    queryFn: () => api.get('/api/enrollments?status=IN_PROGRESS&limit=3'),
+  });
+
+  const { data: recentActivity } = useQuery<RecentActivity[]>({
+    queryKey: ['cpd-records', 'recent'],
+    queryFn: () => api.get('/api/points?limit=5'),
+  });
+  const { data: recommendations } = useQuery<{ courses: RecommendedCourse[]; message?: string }>({
+    queryKey: ['recommendations'],
+    queryFn: () => api.get('/api/recommendations'),
+  });
+
+  const renewalDeadline = new Date(new Date().getFullYear(), 11, 31);
+  const daysLeft = Math.ceil((renewalDeadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  const isUrgent = daysLeft <= 60;
+  const isCpdComplete = (cpd?.percentComplete ?? 0) >= 100;
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-8">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Good {getGreeting()}, {user?.fullName.split(' ')[0]}
+          </h1>
+          <p className="text-slate-500 mt-1 text-sm">
+            {new Date().toLocaleDateString('en-ZW', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}
+          </p>
+        </div>
+        {isCpdComplete && (
+          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm font-medium px-4 py-2 rounded-full">
+            <CheckCircle2 size={16} />
+            CPD Complete!
+          </div>
+        )}
+      </div>
+
+      {/* Urgent banner */}
+      {isUrgent && !isCpdComplete && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <Calendar size={16} className="text-amber-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-amber-900">{daysLeft} days until renewal deadline</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              You still need {Math.max(0, (cpd?.requiredPoints ?? 12) - (cpd?.totalPoints ?? 0))} more points. Keep going!
+            </p>
+          </div>
+          <Link
+            to="/courses"
+            className="ml-auto flex-shrink-0 bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-amber-600 transition-colors"
+          >
+            Find courses →
+          </Link>
+        </div>
+      )}
+
+      {/* Stats + Progress Ring */}
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        {/* CPD Ring */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col items-center justify-center gap-3">
+          {cpdLoading ? (
+            <div className="w-40 h-40 bg-slate-100 rounded-full animate-pulse" />
+          ) : (
+            <ProgressRing
+              value={cpd?.percentComplete ?? 0}
+              label={`${cpd?.totalPoints ?? 0}`}
+              sublabel={`/ ${cpd?.requiredPoints ?? 12} pts`}
+              color={isUrgent && !isCpdComplete ? '#f59e0b' : '#14b8a6'}
+            />
+          )}
+          <p className="text-sm font-medium text-slate-600">
+            {isCpdComplete ? 'CPD Complete ✓' : 'CPD Progress'}
+          </p>
+        </div>
+
+        <StatCard
+          title="Points Earned"
+          value={cpdLoading ? '–' : `${cpd?.totalPoints ?? 0}`}
+          subtitle={`of ${cpd?.requiredPoints ?? 12} required`}
+          icon={<Award size={20} />}
+          accent="teal"
+          trend={
+            (cpd?.totalPoints ?? 0) > 0
+              ? { label: `${cpd?.totalPoints} earned this cycle`, direction: 'up' }
+              : undefined
+          }
+        />
+        <StatCard
+          title="Points Needed"
+          value={cpdLoading ? '–' : Math.max(0, (cpd?.requiredPoints ?? 12) - (cpd?.totalPoints ?? 0))}
+          subtitle="to complete renewal"
+          icon={<BookOpen size={20} />}
+          accent="amber"
+        />
+        <StatCard
+          title="Days to Renewal"
+          value={daysLeft}
+          subtitle={`Dec 31, ${new Date().getFullYear()}`}
+          icon={<Calendar size={20} />}
+          accent={isUrgent ? 'red' : 'green'}
+          trend={
+            isUrgent
+              ? { label: 'Deadline approaching', direction: 'down' }
+              : { label: 'On track', direction: 'up' }
+          }
+        />
+      </div>
+
+      {/* Continue Learning */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4">
+          <h2 className="text-base font-semibold text-slate-900">Continue Learning</h2>
+          <Link to="/my-learning" className="text-sm text-primary-600 hover:underline flex items-center gap-1">
+            All courses <ArrowRight size={14} />
+          </Link>
+        </div>
+
+        {inProgressLoading ? (
+          <div className="px-6 pb-6 space-y-3">
+            {[1, 2].map((i) => (
+              <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : !inProgress?.length ? (
+          <div className="px-6 pb-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+              <BookOpen size={22} className="text-slate-400" />
+            </div>
+            <p className="text-sm text-slate-600">No courses in progress yet.</p>
+            <Link to="/courses" className="text-sm text-primary-600 hover:underline mt-1 inline-block">
+              Browse courses →
+            </Link>
+          </div>
+        ) : (
+          <div className="px-6 pb-6 space-y-3">
+            {inProgress.map((enrollment) => (
+              <Link
+                key={enrollment.id}
+                to={`/courses/${enrollment.course.id}`}
+                className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors group"
+              >
+                {/* Thumbnail */}
+                <div
+                  className={`w-14 h-14 rounded-xl flex-shrink-0 overflow-hidden ${
+                    CATEGORY_COLOURS[enrollment.course.category] ?? 'bg-slate-100'
+                  } flex items-center justify-center`}
+                >
+                  {enrollment.course.thumbnailUrl ? (
+                    <img
+                      src={enrollment.course.thumbnailUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <BookOpen size={20} className="text-slate-400" />
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-900 truncate">{enrollment.course.title}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary-500 rounded-full transition-all duration-700"
+                        style={{ width: `${enrollment.progressPercent}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-slate-500 flex-shrink-0 tabular-nums">
+                      {enrollment.progressPercent}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* CTA */}
+                <div className="flex-shrink-0 text-sm font-medium text-primary-600 group-hover:translate-x-0.5 transition-transform">
+                  <ArrowRight size={16} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {recommendations?.courses?.length ? (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Sparkles size={18} className="text-primary-500" />
+            <h2 className="text-lg font-semibold text-slate-900">Recommended for You</h2>
+            <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
+              AI-powered
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {recommendations.courses.map((course) => (
+              <CourseCard key={course.id} course={course} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Bottom row: Recent activity + WhatsApp shortcut */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Recent activity */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <h2 className="text-base font-semibold text-slate-900 mb-4">Recent Activity</h2>
+          {!recentActivity?.length ? (
+            <p className="text-sm text-slate-400">No activity yet — complete a quiz to earn points.</p>
+          ) : (
+            <ul className="space-y-3">
+              {recentActivity.map((activity) => (
+                <li key={activity.id} className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                    <Award size={14} className="text-primary-700" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-800 truncate">
+                      {activity.course?.title ?? activity.activityType}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {new Date(activity.completedAt).toLocaleDateString('en-ZW')}
+                    </p>
+                  </div>
+                  <span className="text-sm font-semibold text-primary-700 flex-shrink-0">
+                    +{activity.pointsEarned} pt{activity.pointsEarned !== 1 ? 's' : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* WhatsApp shortcut */}
+        <div className="bg-[#f0fdf4] border border-green-200 rounded-xl p-5 flex flex-col justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" className="w-6 h-6 fill-white">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.098.544 4.071 1.494 5.785L.057 24l6.347-1.664A11.943 11.943 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.006-1.368l-.359-.213-3.72.976.993-3.63-.234-.372A9.818 9.818 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-900 text-sm">Learn on WhatsApp</p>
+              <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">
+                No app needed. Earn CPD points via micro-lessons delivered to your phone.
+              </p>
+            </div>
+          </div>
+          <a
+            href="https://wa.me/263771234567"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 bg-[#25D366] text-white text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#20ba5a] transition-colors"
+          >
+            Start learning on WhatsApp →
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}

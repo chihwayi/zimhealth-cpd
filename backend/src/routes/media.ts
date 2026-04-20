@@ -8,8 +8,12 @@ import { mediaQueue } from '../jobs/mediaWorker';
 import { generateS3Key, uploadToS3 } from '../lib/s3';
 import { db } from '../lib/db';
 import type { AuthRequest } from '../middleware/auth.middleware';
+import { z } from 'zod';
 
 const router: ExpressRouter = Router();
+const UploadImageSchema = z.object({
+  folder: z.enum(['thumbnails', 'banners', 'profiles']).default('thumbnails'),
+});
 
 // POST /api/media/image — upload image (thumbnail, banner, profile)
 router.post(
@@ -20,10 +24,11 @@ router.post(
   async (req: AuthRequest, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-      const { folder = 'thumbnails' } = req.body;
+      const { folder } = UploadImageSchema.parse(req.body);
       const url = await processImage(req.file.buffer, req.file.originalname, folder, req.user!.id);
       res.json({ url });
     } catch (err: any) {
+      if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
       res.status(500).json({ error: err.message ?? 'Upload failed' });
     }
   },
@@ -103,4 +108,3 @@ router.get('/status/:assetId', requireAuth, async (req, res) => {
 });
 
 export default router;
-

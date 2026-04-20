@@ -5,16 +5,24 @@ import { requireRole } from '../middleware/role.middleware';
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { db } from '../lib/db';
 import { generateCertificate } from '../services/certificate';
+import { z } from 'zod';
 
 const router: ExpressRouter = Router();
+const GenerateCertificateSchema = z.object({
+  cycleYear: z.number().int().min(2020).max(2100).optional(),
+});
 
 // POST /api/certificates/generate (LEARNER) — generates cert if eligible
 router.post('/generate', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
   try {
-    const cycleYear = req.body?.cycleYear ? Number(req.body.cycleYear) : new Date().getFullYear();
+    const data = GenerateCertificateSchema.parse({
+      cycleYear: req.body?.cycleYear ? Number(req.body.cycleYear) : undefined,
+    });
+    const cycleYear = data.cycleYear ?? new Date().getFullYear();
     const cert = await generateCertificate(req.user!.id, cycleYear);
     res.json(cert);
   } catch (err: any) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
     const msg = err?.message ?? 'Could not generate certificate';
     if (msg.includes('Not eligible')) return res.status(400).json({ error: msg });
     res.status(500).json({ error: msg });
@@ -56,4 +64,3 @@ router.get('/verify/:uuid', async (req, res) => {
 });
 
 export default router;
-

@@ -9,6 +9,7 @@ interface AuthUser {
   subscriptionTier?: string;
   subscriptionExpiresAt?: string;
   avatarUrl?: string;
+  nczRegistrationNumber?: string | null;
 }
 
 interface AuthState {
