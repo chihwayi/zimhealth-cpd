@@ -6,6 +6,12 @@ import Login from './pages/Login';
 
 // Lazy-load all portals
 const LearnerDashboard = lazy(() => import('./pages/learner/Dashboard'));
+const LearnerCourses = lazy(() => import('./pages/learner/Courses'));
+const LearnerCoursePlayer = lazy(() => import('./pages/learner/CoursePlayer'));
+const LearnerMyLearning = lazy(() => import('./pages/learner/MyLearning'));
+const LearnerPoints = lazy(() => import('./pages/learner/Points'));
+const LearnerCertificates = lazy(() => import('./pages/learner/Certificates'));
+const LearnerProfile = lazy(() => import('./pages/learner/Profile'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const CreatorDashboard = lazy(() => import('./pages/creator/CreatorDashboard'));
 const NczDashboard = lazy(() => import('./pages/ncz/NczDashboard'));
@@ -31,6 +37,66 @@ export default function App() {
             <ProtectedRoute allowedRoles={['LEARNER']}>
               <AppShell>
                 <LearnerDashboard />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/courses"
+          element={
+            <ProtectedRoute allowedRoles={['LEARNER']}>
+              <AppShell>
+                <LearnerCourses />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/courses/:id"
+          element={
+            <ProtectedRoute allowedRoles={['LEARNER']}>
+              <AppShell>
+                <LearnerCoursePlayer />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-learning"
+          element={
+            <ProtectedRoute allowedRoles={['LEARNER']}>
+              <AppShell>
+                <LearnerMyLearning />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/points"
+          element={
+            <ProtectedRoute allowedRoles={['LEARNER']}>
+              <AppShell>
+                <LearnerPoints />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/certificates"
+          element={
+            <ProtectedRoute allowedRoles={['LEARNER']}>
+              <AppShell>
+                <LearnerCertificates />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute allowedRoles={['LEARNER']}>
+              <AppShell>
+                <LearnerProfile />
               </AppShell>
             </ProtectedRoute>
           }

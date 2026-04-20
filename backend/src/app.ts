@@ -8,6 +8,7 @@ import authRouter from './routes/auth';
 import pointsRouter from './routes/points';
 import coursesRouter from './routes/courses';
 import mediaRouter from './routes/media';
+import enrollmentsRouter from './routes/enrollments';
 
 const app: express.Express = express();
 const PORT = process.env.PORT ?? 4000;
@@ -23,6 +24,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/points', pointsRouter);
 app.use('/api/courses', coursesRouter);
 app.use('/api/media', mediaRouter);
+app.use('/api/enrollments', enrollmentsRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'nursepro-api', timestamp: new Date().toISOString() });
