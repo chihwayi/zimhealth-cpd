@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import type { ReactNode } from 'react';
 
 type Variant = 'default' | 'success' | 'warning' | 'error' | 'info' | 'clinical' | 'management' | 'ethics' | 'research';
 type Size = 'sm' | 'md';
@@ -21,7 +22,7 @@ const SIZES: Record<Size, string> = {
 };
 
 interface Props {
-  children: React.ReactNode;
+  children: ReactNode;
   variant?: Variant;
   size?: Size;
   className?: string;

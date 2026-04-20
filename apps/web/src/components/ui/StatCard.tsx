@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface Trend {
   label: string;
@@ -10,7 +11,7 @@ interface Props {
   title: string;
   value: string | number;
   subtitle?: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   accent?: 'teal' | 'amber' | 'green' | 'red' | 'blue';
   trend?: Trend;
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, Award } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
@@ -20,22 +21,39 @@ export default function Login() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as any)?.from?.pathname ?? '/';
+  const from =
+    typeof (location.state as { from?: { pathname?: string } } | null)?.from?.pathname === 'string'
+      ? (location.state as { from: { pathname: string } }).from.pathname
+      : '/';
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const res = await api.post<{ user: any; accessToken: string; refreshToken: string }>(
+      const res = await api.post<{
+        user: {
+          id: string;
+          email: string;
+          fullName: string;
+          role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'LEARNER';
+          subscriptionTier?: string;
+          subscriptionExpiresAt?: string;
+          avatarUrl?: string;
+          nczRegistrationNumber?: string | null;
+        };
+        accessToken: string;
+        refreshToken: string;
+      }>(
         '/api/auth/login',
         { email, password },
       );
       setAuth(res.user, res.accessToken, res.refreshToken);
       const dest = from !== '/' ? from : (ROLE_REDIRECT[res.user.role] ?? '/dashboard');
       navigate(dest, { replace: true });
-    } catch (err: any) {
-      setError(err.message ?? 'Invalid email or password.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Invalid email or password.';
+      setError(message);
     } finally {
       setLoading(false);
     }

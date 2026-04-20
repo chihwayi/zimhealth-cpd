@@ -1,7 +1,8 @@
 import { Sidebar } from './Sidebar';
+import type { ReactNode } from 'react';
 
 interface Props {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export function AppShell({ children }: Props) {
