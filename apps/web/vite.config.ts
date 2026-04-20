@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
+import { configDefaults } from 'vitest/config';
 
 export default defineConfig({
   plugins: [
@@ -40,6 +41,10 @@ export default defineConfig({
   ],
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
+  },
+  test: {
+    exclude: [...configDefaults.exclude, '**/e2e/**'],
+    passWithNoTests: true,
   },
   server: { port: 3000 },
 });
