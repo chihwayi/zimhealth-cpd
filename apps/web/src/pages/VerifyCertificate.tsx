@@ -23,7 +23,7 @@ export default function VerifyCertificatePage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         {/* Brand header */}
         <div className="text-center mb-6">
@@ -149,6 +149,6 @@ export default function VerifyCertificatePage() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

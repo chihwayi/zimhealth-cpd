@@ -47,10 +47,19 @@ function sortCourses(courses: CourseSummary[], sort: SortOption): CourseSummary[
   });
 }
 
+const CADRE_LABELS: Record<string, string> = {
+  NURSE: 'Nurse',
+  MIDWIFE: 'Midwife',
+  PHARMACIST: 'Pharmacist',
+  CLINICAL_OFFICER: 'Clinical Officer',
+  LAB_TECH: 'Lab Tech',
+};
+
 export default function CoursesPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [difficulty, setDifficulty] = useState('');
+  const [cadre, setCadre] = useState('');
   const [page, setPage] = useState(1);
   const [view, setView] = useState<ViewMode>('grid');
   const [sort, setSort] = useState<SortOption>('newest');
@@ -60,10 +69,11 @@ export default function CoursesPage() {
     if (search) params.set('search', search);
     if (category) params.set('category', category);
     if (difficulty) params.set('difficulty', difficulty);
+    if (cadre) params.set('cadre', cadre);
     params.set('page', String(page));
     params.set('limit', '12');
     return params.toString();
-  }, [search, category, difficulty, page]);
+  }, [search, category, difficulty, cadre, page]);
 
   const { data, isLoading, error } = useQuery<CoursesResponse>({
     queryKey: ['courses', queryString],
@@ -75,12 +85,13 @@ export default function CoursesPage() {
     [data?.courses, sort],
   );
 
-  const activeFiltersCount = [search, category, difficulty].filter(Boolean).length;
+  const activeFiltersCount = [search, category, difficulty, cadre].filter(Boolean).length;
 
   function clearFilters() {
     setSearch('');
     setCategory('');
     setDifficulty('');
+    setCadre('');
     setPage(1);
   }
 
@@ -151,6 +162,28 @@ export default function CoursesPage() {
               <option value="INTERMEDIATE">Intermediate</option>
               <option value="ADVANCED">Advanced</option>
             </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Cadre
+            </label>
+            <div className="mt-2 space-y-1.5">
+              {Object.entries(CADRE_LABELS).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => { setPage(1); setCadre(cadre === value ? '' : value); }}
+                  className={clsx(
+                    'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
+                    cadre === value
+                      ? 'bg-primary-100 text-primary-700 font-medium'
+                      : 'text-slate-600 hover:bg-slate-50',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </aside>
 
@@ -227,6 +260,14 @@ export default function CoursesPage() {
                 <span className="flex items-center gap-1.5 bg-primary-50 text-primary-700 text-xs font-medium px-3 py-1 rounded-full">
                   {difficulty.charAt(0) + difficulty.slice(1).toLowerCase()}
                   <button onClick={() => { setDifficulty(''); setPage(1); }} aria-label="Remove difficulty filter">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {cadre && (
+                <span className="flex items-center gap-1.5 bg-primary-50 text-primary-700 text-xs font-medium px-3 py-1 rounded-full">
+                  {CADRE_LABELS[cadre] ?? cadre}
+                  <button onClick={() => { setCadre(''); setPage(1); }} aria-label="Remove cadre filter">
                     <X size={11} />
                   </button>
                 </span>

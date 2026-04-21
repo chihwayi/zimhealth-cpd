@@ -1,5 +1,5 @@
-import { Award, BookOpen, Calendar, CheckCircle2, ArrowRight, Sparkles } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Award, BookOpen, Calendar, CheckCircle2, ArrowRight, Sparkles, RefreshCw } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
 import { useCPDPoints } from '../../hooks/useCPDPoints';
@@ -44,6 +44,12 @@ type RecommendedCourse = {
   aiReason?: string;
 };
 
+type RecommendationsResponse = {
+  courses: RecommendedCourse[];
+  isProfileBased?: boolean;
+  message?: string;
+};
+
 function getGreeting(): string {
   const h = new Date().getHours();
   if (h < 12) return 'morning';
@@ -60,6 +66,7 @@ const CATEGORY_COLOURS: Record<string, string> = {
 
 export default function LearnerDashboard() {
   const user = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
   const { data: cpd, isLoading: cpdLoading } = useCPDPoints();
 
   const { data: inProgress, isLoading: inProgressLoading } = useQuery<InProgressEnrollment[]>({
@@ -71,15 +78,29 @@ export default function LearnerDashboard() {
     queryKey: ['cpd-records', 'recent'],
     queryFn: () => api.get('/api/points?limit=5'),
   });
-  const { data: recommendations } = useQuery<{ courses: RecommendedCourse[]; message?: string }>({
+
+  const {
+    data: recommendations,
+    isLoading: recsLoading,
+    isError: recsError,
+  } = useQuery<RecommendationsResponse>({
     queryKey: ['recommendations'],
     queryFn: () => api.get('/api/recommendations'),
+    staleTime: 1000 * 60 * 30, // treat as fresh for 30 min to avoid hammering the AI
+  });
+
+  const refreshRecsMutation = useMutation({
+    mutationFn: () => api.post('/api/recommendations/refresh', {}),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['recommendations'] }),
   });
 
   const renewalDeadline = new Date(new Date().getFullYear(), 11, 31);
   const daysLeft = Math.ceil((renewalDeadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   const isUrgent = daysLeft <= 60;
   const isCpdComplete = (cpd?.percentComplete ?? 0) >= 100;
+
+  const hasCourses = (recommendations?.courses?.length ?? 0) > 0;
+  const isProfileBased = recommendations?.isProfileBased;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
@@ -219,11 +240,7 @@ export default function LearnerDashboard() {
                   } flex items-center justify-center`}
                 >
                   {enrollment.course.thumbnailUrl ? (
-                    <img
-                      src={enrollment.course.thumbnailUrl}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={enrollment.course.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <BookOpen size={20} className="text-slate-400" />
                   )}
@@ -245,7 +262,6 @@ export default function LearnerDashboard() {
                   </div>
                 </div>
 
-                {/* CTA */}
                 <div className="flex-shrink-0 text-sm font-medium text-primary-600 group-hover:translate-x-0.5 transition-transform">
                   <ArrowRight size={16} />
                 </div>
@@ -255,22 +271,97 @@ export default function LearnerDashboard() {
         )}
       </div>
 
-      {recommendations?.courses?.length ? (
-        <div className="space-y-4">
+      {/* ── AI-Powered Recommendations ── */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Sparkles size={18} className="text-primary-500" />
             <h2 className="text-lg font-semibold text-slate-900">Recommended for You</h2>
             <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
               AI-powered
             </span>
+            {isProfileBased && !recsLoading && hasCourses && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                Based on your profile
+              </span>
+            )}
           </div>
+          <button
+            type="button"
+            onClick={() => void refreshRecsMutation.mutate()}
+            disabled={refreshRecsMutation.isPending || recsLoading}
+            title="Refresh recommendations"
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-primary-600 disabled:opacity-40 transition-colors"
+          >
+            <RefreshCw size={13} className={refreshRecsMutation.isPending ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
+
+        {/* Loading skeleton */}
+        {recsLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {recommendations.courses.map((course) => (
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="aspect-video bg-slate-100 animate-pulse" />
+                <div className="p-4 space-y-3">
+                  <div className="h-3 w-16 bg-slate-100 rounded animate-pulse" />
+                  <div className="h-4 w-full bg-slate-100 rounded animate-pulse" />
+                  <div className="h-4 w-4/5 bg-slate-100 rounded animate-pulse" />
+                  <div className="h-8 w-full bg-slate-100 rounded-lg animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Error fallback */}
+        {recsError && !recsLoading && (
+          <p className="text-sm text-slate-400">Could not load recommendations right now.</p>
+        )}
+
+        {/* Courses grid */}
+        {!recsLoading && hasCourses && (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {recommendations!.courses.map((course) => (
               <CourseCard key={course.id} course={course} />
             ))}
           </div>
-        </div>
-      ) : null}
+        )}
+
+        {/* Empty / profile-incomplete prompt */}
+        {!recsLoading && !recsError && !hasCourses && (
+          <div className="bg-gradient-to-r from-primary-50 to-slate-50 border border-primary-100 rounded-xl p-6 flex items-start gap-5">
+            <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center flex-shrink-0">
+              <Sparkles size={22} className="text-primary-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-900 mb-1">
+                Personalised recommendations are on their way
+              </p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                {recommendations?.message ??
+                  'Complete your profile with your specialty area and cadre so we can surface the most relevant courses for your practice.'}
+              </p>
+              <div className="flex items-center gap-3 mt-3">
+                <Link
+                  to="/profile"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700"
+                >
+                  Complete your profile →
+                </Link>
+                <span className="text-slate-300 text-xs">·</span>
+                <Link
+                  to="/courses"
+                  className="text-xs text-slate-500 hover:text-slate-700"
+                >
+                  Browse all courses
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Bottom row: Recent activity + WhatsApp shortcut */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

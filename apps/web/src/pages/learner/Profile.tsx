@@ -19,6 +19,7 @@ type MeUser = {
   district: string | null;
   phone: string | null;
   avatarUrl: string | null;
+  specialtyArea: string | null;
   subscriptionTier: string;
   subscriptionExpiresAt: string | null;
   createdAt: string;
@@ -54,6 +55,7 @@ export default function ProfilePage() {
   const [district, setDistrict] = useState('');
   const [cadre, setCadre] = useState('');
   const [nczRegistrationNumber, setNczRegistrationNumber] = useState('');
+  const [specialtyArea, setSpecialtyArea] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
 
   const { data: me, isLoading } = useQuery({
@@ -70,6 +72,7 @@ export default function ProfilePage() {
     setDistrict(me.district ?? '');
     setCadre(me.cadre ?? '');
     setNczRegistrationNumber(me.nczRegistrationNumber ?? '');
+    setSpecialtyArea(me.specialtyArea ?? '');
   }, [me]);
 
   const patchMutation = useMutation({
@@ -86,6 +89,7 @@ export default function ProfilePage() {
         institution: updated.institution ?? undefined,
         province: updated.province ?? undefined,
         district: updated.district ?? undefined,
+        specialtyArea: updated.specialtyArea ?? undefined,
         subscriptionTier: updated.subscriptionTier,
         subscriptionExpiresAt: updated.subscriptionExpiresAt ?? undefined,
       });
@@ -131,6 +135,7 @@ export default function ProfilePage() {
       district: district.trim() || null,
       cadre: cadre || null,
       nczRegistrationNumber: nczRegistrationNumber.trim() || null,
+      specialtyArea: specialtyArea.trim() || null,
     });
   }
 
@@ -237,6 +242,19 @@ export default function ProfilePage() {
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-900 mb-1.5">Specialty area</label>
+              <input
+                value={specialtyArea}
+                onChange={(e) => setSpecialtyArea(e.target.value)}
+                placeholder="e.g. Paediatrics, Maternal Health, ICU…"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Used to personalise your course recommendations. Leave blank for general suggestions.
+              </p>
             </div>
 
             <div>

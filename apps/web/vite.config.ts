@@ -27,12 +27,23 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
+            // Production API
             urlPattern: /^https:\/\/api\.nursepro\.co\.zw\/.*/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
               networkTimeoutSeconds: 10,
               expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
+            },
+          },
+          {
+            // Development API (localhost:4000)
+            urlPattern: /^http:\/\/localhost:4000\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache-dev',
+              networkTimeoutSeconds: 10,
+              expiration: { maxEntries: 100, maxAgeSeconds: 3600 },
             },
           },
         ],

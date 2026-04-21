@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   FileText,
   HelpCircle,
+  Image,
   Layout,
   Loader2,
   Play,
@@ -20,6 +21,7 @@ import {
   Upload,
   Video,
   Wand2,
+  X,
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -44,6 +46,9 @@ const courseSchema = z.object({
   estimatedMinutes: z.number().int().min(5),
   targetCadres: z.array(z.string()).min(1, 'Select at least one cadre'),
   tags: z.array(z.string()).default([]),
+  thumbnailUrl: z.string().url().optional().or(z.literal('')),
+  specialtyArea: z.string().max(100).optional(),
+  accreditationBody: z.string().max(200).optional(),
 });
 
 type CourseFormData = z.infer<typeof courseSchema>;
@@ -95,6 +100,9 @@ const DEFAULT_VALUES: CourseFormData = {
   estimatedMinutes: 30,
   targetCadres: [],
   tags: [],
+  thumbnailUrl: '',
+  specialtyArea: '',
+  accreditationBody: '',
 };
 
 const CONTENT_TYPE_OPTIONS: Array<{ value: ContentType; label: string }> = [
@@ -139,9 +147,11 @@ export default function CourseBuilder() {
   const [newModuleTitle, setNewModuleTitle] = useState('');
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [sectionDraft, setSectionDraft] = useState<SectionDraft | null>(null);
-  const [tagInput, setTagInput] = useState('');
   const [rightPanel, setRightPanel] = useState<'content' | 'settings'>('settings');
   const [mediaUploading, setMediaUploading] = useState(false);
+  const [thumbnailUploading, setThumbnailUploading] = useState(false);
+  const thumbnailFileRef = useRef<HTMLInputElement>(null);
+  const [tagInputValue, setTagInputValue] = useState('');
 
   const {
     register,
@@ -185,8 +195,10 @@ export default function CourseBuilder() {
       estimatedMinutes: course.estimatedMinutes,
       targetCadres: course.targetCadres,
       tags: course.tags ?? [],
+      thumbnailUrl: course.thumbnailUrl ?? '',
+      specialtyArea: course.specialtyArea ?? '',
+      accreditationBody: course.accreditationBody ?? '',
     });
-    setTagInput((course.tags ?? []).join(', '));
   }, [course, reset]);
 
   const createCourseMutation = useMutation({
@@ -268,6 +280,26 @@ export default function CourseBuilder() {
       navigate('/creator');
     },
     onError: (error: Error) => toast.error(error.message),
+  });
+
+  // ── AI content generation state ──
+  const [showAiPanel, setShowAiPanel] = useState(false);
+  const [aiGuidelineText, setAiGuidelineText] = useState('');
+  const [aiTargetCadre, setAiTargetCadre] = useState('Registered General Nurse');
+
+  const aiGenerateMutation = useMutation({
+    mutationFn: () =>
+      api.post<{ message: string; moduleIds: string[]; preview: { moduleCount: number } }>(
+        `/api/courses/${id}/ai-generate-content`,
+        { guidelineText: aiGuidelineText, targetCadre: aiTargetCadre },
+      ),
+    onSuccess: (data) => {
+      toast.success(`AI generated ${data.preview.moduleCount} module(s). Check the curriculum panel.`);
+      setShowAiPanel(false);
+      setAiGuidelineText('');
+      void queryClient.invalidateQueries({ queryKey: ['course', id] });
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const createQuizMutation = useMutation({
@@ -466,6 +498,49 @@ export default function CourseBuilder() {
     }
   };
 
+  const handleThumbnailUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !token) return;
+    setThumbnailUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('folder', 'thumbnails');
+      const res = await fetch(`${baseUrl}/api/media/image`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: unknown };
+        throw new Error(typeof body.error === 'string' ? body.error : `Upload failed (${res.status})`);
+      }
+      const json = (await res.json()) as { url?: string };
+      if (!json.url) throw new Error('Upload response missing URL');
+      setValue('thumbnailUrl', json.url, { shouldDirty: true, shouldValidate: true });
+      toast.success('Thumbnail uploaded');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setThumbnailUploading(false);
+    }
+  };
+
+  const handleAddTag = (raw: string) => {
+    const tag = raw.trim().toLowerCase();
+    if (!tag) return;
+    const current = watchedValues.tags ?? [];
+    if (!current.includes(tag)) {
+      setValue('tags', [...current, tag], { shouldDirty: true, shouldValidate: true });
+    }
+    setTagInputValue('');
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setValue('tags', (watchedValues.tags ?? []).filter((t) => t !== tag), { shouldDirty: true });
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 max-w-6xl mx-auto">
@@ -485,16 +560,22 @@ export default function CourseBuilder() {
             <ChevronLeft size={18} />
           </button>
           <div>
-            <div className="flex items-center gap-2">
-              <input
-                value={watchedValues.title}
-                onChange={(e) => setValue('title', e.target.value, { shouldDirty: true, shouldValidate: true })}
-                placeholder="Name your course…"
-                className={clsx(
-                  'text-2xl font-bold text-slate-900 bg-transparent rounded-lg px-2 py-1 -mx-2 focus:outline-none focus:ring-2 focus:ring-primary-100',
-                  errors.title ? 'ring-2 ring-red-100' : 'hover:bg-slate-50',
-                )}
-              />
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="m-0 min-w-0 flex-1 text-2xl font-bold text-slate-900 leading-tight">
+                <label htmlFor="course-builder-title" className="sr-only">
+                  Course title
+                </label>
+                <input
+                  id="course-builder-title"
+                  value={watchedValues.title}
+                  onChange={(e) => setValue('title', e.target.value, { shouldDirty: true, shouldValidate: true })}
+                  placeholder="Name your course…"
+                  className={clsx(
+                    'w-full bg-transparent rounded-lg px-2 py-1 -mx-2 font-bold text-inherit placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-primary-100',
+                    errors.title ? 'ring-2 ring-red-100' : 'hover:bg-slate-50',
+                  )}
+                />
+              </h1>
               <Badge variant={course?.status === 'UNDER_REVIEW' ? 'warning' : course?.status === 'PUBLISHED' ? 'success' : 'default'}>
                 {formatLabel(course?.status ?? 'DRAFT')}
               </Badge>
@@ -563,8 +644,84 @@ export default function CourseBuilder() {
               <h2 className="text-base font-semibold text-slate-900">Curriculum</h2>
               <p className="text-xs text-slate-500 mt-1">Modules and learning sections</p>
             </div>
-            <Layout size={18} className="text-violet-500" />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                title="AI Generate from guideline"
+                onClick={() => setShowAiPanel((v) => !v)}
+                disabled={!course?.id}
+                className={clsx(
+                  'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40',
+                  showAiPanel
+                    ? 'bg-violet-100 text-violet-700'
+                    : 'bg-slate-100 text-slate-600 hover:bg-violet-50 hover:text-violet-700',
+                )}
+              >
+                <Wand2 size={13} />
+                AI Generate
+              </button>
+              <Layout size={18} className="text-violet-500" />
+            </div>
           </div>
+
+          {/* ── AI Generate panel ── */}
+          {showAiPanel && course?.id && (
+            <div className="border-b border-slate-100 bg-violet-50 p-4 space-y-3">
+              <p className="text-xs font-semibold text-violet-800">Generate from guideline text</p>
+              <div>
+                <label className="block text-xs text-slate-600 mb-1">Target cadre</label>
+                <select
+                  value={aiTargetCadre}
+                  onChange={(e) => setAiTargetCadre(e.target.value)}
+                  className="w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-violet-400 focus:outline-none"
+                >
+                  <option>Registered General Nurse</option>
+                  <option>Registered Midwife</option>
+                  <option>Enrolled Nurse</option>
+                  <option>Community Health Nurse</option>
+                  <option>Clinical Nurse Specialist</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-600 mb-1">
+                  Paste guideline / protocol text
+                </label>
+                <textarea
+                  value={aiGuidelineText}
+                  onChange={(e) => setAiGuidelineText(e.target.value)}
+                  rows={6}
+                  placeholder="Paste text from an EDLIZ section, MOHCC protocol, or any clinical guideline…"
+                  className="w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-violet-400 focus:outline-none resize-none"
+                />
+                <p className="text-xs text-slate-400 mt-1">{aiGuidelineText.length} chars (min 50)</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void aiGenerateMutation.mutate()}
+                  disabled={aiGuidelineText.trim().length < 50 || aiGenerateMutation.isPending}
+                  className="inline-flex items-center gap-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg px-3 py-2 hover:bg-violet-700 disabled:opacity-50"
+                >
+                  {aiGenerateMutation.isPending ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Wand2 size={13} />
+                  )}
+                  {aiGenerateMutation.isPending ? 'Generating…' : 'Generate Modules'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAiPanel(false)}
+                  className="text-xs text-slate-500 hover:text-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
+              {aiGenerateMutation.isError && (
+                <p className="text-xs text-red-600">{(aiGenerateMutation.error as Error).message}</p>
+              )}
+            </div>
+          )}
 
           <div className="p-5 space-y-4">
             <div className="space-y-2">
@@ -897,6 +1054,49 @@ export default function CourseBuilder() {
             </div>
 
             <form onSubmit={handleManualSave} className="p-6 space-y-6">
+
+              {/* Thumbnail */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-900 mb-1.5">Course Thumbnail</label>
+                <div className="flex items-start gap-4">
+                  <div className="w-32 h-20 rounded-xl border border-slate-200 overflow-hidden flex-shrink-0 bg-gradient-to-br from-primary-50 to-slate-100 flex items-center justify-center">
+                    {watchedValues.thumbnailUrl ? (
+                      <img src={watchedValues.thumbnailUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+                    ) : (
+                      <Image size={24} className="text-slate-300" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <input
+                      ref={thumbnailFileRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => void handleThumbnailUpload(e)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => thumbnailFileRef.current?.click()}
+                      disabled={thumbnailUploading}
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {thumbnailUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                      {watchedValues.thumbnailUrl ? 'Replace thumbnail' : 'Upload thumbnail'}
+                    </button>
+                    {watchedValues.thumbnailUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => setValue('thumbnailUrl', '', { shouldDirty: true })}
+                        className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-600 transition-colors"
+                      >
+                        <X size={12} /> Remove
+                      </button>
+                    ) : null}
+                    <p className="text-xs text-slate-400">JPEG, PNG or WebP · 16:9 recommended · max 5 MB</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-slate-900 mb-1.5">Title</label>
@@ -913,7 +1113,7 @@ export default function CourseBuilder() {
                   <input
                     {...register('subtitle')}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                    placeholder="Add a concise promise for this course"
+                    placeholder="A concise summary of what learners will gain"
                   />
                 </div>
 
@@ -935,11 +1135,18 @@ export default function CourseBuilder() {
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
                   >
                     {Object.values(CPDCategory).map((value) => (
-                      <option key={value} value={value}>
-                        {formatLabel(value)}
-                      </option>
+                      <option key={value} value={value}>{formatLabel(value)}</option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">Specialty Area <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <input
+                    {...register('specialtyArea')}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                    placeholder="e.g. ICU, Paediatrics, Maternal Health"
+                  />
                 </div>
 
                 <div>
@@ -949,9 +1156,7 @@ export default function CourseBuilder() {
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
                   >
                     {Object.values(Difficulty).map((value) => (
-                      <option key={value} value={value}>
-                        {formatLabel(value)}
-                      </option>
+                      <option key={value} value={value}>{formatLabel(value)}</option>
                     ))}
                   </select>
                 </div>
@@ -963,9 +1168,7 @@ export default function CourseBuilder() {
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
                   >
                     {Object.values(Language).map((value) => (
-                      <option key={value} value={value}>
-                        {formatLabel(value)}
-                      </option>
+                      <option key={value} value={value}>{formatLabel(value)}</option>
                     ))}
                   </select>
                 </div>
@@ -974,44 +1177,68 @@ export default function CourseBuilder() {
                   <label className="block text-sm font-semibold text-slate-900 mb-1.5">CPD Points</label>
                   <input
                     type="number"
+                    min={1}
+                    max={50}
                     {...register('cpdPoints', { valueAsNumber: true })}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">Estimated Minutes</label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">Estimated Duration (minutes)</label>
                   <input
                     type="number"
+                    min={5}
                     {...register('estimatedMinutes', { valueAsNumber: true })}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">Tags</label>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">Accreditation Body <span className="text-slate-400 font-normal">(optional)</span></label>
                   <input
-                    value={tagInput}
-                    onChange={(event) => setTagInput(event.target.value)}
-                    onBlur={() =>
-                      setValue(
-                        'tags',
-                        tagInput
-                          .split(',')
-                          .map((item) => item.trim().toLowerCase())
-                          .filter(Boolean),
-                        { shouldDirty: true, shouldValidate: true },
-                      )
-                    }
+                    {...register('accreditationBody')}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                    placeholder="clinical, emergency, maternal"
+                    placeholder="e.g. NCZ, MCAZ, Ministry of Health"
                   />
-                  <p className="mt-1 text-xs text-slate-500">Use commas to separate tags.</p>
+                  <p className="mt-1 text-xs text-slate-400">The body that has accredited this course for CPD purposes.</p>
                 </div>
               </div>
 
+              {/* Tags — chip input */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">Target Cadres</label>
+                <label className="block text-sm font-semibold text-slate-900 mb-1.5">Tags</label>
+                <div className="flex flex-wrap gap-2 p-3 rounded-xl border border-slate-300 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100 bg-white min-h-[48px]">
+                  {(watchedValues.tags ?? []).map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-1 bg-primary-100 text-primary-700 text-xs font-medium px-2.5 py-1 rounded-full">
+                      {tag}
+                      <button type="button" onClick={() => handleRemoveTag(tag)} className="text-primary-500 hover:text-primary-800">
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={tagInputValue}
+                    onChange={(e) => setTagInputValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        handleAddTag(tagInputValue);
+                      } else if (e.key === 'Backspace' && !tagInputValue && (watchedValues.tags ?? []).length > 0) {
+                        const tags = watchedValues.tags ?? [];
+                        handleRemoveTag(tags[tags.length - 1]);
+                      }
+                    }}
+                    onBlur={() => { if (tagInputValue.trim()) handleAddTag(tagInputValue); }}
+                    className="flex-1 min-w-[120px] text-sm text-slate-900 outline-none bg-transparent"
+                    placeholder={(watchedValues.tags ?? []).length === 0 ? 'Type a tag and press Enter…' : 'Add another tag…'}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Press Enter or comma to add each tag. Tags help learners discover this course.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-900 mb-2">Target Cadres <span className="text-red-400">*</span></label>
                 <div className="flex flex-wrap gap-2">
                   {TARGET_CADRES.map((cadre) => {
                     const active = watchedValues.targetCadres.includes(cadre);
@@ -1026,10 +1253,13 @@ export default function CourseBuilder() {
                           setValue('targetCadres', next, { shouldDirty: true, shouldValidate: true });
                         }}
                         className={clsx(
-                          'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                          active ? 'bg-primary-100 text-primary-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                          'rounded-full px-3 py-1.5 text-sm font-medium border transition-colors',
+                          active
+                            ? 'bg-primary-100 text-primary-700 border-primary-200'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50',
                         )}
                       >
+                        {active ? <span className="mr-1">✓</span> : null}
                         {formatLabel(cadre)}
                       </button>
                     );

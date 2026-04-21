@@ -1,4 +1,5 @@
 import { Sidebar } from './Sidebar';
+import { OfflineBanner } from '../ui/OfflineBanner';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Menu } from 'lucide-react';
@@ -50,7 +51,10 @@ export function AppShell({ children }: Props) {
         </div>
       )}
 
-      <main className="flex-1 overflow-y-auto pt-14 md:pt-0">{children}</main>
+      <main id="main-content" className="flex-1 overflow-y-auto pt-14 md:pt-0" tabIndex={-1}>
+        <OfflineBanner />
+        {children}
+      </main>
     </div>
   );
 }

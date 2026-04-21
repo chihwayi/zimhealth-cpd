@@ -35,6 +35,7 @@ export const UpdateProfileSchema = z
     cadre: z.preprocess(emptyToNull, z.union([CADRE_ENUM, z.null()]).optional()),
     nczRegistrationNumber: z.preprocess(emptyToNull, z.union([z.string().max(50), z.null()]).optional()),
     avatarUrl: z.preprocess(emptyToNull, z.union([z.string().url(), z.null()]).optional()),
+    specialtyArea: z.preprocess(emptyToNull, z.union([z.string().max(100), z.null()]).optional()),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No profile fields to update' });
 

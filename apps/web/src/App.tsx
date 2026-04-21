@@ -26,9 +26,13 @@ const MediaLibrary = lazy(() => import('./pages/creator/MediaLibrary'));
 const NczDashboard = lazy(() => import('./pages/ncz/NczDashboard'));
 
 const Loader = () => (
-  <div className="flex items-center justify-center h-64">
-    <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
-  </div>
+  <main className="flex min-h-[50vh] flex-col items-center justify-center px-4" aria-busy="true">
+    <h1 className="sr-only">Loading page</h1>
+    <div role="status" aria-live="polite" className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" aria-hidden />
+      <span className="sr-only">Loading content, please wait.</span>
+    </div>
+  </main>
 );
 
 export default function App() {
@@ -46,14 +50,14 @@ export default function App() {
     return (
       <>
         <Toaster />
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <main className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
           <div className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-sm p-8 text-center">
             <h1 className="text-2xl font-bold text-slate-900">Scheduled Maintenance</h1>
             <p className="text-sm text-slate-500 mt-3">
               NursePro CPD is temporarily unavailable while system maintenance is in progress. Please check back shortly.
             </p>
           </div>
-        </div>
+        </main>
       </>
     );
   }

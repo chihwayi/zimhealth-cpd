@@ -15,6 +15,7 @@ interface AuthUser {
   institution?: string | null;
   province?: string | null;
   district?: string | null;
+  specialtyArea?: string | null;
 }
 
 interface AuthState {

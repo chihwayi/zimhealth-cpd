@@ -241,15 +241,16 @@ model QuizAttempt {
 }
 
 model Enrollment {
-  id           String   @id @default(cuid())
-  learnerId    String
-  learner      User     @relation(fields: [learnerId], references: [id])
-  courseId     String
-  course       Course   @relation(fields: [courseId], references: [id])
-  enrolledAt   DateTime @default(now())
-  completedAt  DateTime?
-  progress     Float    @default(0) // 0–1
-  lastAccessAt DateTime?
+  id                String   @id @default(cuid())
+  learnerId         String
+  learner           User     @relation(fields: [learnerId], references: [id])
+  courseId          String
+  course            Course   @relation(fields: [courseId], references: [id])
+  enrolledAt        DateTime @default(now())
+  completedAt       DateTime?
+  progress          Float    @default(0) // 0–1, auto-calculated from completedSections
+  completedSections String[] @default([]) // section IDs marked complete
+  lastAccessAt      DateTime?
 
   @@unique([learnerId, courseId])
   @@index([learnerId])

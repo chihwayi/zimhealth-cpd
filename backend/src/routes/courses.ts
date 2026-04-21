@@ -11,6 +11,7 @@ import {
   CourseApprovalSchema,
 } from './courses.schema';
 import type { AuthRequest } from '../middleware/auth.middleware';
+import { generateCourseFromGuideline } from '../services/ai-content-gen';
 
 const router: ExpressRouter = Router();
 
@@ -267,6 +268,121 @@ router.patch(
     } catch (err: any) {
       if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
       res.status(500).json({ error: 'Could not update section' });
+    }
+  },
+);
+
+// ─── POST /api/courses/:id/ai-generate-content ───────────────────────────────
+// Accepts a block of guideline text + target cadre; generates and persists
+// a full set of modules + sections + quizzes on the course via AI.
+router.post(
+  '/:id/ai-generate-content',
+  requireAuth,
+  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  async (req: AuthRequest, res) => {
+    const { guidelineText, targetCadre } = req.body as {
+      guidelineText?: string;
+      targetCadre?: string;
+    };
+
+    if (!guidelineText || guidelineText.trim().length < 50) {
+      return res.status(400).json({ error: 'guidelineText must be at least 50 characters' });
+    }
+
+    const owned = await getOwnedCourse(req.params.id, req);
+    if (owned.error) return res.status(owned.error.status).json(owned.error.body);
+
+    try {
+      const generated = await generateCourseFromGuideline(
+        guidelineText,
+        owned.course!.title,
+        targetCadre ?? 'Registered General Nurse',
+      );
+
+      // Persist generated content to the database inside a transaction
+      const result = await db.$transaction(async (tx) => {
+        const createdModules: string[] = [];
+
+        for (const genModule of generated.modules) {
+          const module = await tx.module.create({
+            data: {
+              courseId: req.params.id,
+              title: genModule.title,
+              order: genModule.order,
+            },
+          });
+
+          // Create reading sections
+          for (const sec of genModule.sections) {
+            await tx.contentSection.create({
+              data: {
+                moduleId: module.id,
+                type: sec.type,
+                title: sec.title,
+                order: sec.order,
+                content: sec.content,
+              },
+            });
+          }
+
+          // Create quiz
+          const quiz = await tx.quiz.create({
+            data: {
+              courseId: req.params.id,
+              moduleId: module.id,
+              title: genModule.quiz.title,
+              passMark: genModule.quiz.passMark,
+            },
+          });
+
+          // Create quiz questions + options
+          for (const q of genModule.quiz.questions) {
+            const question = await tx.question.create({
+              data: {
+                quizId: quiz.id,
+                text: q.text,
+                order: q.order,
+                type: 'MULTIPLE_CHOICE',
+              },
+            });
+
+            for (const opt of q.options) {
+              await tx.questionOption.create({
+                data: {
+                  questionId: question.id,
+                  text: opt.text,
+                  isCorrect: opt.isCorrect,
+                },
+              });
+            }
+          }
+
+          createdModules.push(module.id);
+        }
+
+        return createdModules;
+      });
+
+      res.status(201).json({
+        message: `Generated ${result.length} module(s) with sections and quizzes`,
+        moduleIds: result,
+        preview: {
+          title: generated.title,
+          subtitle: generated.subtitle,
+          description: generated.description,
+          estimatedMinutes: generated.estimatedMinutes,
+          cpdPoints: generated.cpdPoints,
+          moduleCount: generated.modules.length,
+        },
+      });
+    } catch (err: any) {
+      if (err?.message?.includes('AI did not return')) {
+        return res.status(422).json({ error: 'AI generation failed — try again or use simpler input text' });
+      }
+      if (err?.name === 'ZodError') {
+        return res.status(422).json({ error: 'AI returned malformed content structure', details: err.errors });
+      }
+      res.status(500).json({ error: 'Content generation failed' });
     }
   },
 );

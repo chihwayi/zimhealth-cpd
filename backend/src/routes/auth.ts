@@ -125,6 +125,7 @@ const ME_SELECT = {
   district: true,
   phone: true,
   avatarUrl: true,
+  specialtyArea: true,
   subscriptionTier: true,
   subscriptionExpiresAt: true,
   isActive: true,

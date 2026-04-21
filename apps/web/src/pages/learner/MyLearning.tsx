@@ -51,20 +51,21 @@ export default function MyLearningPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">My Learning</h1>
-        <p className="text-sm text-slate-500 mt-1">Track your enrolled courses and progress.</p>
+        <p className="text-sm text-slate-600 mt-1">Track your enrolled courses and progress.</p>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {TABS.map((t) => (
           <button
+            type="button"
             key={t.key}
             onClick={() => setTab(t.key)}
             className={clsx(
               'px-4 py-2 rounded-lg text-sm font-medium transition-all',
               tab === t.key
                 ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700',
+                : 'text-slate-700 hover:text-slate-900 hover:bg-white/60',
             )}
           >
             {t.label}

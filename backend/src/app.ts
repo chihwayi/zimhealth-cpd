@@ -18,6 +18,8 @@ import certificatesRouter from './routes/certificates';
 import adminRouter from './routes/admin';
 import nczRouter from './routes/ncz';
 import creatorRouter from './routes/creator';
+import botRouter from './routes/bot';
+import aiRouter from './routes/ai';
 import { scheduleDailySync } from './jobs/syncWorker';
 import recommendationsRouter from './routes/recommendations';
 import { scheduleRenewalReminders } from './jobs/notificationWorker';
@@ -81,6 +83,8 @@ app.use('/api/admin', adminRouter);
 app.use('/api/ncz', nczRouter);
 app.use('/api/creator', creatorRouter);
 app.use('/api', recommendationsRouter);
+app.use('/api/bot', botRouter);
+app.use('/api/ai', aiRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'nursepro-api', timestamp: new Date().toISOString() });

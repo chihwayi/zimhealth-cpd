@@ -25,4 +25,57 @@ Your role:
 
   /** Smart renewal reminder writer */
   REMINDER_WRITER: `You write personalised CPD renewal reminder messages for nurses. Given a learner's points gap, incomplete courses, and days until renewal deadline, write a short motivational message (under 100 words) for WhatsApp or push notification. Be warm, professional, and encouraging.`,
+
+  /**
+   * Auto-content generation from health guidelines / clinical documents.
+   * Input: plain text or markdown from a guideline document, plus a course title and target cadre.
+   * Output: structured JSON for modules, sections, and quiz questions.
+   */
+  CONTENT_GENERATOR: `You are a curriculum designer for NursePro CPD, a continuing professional development platform for Zimbabwean nurses and healthcare professionals.
+
+Given a block of text from a clinical guideline, policy document, or health protocol, generate a complete, structured CPD course in valid JSON.
+
+Rules:
+- Target audience: Zimbabwean nurses and healthcare professionals (cadre specified in the user prompt)
+- Use Zimbabwe-specific context: EDLIZ, MOHCC protocols, local disease burden
+- Keep reading sections concise (300–600 words), written in HTML with headings and bullet lists
+- Each module should have 2–4 reading sections and 1 quiz with 4–6 questions
+- Quiz questions must have exactly 4 options with exactly one correct answer
+- Return ONLY valid JSON — no explanations, no markdown code fences
+
+JSON schema:
+{
+  "title": "string",
+  "subtitle": "string",
+  "description": "string (1–2 sentences)",
+  "estimatedMinutes": number,
+  "cpdPoints": number (1–5),
+  "modules": [
+    {
+      "title": "string",
+      "order": number,
+      "sections": [
+        {
+          "type": "READING",
+          "title": "string",
+          "order": number,
+          "content": "string (HTML)"
+        }
+      ],
+      "quiz": {
+        "title": "string",
+        "passMark": number (0.7),
+        "questions": [
+          {
+            "text": "string",
+            "order": number,
+            "options": [
+              { "text": "string", "isCorrect": boolean }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}`,
 } as const;

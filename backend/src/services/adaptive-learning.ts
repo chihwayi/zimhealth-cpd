@@ -3,7 +3,7 @@ import { db } from '../lib/db';
 import { redis } from '../lib/redis';
 import { getLearnerCPDSummary } from './cpd-engine';
 
-const CACHE_TTL = 60 * 60 * 12;
+const CACHE_TTL = 60 * 60 * 12; // 12 hours
 
 function buildAiConfig(): AIProviderConfig {
   return {
@@ -35,17 +35,49 @@ function buildAiConfig(): AIProviderConfig {
   };
 }
 
+async function redisGetSafe(key: string): Promise<string | null> {
+  try {
+    return await redis.get(key);
+  } catch {
+    return null;
+  }
+}
+
+async function redisSetexSafe(key: string, ttl: number, value: string): Promise<void> {
+  try {
+    await redis.setex(key, ttl, value);
+  } catch {
+    // Cache is optional; recommendations still work without Redis.
+  }
+}
+
+// ─── Exported so enrollment route can bust the cache on course completion ─────
+export async function invalidateRecommendations(learnerId: string): Promise<void> {
+  try {
+    await redis.del(`ai:recs:${learnerId}`);
+  } catch {
+    // Ignore Redis errors
+  }
+}
+
 export async function getRecommendations(
   learnerId: string,
-): Promise<{ courseIds: string[]; explanations: Record<string, string> }> {
+): Promise<{ courseIds: string[]; explanations: Record<string, string>; isProfileBased: boolean }> {
   const cacheKey = `ai:recs:${learnerId}`;
-  const cached = await redis.get(cacheKey);
-  if (cached) return JSON.parse(cached);
+  const cached = await redisGetSafe(cacheKey);
+  if (cached) {
+    return JSON.parse(cached) as {
+      courseIds: string[];
+      explanations: Record<string, string>;
+      isProfileBased: boolean;
+    };
+  }
 
+  // ── Gather learner context ────────────────────────────────────────────────
   const [learner, summary, completedEnrollments] = await Promise.all([
     db.user.findUnique({
       where: { id: learnerId },
-      select: { cadre: true, institution: true, province: true },
+      select: { cadre: true, institution: true, province: true, specialtyArea: true },
     }),
     getLearnerCPDSummary(learnerId),
     db.enrollment.findMany({
@@ -55,45 +87,58 @@ export async function getRecommendations(
     }),
   ]);
 
-  if (completedEnrollments.length < 3) {
-    return { courseIds: [], explanations: {} };
-  }
-
   const enrolledIds = await db.enrollment
-    .findMany({
-      where: { learnerId },
-      select: { courseId: true },
-    })
-    .then((rows) => rows.map((row) => row.courseId));
+    .findMany({ where: { learnerId }, select: { courseId: true } })
+    .then((rows) => rows.map((r) => r.courseId));
 
   const availableCourses = await db.course.findMany({
     where: { status: 'PUBLISHED', id: { notIn: enrolledIds } },
-    select: { id: true, title: true, category: true, tags: true, cpdPoints: true },
-    take: 20,
+    select: { id: true, title: true, category: true, tags: true, cpdPoints: true, targetCadres: true },
+    orderBy: { createdAt: 'desc' },
+    take: 30,
   });
 
   if (!availableCourses.length) {
-    return { courseIds: [], explanations: {} };
+    return { courseIds: [], explanations: {}, isProfileBased: false };
   }
 
   const ai = new AIClient(buildAiConfig());
   const yearEnd = new Date(new Date().getFullYear(), 11, 31);
   const daysToRenewal = Math.ceil((yearEnd.getTime() - Date.now()) / 86400000);
 
-  const prompt = `Learner profile:
-- Cadre: ${learner?.cadre ?? 'NURSE'}
+  const isProfileBased = completedEnrollments.length === 0;
+
+  // ── Cold-start: profile-only prompt (no completion history) ──────────────
+  const prompt = isProfileBased
+    ? `A nurse has just joined NursePro CPD. They have no completed courses yet.
+
+Learner profile:
+- Cadre: ${learner?.cadre ?? 'Registered Nurse'}
+- Specialty: ${learner?.specialtyArea ?? 'General'}
+- Institution: ${learner?.institution ?? 'Unknown'}
+- Province: ${learner?.province ?? 'Zimbabwe'}
+- CPD Points: 0/${summary.requiredPoints} required
+- Days to renewal: ${daysToRenewal}
+
+Available courses (recommend the most relevant 3 for this cadre and specialty):
+${availableCourses.map((c) => `- ${c.id}: "${c.title}" (${c.category}, ${c.cpdPoints} pts, for: ${(c.targetCadres as string[]).join(', ')})`).join('\n')}
+
+Return JSON: { "recommendations": [ { "courseId": "...", "reason": "under 20 words why this suits their role" } ] }
+Order by relevance to their cadre/specialty. Max 3.`
+    : `Learner profile:
+- Cadre: ${learner?.cadre ?? 'Nurse'}
+- Specialty: ${learner?.specialtyArea ?? 'General'}
 - Institution: ${learner?.institution ?? 'Unknown'}
 - Province: ${learner?.province ?? 'Unknown'}
 - CPD Points: ${summary.totalPoints}/${summary.requiredPoints} (${summary.percentComplete}% complete)
 - Days to renewal: ${daysToRenewal}
-- Completed courses: ${completedEnrollments.map((enrollment) => enrollment.course.title).join(', ')}
+- Completed courses: ${completedEnrollments.map((e) => e.course.title).join(', ')}
 
 Available courses:
-${availableCourses.map((course) => `- ${course.id}: "${course.title}" (${course.category}, ${course.cpdPoints} pts)`).join('\n')}
+${availableCourses.map((c) => `- ${c.id}: "${c.title}" (${c.category}, ${c.cpdPoints} pts)`).join('\n')}
 
-Return a JSON object:
-{ "recommendations": [ { "courseId": "...", "reason": "short reason under 20 words" } ] }
-Order by highest value for this learner first. Max 3 recommendations.`;
+Return JSON: { "recommendations": [ { "courseId": "...", "reason": "under 20 words" } ] }
+Order by highest value for this learner. Max 3.`;
 
   try {
     const raw = await ai.complete(prompt, {
@@ -116,11 +161,12 @@ Order by highest value for this learner first. Max 3 recommendations.`;
     const result = {
       courseIds: recommendations.map((item) => item.courseId),
       explanations: Object.fromEntries(recommendations.map((item) => [item.courseId, item.reason])),
+      isProfileBased,
     };
 
-    await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+    await redisSetexSafe(cacheKey, CACHE_TTL, JSON.stringify(result));
     return result;
   } catch {
-    return { courseIds: [], explanations: {} };
+    return { courseIds: [], explanations: {}, isProfileBased };
   }
 }

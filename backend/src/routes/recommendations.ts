@@ -3,11 +3,12 @@ import type { Router as ExpressRouter } from 'express';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
 import type { AuthRequest } from '../middleware/auth.middleware';
-import { getRecommendations } from '../services/adaptive-learning';
+import { getRecommendations, invalidateRecommendations } from '../services/adaptive-learning';
 import { db } from '../lib/db';
 
 const router: ExpressRouter = Router();
 
+// GET /api/recommendations — personalised course recommendations for the learner
 router.get('/recommendations', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
   try {
     const recs = await getRecommendations(req.user!.id);
@@ -15,7 +16,8 @@ router.get('/recommendations', requireAuth, requireRole('LEARNER'), async (req: 
     if (!recs.courseIds.length) {
       return res.json({
         courses: [],
-        message: 'Complete 3 or more courses to unlock personalised recommendations.',
+        isProfileBased: recs.isProfileBased,
+        message: 'No matching courses available right now — check back soon.',
       });
     }
 
@@ -29,12 +31,12 @@ router.get('/recommendations', requireAuth, requireRole('LEARNER'), async (req: 
     });
 
     const ordered = recs.courseIds
-      .map((courseId) => courses.find((course) => course.id === courseId))
+      .map((courseId) => courses.find((c) => c.id === courseId))
       .filter(Boolean)
       .map((course) => {
-        const ratings = course!.reviews.map((review) => review.rating);
+        const ratings = course!.reviews.map((r) => r.rating);
         const averageRating = ratings.length
-          ? ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length
+          ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length
           : null;
 
         return {
@@ -53,9 +55,19 @@ router.get('/recommendations', requireAuth, requireRole('LEARNER'), async (req: 
         };
       });
 
-    return res.json({ courses: ordered });
+    return res.json({ courses: ordered, isProfileBased: recs.isProfileBased });
   } catch {
     return res.status(500).json({ error: 'Could not fetch recommendations' });
+  }
+});
+
+// POST /api/recommendations/refresh — bust the recommendation cache
+router.post('/recommendations/refresh', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
+  try {
+    await invalidateRecommendations(req.user!.id);
+    return res.json({ ok: true });
+  } catch {
+    return res.status(500).json({ error: 'Could not refresh' });
   }
 });
 
