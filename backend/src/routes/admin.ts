@@ -461,4 +461,82 @@ router.get('/analytics/subscriptions', requireAuth, requireRole('ADMIN'), async 
   }
 });
 
+router.get('/subscriptions/summary', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+  try {
+    const now = new Date();
+    const [activeTotal, expiringSoon, byGateway, byTier] = await Promise.all([
+      db.subscription.count({ where: { expiresAt: { gte: now } } }),
+      db.subscription.count({
+        where: {
+          expiresAt: {
+            gte: now,
+            lte: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 30),
+          },
+        },
+      }),
+      db.subscription.groupBy({
+        by: ['gateway'],
+        _count: true,
+      }),
+      db.subscription.groupBy({
+        by: ['tier'],
+        _count: true,
+      }),
+    ]);
+
+    return res.json({
+      activeTotal,
+      expiringSoon,
+      byGateway: byGateway.map((group) => ({
+        gateway: group.gateway ?? 'unknown',
+        count: group._count,
+      })),
+      byTier: byTier.map((group) => ({
+        tier: group.tier,
+        count: group._count,
+      })),
+    });
+  } catch {
+    return res.status(500).json({ error: 'Could not fetch subscription summary' });
+  }
+});
+
+router.get('/subscriptions/recent', requireAuth, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '20'), 10) || 20, 1), 100);
+    const subscriptions = await db.subscription.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        tier: true,
+        gateway: true,
+        paymentRef: true,
+        startsAt: true,
+        expiresAt: true,
+        createdAt: true,
+        learnerId: true,
+      },
+    });
+
+    const learnerIds = subscriptions.map((subscription) => subscription.learnerId);
+    const learners = learnerIds.length
+      ? await db.user.findMany({
+          where: { id: { in: learnerIds } },
+          select: { id: true, fullName: true, email: true },
+        })
+      : [];
+    const learnerMap = new Map(learners.map((learner) => [learner.id, learner]));
+
+    return res.json({
+      subscriptions: subscriptions.map((subscription) => ({
+        ...subscription,
+        learner: learnerMap.get(subscription.learnerId) ?? null,
+      })),
+    });
+  } catch {
+    return res.status(500).json({ error: 'Could not fetch recent subscriptions' });
+  }
+});
+
 export default router;

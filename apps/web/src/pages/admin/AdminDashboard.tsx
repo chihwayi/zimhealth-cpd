@@ -15,6 +15,7 @@ import {
   BarChart2,
   CreditCard,
   RefreshCw,
+  ArrowRight,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -141,6 +142,45 @@ interface TelemetrySummary {
   botAiTutorEvents24h: number;
 }
 
+interface SubscriptionSummary {
+  activeTotal: number;
+  expiringSoon: number;
+  byGateway: Array<{ gateway: string; count: number }>;
+  byTier: Array<{ tier: string; count: number }>;
+}
+
+interface RecentSubscription {
+  id: string;
+  tier: string;
+  gateway?: string | null;
+  paymentRef?: string | null;
+  startsAt: string;
+  expiresAt: string;
+  createdAt: string;
+  learner: { fullName: string; email: string } | null;
+}
+
+interface RecentSubscriptionsResponse {
+  subscriptions: RecentSubscription[];
+}
+
+interface NczSyncSummary {
+  pending: number;
+  blocked: number;
+  failed: number;
+  synced: number;
+}
+
+interface NczSyncLog {
+  id: string;
+  triggeredBy?: string | null;
+  recordCount: number;
+  success: boolean;
+  errorMessage?: string | null;
+  dryRun?: boolean;
+  syncedAt: string;
+}
+
 const ADMIN_SECTIONS = [
   { key: 'dashboard', label: 'Dashboard', path: '/admin', icon: Users },
   { key: 'users', label: 'Users', path: '/admin/users', icon: Users },
@@ -237,20 +277,8 @@ export default function AdminDashboard() {
       {section === 'audit' && <AuditSection />}
       {section === 'release' && <ReleaseReadinessSection />}
       {section === 'settings' && <SettingsSection />}
-      {section === 'payments' && (
-        <PlaceholderSection
-          title="Payments Oversight"
-          description="Payment reconciliation and gateway-level controls are next in the admin roadmap."
-          icon={<CreditCard size={28} />}
-        />
-      )}
-      {section === 'ncz-sync' && (
-        <PlaceholderSection
-          title="NCZ Sync Oversight"
-          description="Use the NCZ portal for live sync status. Admin-level sync controls can be added here later."
-          icon={<RefreshCw size={28} />}
-        />
-      )}
+      {section === 'payments' && <PaymentsSection />}
+      {section === 'ncz-sync' && <NczSyncSection />}
     </div>
   );
 }
@@ -1084,20 +1112,253 @@ function ReleaseReadinessSection() {
   );
 }
 
+function PaymentsSection() {
+  const summaryQuery = useQuery<SubscriptionSummary>({
+    queryKey: ['admin-subscriptions-summary'],
+    queryFn: () => api.get('/api/admin/subscriptions/summary'),
+  });
+  const recentQuery = useQuery<RecentSubscriptionsResponse>({
+    queryKey: ['admin-subscriptions-recent'],
+    queryFn: () => api.get('/api/admin/subscriptions/recent?limit=12'),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <StatCard
+          title="Active Paid Subscriptions"
+          value={summaryQuery.data?.activeTotal ?? '–'}
+          subtitle="Learners currently on paid access"
+          icon={<CreditCard size={20} />}
+          accent="green"
+        />
+        <StatCard
+          title="Expiring In 30 Days"
+          value={summaryQuery.data?.expiringSoon ?? '–'}
+          subtitle="Renewal follow-up candidates"
+          icon={<Clock size={20} />}
+          accent="amber"
+        />
+        <StatCard
+          title="Paynow Transactions"
+          value={summaryQuery.data?.byGateway.find((item) => item.gateway === 'paynow')?.count ?? 0}
+          subtitle="Recorded subscription payments"
+          icon={<CreditCard size={20} />}
+          accent="blue"
+        />
+        <StatCard
+          title="Stripe Transactions"
+          value={summaryQuery.data?.byGateway.find((item) => item.gateway === 'stripe')?.count ?? 0}
+          subtitle="Recorded subscription payments"
+          icon={<CreditCard size={20} />}
+          accent="teal"
+        />
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Subscription Tier Distribution</h2>
+          <p className="text-sm text-slate-500 mt-1">Current paid-plan mix based on recorded subscription rows.</p>
+        </div>
+        {summaryQuery.isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+            ))}
+          </div>
+        ) : summaryQuery.isError || !summaryQuery.data ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            Could not load subscription summary.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {summaryQuery.data.byTier.map((item) => (
+              <div key={item.tier} className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{item.tier}</p>
+                  <p className="text-xs text-slate-500 mt-1">Recorded subscription rows</p>
+                </div>
+                <div className="text-2xl font-bold tabular-nums text-slate-900">{item.count}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Recent Confirmed Payments</h2>
+            <p className="text-sm text-slate-500 mt-1">Latest subscription activations from gateway callbacks.</p>
+          </div>
+        </div>
+
+        {recentQuery.isLoading ? (
+          <div className="p-6 space-y-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="h-16 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+            ))}
+          </div>
+        ) : recentQuery.isError ? (
+          <div className="p-6">
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Could not load recent payments.
+            </div>
+          </div>
+        ) : !recentQuery.data?.subscriptions.length ? (
+          <EmptyState
+            icon={<CreditCard size={28} />}
+            title="No confirmed payments yet"
+            description="Subscription activity will appear here once payment callbacks start recording purchases."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  {['Learner', 'Tier', 'Gateway', 'Started', 'Expires', 'Reference'].map((heading) => (
+                    <th key={heading} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recentQuery.data.subscriptions.map((subscription) => (
+                  <tr key={subscription.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-4">
+                      <div className="font-medium text-slate-900">{subscription.learner?.fullName ?? 'Unknown learner'}</div>
+                      <div className="text-xs text-slate-500 mt-1">{subscription.learner?.email ?? 'No email recorded'}</div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <Badge variant="info">{subscription.tier}</Badge>
+                    </td>
+                    <td className="px-4 py-4 text-slate-700">{subscription.gateway ?? '—'}</td>
+                    <td className="px-4 py-4 text-slate-500">{formatDate(subscription.startsAt)}</td>
+                    <td className="px-4 py-4 text-slate-500">{formatDate(subscription.expiresAt)}</td>
+                    <td className="px-4 py-4 font-mono text-xs text-slate-400">{subscription.paymentRef ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NczSyncSection() {
+  const summaryQuery = useQuery<NczSyncSummary>({
+    queryKey: ['admin-ncz-sync-summary'],
+    queryFn: () => api.get('/api/ncz/sync/summary'),
+    refetchInterval: 30000,
+  });
+  const logsQuery = useQuery<NczSyncLog[]>({
+    queryKey: ['admin-ncz-sync-logs'],
+    queryFn: () => api.get('/api/ncz/sync/logs'),
+    refetchInterval: 30000,
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <StatCard
+          title="Pending"
+          value={summaryQuery.data?.pending ?? '–'}
+          subtitle="Awaiting next sync"
+          icon={<RefreshCw size={20} />}
+          accent="amber"
+        />
+        <StatCard
+          title="Blocked"
+          value={summaryQuery.data?.blocked ?? '–'}
+          subtitle="Missing NCZ registration number"
+          icon={<XCircle size={20} />}
+          accent="red"
+        />
+        <StatCard
+          title="Failed"
+          value={summaryQuery.data?.failed ?? '–'}
+          subtitle="Needs retry or investigation"
+          icon={<ShieldAlert size={20} />}
+          accent="red"
+        />
+        <StatCard
+          title="Synced"
+          value={summaryQuery.data?.synced ?? '–'}
+          subtitle="Successfully sent to NCZ"
+          icon={<CheckCircle size={20} />}
+          accent="green"
+        />
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">NCZ Sync Operations</h2>
+            <p className="text-sm text-slate-500 mt-1">Admin can monitor release health here and jump into the NCZ portal for retry and record-level actions.</p>
+          </div>
+          <Link
+            to="/ncz"
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Open NCZ Portal
+            <ArrowRight size={15} />
+          </Link>
+        </div>
+
+        {logsQuery.isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-16 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+            ))}
+          </div>
+        ) : logsQuery.isError ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            Could not load NCZ sync logs.
+          </div>
+        ) : !logsQuery.data?.length ? (
+          <EmptyState
+            icon={<RefreshCw size={28} />}
+            title="No NCZ sync logs yet"
+            description="Sync history will appear here once the first scheduled or manual run happens."
+          />
+        ) : (
+          <div className="space-y-3">
+            {logsQuery.data.slice(0, 8).map((log) => (
+              <div key={log.id} className="rounded-xl border border-slate-200 p-4 flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={log.success ? 'success' : 'error'}>{log.success ? 'Success' : 'Issue'}</Badge>
+                    {log.dryRun ? <Badge variant="warning">Dry run</Badge> : null}
+                  </div>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {log.recordCount} record{log.recordCount === 1 ? '' : 's'} processed
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Triggered by {log.triggeredBy ?? 'system scheduler'}
+                  </p>
+                  {log.errorMessage ? (
+                    <p className="mt-2 text-xs text-red-600">{log.errorMessage}</p>
+                  ) : null}
+                </div>
+                <div className="text-xs text-slate-500 whitespace-nowrap">{formatDateTime(log.syncedAt)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ChartCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
       <h2 className="text-base font-semibold text-slate-900">{title}</h2>
       <p className="text-sm text-slate-500 mt-1 mb-4">{description}</p>
       <div className="h-[280px]">{children}</div>
-    </div>
-  );
-}
-
-function PlaceholderSection({ title, description, icon }: { title: string; description: string; icon: React.ReactNode }) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
-      <EmptyState icon={icon} title={title} description={description} />
     </div>
   );
 }

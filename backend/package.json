@@ -6,13 +6,13 @@
     "dev": "dotenv -e ../.env -- nodemon --exec ts-node src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
-    "test": "dotenv -e ../.env -- prisma migrate reset --force && dotenv -e ../.env -- prisma migrate dev && dotenv -e ../.env -- prisma generate && dotenv -e ../.env -- ts-node prisma/seed.ts && dotenv -e ../.env -- vitest run",
+    "test": "bash -lc 'if [ -f ../.env ]; then DOTENV=\"dotenv -e ../.env --\"; else DOTENV=\"\"; fi; $DOTENV prisma migrate reset --force && $DOTENV prisma migrate dev && $DOTENV prisma generate && $DOTENV ts-node prisma/seed.ts && $DOTENV vitest run'",
     "type-check": "tsc --noEmit",
-    "db:migrate": "dotenv -e ../.env -- prisma migrate dev",
-    "db:generate": "dotenv -e ../.env -- prisma generate",
-    "db:studio": "dotenv -e ../.env -- prisma studio",
-    "db:seed": "dotenv -e ../.env -- ts-node prisma/seed.ts",
-    "db:reset": "dotenv -e ../.env -- prisma migrate reset --force"
+    "db:migrate": "bash -lc 'if [ -f ../.env ]; then dotenv -e ../.env -- prisma migrate dev; else prisma migrate dev; fi'",
+    "db:generate": "bash -lc 'if [ -f ../.env ]; then dotenv -e ../.env -- prisma generate; else prisma generate; fi'",
+    "db:studio": "bash -lc 'if [ -f ../.env ]; then dotenv -e ../.env -- prisma studio; else prisma studio; fi'",
+    "db:seed": "bash -lc 'if [ -f ../.env ]; then dotenv -e ../.env -- ts-node prisma/seed.ts; else ts-node prisma/seed.ts; fi'",
+    "db:reset": "bash -lc 'if [ -f ../.env ]; then dotenv -e ../.env -- prisma migrate reset --force; else prisma migrate reset --force; fi'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
