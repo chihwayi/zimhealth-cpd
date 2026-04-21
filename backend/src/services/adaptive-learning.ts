@@ -77,7 +77,7 @@ export async function getRecommendations(
   const [learner, summary, completedEnrollments] = await Promise.all([
     db.user.findUnique({
       where: { id: learnerId },
-      select: { cadre: true, institution: true, province: true, specialtyArea: true },
+      select: { cadre: true, institution: true, province: true },
     }),
     getLearnerCPDSummary(learnerId),
     db.enrollment.findMany({
@@ -114,20 +114,18 @@ export async function getRecommendations(
 
 Learner profile:
 - Cadre: ${learner?.cadre ?? 'Registered Nurse'}
-- Specialty: ${learner?.specialtyArea ?? 'General'}
 - Institution: ${learner?.institution ?? 'Unknown'}
 - Province: ${learner?.province ?? 'Zimbabwe'}
 - CPD Points: 0/${summary.requiredPoints} required
 - Days to renewal: ${daysToRenewal}
 
-Available courses (recommend the most relevant 3 for this cadre and specialty):
+Available courses (recommend the most relevant 3 for this cadre):
 ${availableCourses.map((c) => `- ${c.id}: "${c.title}" (${c.category}, ${c.cpdPoints} pts, for: ${(c.targetCadres as string[]).join(', ')})`).join('\n')}
 
 Return JSON: { "recommendations": [ { "courseId": "...", "reason": "under 20 words why this suits their role" } ] }
-Order by relevance to their cadre/specialty. Max 3.`
+Order by relevance to their cadre. Max 3.`
     : `Learner profile:
 - Cadre: ${learner?.cadre ?? 'Nurse'}
-- Specialty: ${learner?.specialtyArea ?? 'General'}
 - Institution: ${learner?.institution ?? 'Unknown'}
 - Province: ${learner?.province ?? 'Unknown'}
 - CPD Points: ${summary.totalPoints}/${summary.requiredPoints} (${summary.percentComplete}% complete)

@@ -51,7 +51,7 @@ export async function creditPoints(
     const course = await db.course.findUnique({ where: { id: courseId }, select: { cpdPoints: true } });
     pointsEarned = course?.cpdPoints ?? 0;
   } else {
-    pointsEarned = (await import('./cpd-rules')).ACTIVITY_POINTS[activityType] ?? 1;
+    pointsEarned = (await import('./cpd-rules.js')).ACTIVITY_POINTS[activityType] ?? 1;
   }
 
   const cycleYear = getCurrentCycleYear();
