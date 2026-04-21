@@ -80,6 +80,13 @@ enum ActivityType {
   WHATSAPP_QUIZ
 }
 
+enum NczSyncStatus {
+  PENDING
+  BLOCKED_MISSING_NCZ
+  SYNCED
+  FAILED
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -95,6 +102,7 @@ model User {
   district              String?
   phone                 String?          @unique
   avatarUrl             String?
+  specialtyArea         String?
   subscriptionTier      SubscriptionTier @default(FREE)
   subscriptionExpiresAt DateTime?
   isActive              Boolean          @default(true)
@@ -132,6 +140,10 @@ model Course {
   estimatedMinutes   Int
   accreditationBody  String?
   tags               String[]
+  aiSourceName        String?
+  aiGeneratedAt       DateTime?
+  aiGeneratedProvider String?
+  aiReviewNotes       String?
   status             CourseStatus @default(DRAFT)
   expiresAt          DateTime?
   priceOverride      Decimal?
@@ -264,6 +276,10 @@ model CPDRecord {
   course           Course?      @relation(fields: [courseId], references: [id])
   quizId           String?
   quiz             Quiz?        @relation(fields: [quizId], references: [id])
+  sourceAttemptKey String?      // bot/offline attempt dedupe/audit key
+  nczSyncStatus    NczSyncStatus @default(PENDING)
+  nczLastError     String?
+  nczLastAttemptAt DateTime?
   activityType     ActivityType
   pointsEarned     Int
   quizScore        Float?
@@ -276,6 +292,7 @@ model CPDRecord {
 
   @@index([learnerId, cycleYear])
   @@index([learnerId, quizId, cycleYear])
+  @@index([learnerId, sourceAttemptKey, cycleYear])
   @@index([syncedToNcz])
 }
 
@@ -339,6 +356,8 @@ model NczSyncLog {
   recordCount  Int
   success      Boolean
   errorMessage String?
+  dryRun       Boolean  @default(false)
+  meta         Json?
   syncedAt     DateTime @default(now())
 }
 

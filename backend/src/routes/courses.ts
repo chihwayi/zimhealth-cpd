@@ -12,6 +12,8 @@ import {
 } from './courses.schema';
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { generateCourseFromGuideline } from '../services/ai-content-gen';
+import { getAIProvider } from '../lib/redis';
+import { canAccessPremiumCourse } from '../services/entitlements';
 
 const router: ExpressRouter = Router();
 
@@ -175,11 +177,11 @@ router.post(
 // POST /api/courses/:id/approve — Admin approves or rejects
 router.post('/:id/approve', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
   try {
-    const { action, reason } = CourseApprovalSchema.parse(req.body);
+    const { action, reason, reviewerNotes } = CourseApprovalSchema.parse(req.body);
     const newStatus = action === 'APPROVE' ? 'PUBLISHED' : 'DRAFT';
     const updated = await db.course.update({
       where: { id: req.params.id },
-      data: { status: newStatus },
+      data: { status: newStatus, aiReviewNotes: reviewerNotes ?? undefined },
     });
     await db.auditLog.create({
       data: {
@@ -187,7 +189,7 @@ router.post('/:id/approve', requireAuth, requireRole('ADMIN'), async (req: AuthR
         action: action === 'APPROVE' ? 'ADMIN_COURSE_APPROVED' : 'ADMIN_COURSE_REJECTED',
         entityType: 'Course',
         entityId: req.params.id,
-        meta: { action, reason, newStatus },
+        meta: { action, reason, reviewerNotes, newStatus },
       },
     });
     res.json({ course: updated, action, reason });
@@ -283,6 +285,7 @@ router.post(
     const { guidelineText, targetCadre } = req.body as {
       guidelineText?: string;
       targetCadre?: string;
+      sourceName?: string;
     };
 
     if (!guidelineText || guidelineText.trim().length < 50) {
@@ -293,6 +296,7 @@ router.post(
     if (owned.error) return res.status(owned.error.status).json(owned.error.body);
 
     try {
+      const provider = await getAIProvider().catch(() => null);
       const generated = await generateCourseFromGuideline(
         guidelineText,
         owned.course!.title,
@@ -363,6 +367,25 @@ router.post(
         return createdModules;
       });
 
+      await db.course.update({
+        where: { id: req.params.id },
+        data: {
+          aiGeneratedAt: new Date(),
+          aiGeneratedProvider: provider ?? 'auto',
+          aiSourceName: (req.body as any)?.sourceName ? String((req.body as any).sourceName).slice(0, 200) : 'Guideline text',
+        },
+      });
+
+      await db.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'CREATOR_AI_GENERATED_COURSE_CONTENT',
+          entityType: 'Course',
+          entityId: req.params.id,
+          meta: { targetCadre, provider: provider ?? 'auto', sourceName: (req.body as any)?.sourceName ?? 'Guideline text' },
+        },
+      });
+
       res.status(201).json({
         message: `Generated ${result.length} module(s) with sections and quizzes`,
         moduleIds: result,
@@ -390,6 +413,22 @@ router.post(
 // POST /api/courses/:id/enroll — Learner enrolls
 router.post('/:id/enroll', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
   try {
+    const course = await db.course.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, status: true, title: true },
+    });
+    if (!course || course.status !== 'PUBLISHED') {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    const hasPremiumAccess = await canAccessPremiumCourse(req.user!.id, course.id);
+    if (!hasPremiumAccess) {
+      return res.status(402).json({
+        error: 'Upgrade required to access the full web course library.',
+        code: 'UPGRADE_REQUIRED',
+      });
+    }
+
     const enrollment = await db.enrollment.upsert({
       where: { learnerId_courseId: { learnerId: req.user!.id, courseId: req.params.id } },
       create: { learnerId: req.user!.id, courseId: req.params.id },

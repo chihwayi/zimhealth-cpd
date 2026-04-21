@@ -17,6 +17,8 @@ type CourseCardCourse = {
   modules?: Array<{ isOfflineReady: boolean }>;
   enrollmentProgress?: number | null; // 0–100, present if enrolled
   aiReason?: string | null;
+  aiReasonCategories?: string[];
+  locked?: boolean;
 };
 
 const CATEGORY_VARIANT: Record<string, 'clinical' | 'management' | 'ethics' | 'research' | 'default'> = {
@@ -56,9 +58,14 @@ export function CourseCard({ course }: { course: CourseCardCourse }) {
   const isEnrolled = course.enrollmentProgress != null;
   const isOffline = course.modules?.some((m) => m.isOfflineReady);
   const categoryVariant = CATEGORY_VARIANT[course.category] ?? 'default';
+  const isLocked = Boolean(course.locked);
 
   return (
-    <Link to={`/courses/${course.id}`} className="block group focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-xl">
+    <Link
+      to={isLocked ? '/subscription' : `/courses/${course.id}`}
+      className="block group focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-xl"
+      aria-label={isLocked ? `${course.title} (locked)` : course.title}
+    >
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 h-full flex flex-col">
         {/* Thumbnail */}
         <div className="aspect-video bg-slate-100 relative overflow-hidden flex-shrink-0">
@@ -126,6 +133,18 @@ export function CourseCard({ course }: { course: CourseCardCourse }) {
             <div className="rounded-lg border border-primary-100 bg-primary-50 px-3 py-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-700">Recommended for you</p>
               <p className="mt-1 text-xs text-primary-800 leading-relaxed">{course.aiReason}</p>
+              {course.aiReasonCategories?.length ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {course.aiReasonCategories.map((c) => (
+                    <span
+                      key={c}
+                      className="inline-flex items-center rounded-full bg-white/80 border border-primary-100 px-2 py-0.5 text-[10px] font-semibold text-primary-700"
+                    >
+                      {c.replace(/_/g, ' ')}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -160,9 +179,15 @@ export function CourseCard({ course }: { course: CourseCardCourse }) {
             </div>
           ) : (
             <div className="mt-auto pt-1">
-              <div className="w-full bg-primary-500 text-white text-sm font-medium py-2 rounded-lg text-center group-hover:bg-primary-600 transition-colors">
-                Enrol Now
-              </div>
+              {isLocked ? (
+                <div className="w-full bg-slate-900 text-white text-sm font-semibold py-2 rounded-lg text-center group-hover:bg-slate-800 transition-colors">
+                  Locked — Upgrade
+                </div>
+              ) : (
+                <div className="w-full bg-primary-500 text-white text-sm font-medium py-2 rounded-lg text-center group-hover:bg-primary-600 transition-colors">
+                  Enrol Now
+                </div>
+              )}
             </div>
           )}
         </div>

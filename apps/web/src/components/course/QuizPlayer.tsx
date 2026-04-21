@@ -3,11 +3,15 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, ChevronLeft, ChevronRight, Send } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../../lib/api';
+import { getOfflineQuiz, queueQuizAttempt } from '../../lib/offlineDB';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { ProgressRing } from '../ui/ProgressRing';
 import { toast } from '../ui/Toast';
 
 type Quiz = {
   id: string;
+  courseId: string;
+  moduleId: string;
   title: string;
   passMark: number; // 0..1
   attemptLimit: number;
@@ -17,6 +21,7 @@ type Quiz = {
     id: string;
     text: string;
     imageUrl?: string | null;
+    correctOptionId?: string | null;
     options: Array<{ id: string; text: string }>;
   }>;
 };
@@ -27,6 +32,8 @@ type AttemptResult = {
   score: number; // 0..100
   pointsEarned: number;
   attemptsRemaining: number;
+  pendingSync?: boolean;
+  attemptedAt?: string;
   feedback: Array<{
     questionId: string;
     selectedOptionId: string | null;
@@ -39,22 +46,66 @@ export function QuizPlayer({ quizId }: { quizId: string }) {
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [result, setResult] = useState<AttemptResult | null>(null);
+  const [queuedOfflineAt, setQueuedOfflineAt] = useState<number | null>(null);
+  const isOnline = useOnlineStatus();
 
   const { data: quiz, isLoading, error, refetch } = useQuery<Quiz>({
-    queryKey: ['quiz', quizId],
-    queryFn: () => api.get(`/api/quizzes/${quizId}`),
+    queryKey: ['quiz', quizId, isOnline ? 'online' : 'offline'],
+    queryFn: async () => {
+      if (isOnline) return api.get(`/api/quizzes/${quizId}`);
+      const offline = await getOfflineQuiz(quizId);
+      if (!offline) throw new Error('This quiz is not available offline. Download the module first.');
+      // attemptsRemaining is unknown offline; show attemptLimit as a best-effort hint.
+      return { ...offline, attemptsRemaining: offline.attemptLimit };
+    },
     enabled: !!quizId,
   });
 
   const submitMutation = useMutation({
-    mutationFn: async () => api.post<AttemptResult>(`/api/quizzes/${quizId}/attempt`, { answers }),
-    onSuccess: (res) => {
-      setResult(res);
-      if (res.passed) {
-        toast.success(`Quiz passed! You earned ${res.pointsEarned} CPD point${res.pointsEarned !== 1 ? 's' : ''}.`);
-      } else {
-        toast.info(`Score: ${Math.round(res.score)}%. Pass mark is ${quiz ? Math.round(quiz.passMark * 100) : '–'}%.`);
+    mutationFn: async () => {
+      if (!isOnline) {
+        if (!quiz) throw new Error('Quiz is not available.');
+        if (quiz.questions.some((question) => !question.correctOptionId)) {
+          throw new Error('This quiz was downloaded without offline grading data. Download it again while online.');
+        }
+
+        const feedback = quiz.questions.map((question) => {
+          const selectedOptionId = answers[question.id] ?? null;
+          const correctOptionId = question.correctOptionId ?? null;
+          return {
+            questionId: question.id,
+            selectedOptionId,
+            correctOptionId,
+            isCorrect: Boolean(selectedOptionId && correctOptionId && selectedOptionId === correctOptionId),
+          };
+        });
+        const correctCount = feedback.filter((item) => item.isCorrect).length;
+        const score = quiz.questions.length ? (correctCount / quiz.questions.length) * 100 : 0;
+        const passed = score / 100 >= quiz.passMark;
+        const queued = await queueQuizAttempt(quizId, quiz.courseId, quiz.moduleId, answers);
+        setQueuedOfflineAt(queued.queuedAt);
+        return {
+          attemptId: `offline-${queued.key}`,
+          passed,
+          score,
+          pointsEarned: 0,
+          attemptsRemaining: Math.max(0, quiz.attemptLimit - 1),
+          pendingSync: true,
+          attemptedAt: new Date(queued.attemptedAt).toISOString(),
+          feedback: quiz.showAnswersAfter ? feedback : [],
+        } satisfies AttemptResult;
       }
+      return api.post<AttemptResult>(`/api/quizzes/${quizId}/attempt`, { answers });
+    },
+    onSuccess: (res) => {
+      if (!isOnline) {
+        setResult(res);
+        toast.info('You are offline. Your score was calculated on this device and your attempt will sync when you reconnect.');
+        return;
+      }
+      setResult(res);
+      if (res.passed) toast.success(`Quiz passed! You earned ${res.pointsEarned} CPD point${res.pointsEarned !== 1 ? 's' : ''}.`);
+      else toast.info(`Score: ${Math.round(res.score)}%. Pass mark is ${quiz ? Math.round(quiz.passMark * 100) : '–'}%.`);
     },
     onError: (err: Error) => {
       toast.error(err.message ?? 'Could not submit quiz.');
@@ -120,10 +171,21 @@ export function QuizPlayer({ quizId }: { quizId: string }) {
                 ? ` · ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining`
                 : ' · No attempts remaining'}
             </p>
+            {result.pendingSync && queuedOfflineAt && (
+              <p className="mt-2 text-xs font-medium text-amber-700">
+                Saved offline at {new Date(queuedOfflineAt).toLocaleString()}. Points and official attempt history will sync when you reconnect.
+              </p>
+            )}
             {result.passed && result.pointsEarned > 0 && (
               <div className="inline-flex items-center gap-1.5 mt-3 bg-green-100 text-green-800 text-sm font-semibold px-3 py-1 rounded-full">
                 <CheckCircle2 size={14} />
                 +{result.pointsEarned} CPD point{result.pointsEarned !== 1 ? 's' : ''} earned
+              </div>
+            )}
+            {result.pendingSync && (
+              <div className="inline-flex items-center gap-1.5 mt-3 bg-amber-100 text-amber-800 text-sm font-semibold px-3 py-1 rounded-full">
+                <Send size={14} />
+                Result saved offline, awaiting sync
               </div>
             )}
           </div>
@@ -138,7 +200,12 @@ export function QuizPlayer({ quizId }: { quizId: string }) {
               </button>
             )}
             <button
-              onClick={() => setResult(null)}
+              onClick={() => {
+                setResult(null);
+                setAnswers({});
+                setIndex(0);
+                setQueuedOfflineAt(null);
+              }}
               className="px-4 py-2 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition-colors"
             >
               Continue
@@ -210,7 +277,7 @@ export function QuizPlayer({ quizId }: { quizId: string }) {
   const isLast = index === total - 1;
   const selected = answers[q.id];
   const answeredCount = Object.keys(answers).length;
-  const canSubmit = quiz.attemptsRemaining > 0 && answeredCount === total;
+  const canSubmit = answeredCount === total && (isOnline ? quiz.attemptsRemaining > 0 : true);
 
   return (
     <div className="space-y-4">

@@ -4,6 +4,7 @@ import { db } from '../lib/db';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
 import { getLearnerCPDSummary, creditPoints } from '../services/cpd-engine';
+import { canEarnWhatsAppPoints, getLearnerEntitlements } from '../services/entitlements';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { requireBotSecret } from '../middleware/auth.middleware';
@@ -11,7 +12,11 @@ import { requireBotSecret } from '../middleware/auth.middleware';
 const router: ExpressRouter = Router();
 const BotCreditSchema = z.object({
   phone: z.string().min(8),
-  quizScore: z.number().min(0).max(100).optional(),
+  quizId: z.string().min(3),
+  courseId: z.string().optional(),
+  moduleId: z.string().optional(),
+  attemptKey: z.string().min(6),
+  quizScore: z.number().min(0).max(100),
 });
 
 // GET /api/points — learner's CPD records (optional year + limit; default recent across years)
@@ -79,13 +84,54 @@ router.get('/bot/:phone', requireBotSecret, async (req, res) => {
 // POST /api/points/bot/credit — bot credits WhatsApp quiz points
 router.post('/bot/credit', requireBotSecret, async (req, res) => {
   try {
-    const { phone, quizScore } = BotCreditSchema.parse(req.body);
+    const { phone, quizId, courseId, attemptKey, quizScore } = BotCreditSchema.parse(req.body);
     const learner = await db.user.findUnique({ where: { phone } });
     if (!learner) return res.status(404).json({ error: 'Learner not found' });
+    const cycleYear = new Date().getFullYear();
+
+    // Enforce FREE-tier WhatsApp CPD cap at the backend.
+    const allowed = await canEarnWhatsAppPoints(learner.id, cycleYear);
+    if (!allowed) {
+      const ent = await getLearnerEntitlements(learner.id);
+      return res.status(402).json({
+        error: 'WhatsApp CPD allowance reached for this cycle. Upgrade to continue earning points.',
+        code: 'WHATSAPP_POINTS_CAP_REACHED',
+        remainingWhatsappPoints: ent.remainingWhatsappPoints,
+        subscriptionTier: ent.subscriptionTier,
+      });
+    }
+    // Prevent farming: if already credited for this quiz this cycle, return 0 points.
+    const existing = await db.cPDRecord.findFirst({
+      where: { learnerId: learner.id, quizId, cycleYear, activityType: 'WHATSAPP_QUIZ' },
+    });
+    if (existing) {
+      return res.json({ recordId: existing.id, pointsEarned: 0, alreadyCredited: true });
+    }
+
     const result = await creditPoints({
       learnerId: learner.id,
+      courseId,
+      quizId,
       activityType: 'WHATSAPP_QUIZ' as any,
       quizScore,
+    });
+
+    // Persist attemptKey on the record for audit/deduplication visibility.
+    if (result.recordId) {
+      await db.cPDRecord.update({
+        where: { id: result.recordId },
+        data: { sourceAttemptKey: attemptKey },
+      });
+    }
+    // Store attemptKey for audit/dedupe visibility
+    await db.auditLog.create({
+      data: {
+        userId: learner.id,
+        action: 'WHATSAPP_QUIZ_ATTEMPT_CREDIT',
+        entityType: 'Quiz',
+        entityId: quizId,
+        meta: { attemptKey, pointsEarned: result.pointsEarned, courseId },
+      },
     });
     res.json(result);
   } catch (err: any) {

@@ -49,6 +49,7 @@ export interface LearningState {
   courseTitle?: string;
   moduleId?: string;
   moduleTitle?: string;
+  quizSource?: 'MODULE_QUIZ' | 'MICRO_QUIZ';
   sections: BotSection[];
   quizId?: string | null;
   quizQuestions?: BotQuizQuestion[];
@@ -69,8 +70,18 @@ export interface BotSession {
   state: BotState;
   registrationState?: RegistrationState;
   learningState?: LearningState;
+  aiTutorState?: {
+    awaitingFollowUp?: boolean;
+    followUpQuestion?: string;
+    lastTopic?: string;
+    paywallShownAt?: number;
+  };
   quizState?: {
     quizId: string;
+    courseId?: string;
+    moduleId?: string;
+    moduleTitle?: string;
+    quizSource?: 'MODULE_QUIZ' | 'MICRO_QUIZ';
     questions: Array<{
       id: string;
       text: string;

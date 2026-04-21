@@ -154,6 +154,14 @@ export default function ProfilePage() {
         <div className="h-48 rounded-xl bg-white border border-slate-200 animate-pulse" />
       ) : me ? (
         <form onSubmit={handleSubmit} className="space-y-8">
+          {(!me.cadre || !me.institution || !me.province) && (
+            <div className="bg-primary-50 border border-primary-100 rounded-xl p-4">
+              <p className="text-sm font-semibold text-primary-900">Complete your profile for better recommendations</p>
+              <p className="text-xs text-primary-800/80 mt-1 leading-relaxed">
+                Adding your cadre, institution, and province helps NursePro recommend courses that match your practice context and renewal needs.
+              </p>
+            </div>
+          )}
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center gap-6">
               <div className="relative shrink-0">

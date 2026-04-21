@@ -25,7 +25,19 @@ export interface OfflineSection {
 
 export interface OfflineQuiz {
   id: string;
+  courseId: string;
+  moduleId: string;
   title: string;
+  passMark: number; // 0..1
+  attemptLimit: number;
+  showAnswersAfter: boolean;
+  questions: Array<{
+    id: string;
+    text: string;
+    imageUrl?: string | null;
+    correctOptionId?: string | null;
+    options: Array<{ id: string; text: string }>;
+  }>;
 }
 
 export interface PendingProgress {
@@ -36,10 +48,20 @@ export interface PendingProgress {
   queuedAt: number;
 }
 
+export interface PendingQuizAttempt {
+  key: string; // `${quizId}_${queuedAt}`
+  quizId: string;
+  courseId: string;
+  moduleId: string;
+  answers: Record<string, string>;
+  attemptedAt: number;
+  queuedAt: number;
+}
+
 // ─── DB setup ─────────────────────────────────────────────────────────────────
 
 const DB_NAME = 'nursepro-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 
 let _db: IDBPDatabase | null = null;
 
@@ -53,6 +75,10 @@ async function getDB(): Promise<IDBPDatabase> {
       }
       if (!db.objectStoreNames.contains('pending_progress')) {
         db.createObjectStore('pending_progress', { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains('pending_quiz_attempts')) {
+        const store = db.createObjectStore('pending_quiz_attempts', { keyPath: 'key' });
+        store.createIndex('by_quiz', 'quizId');
       }
     },
   });
@@ -74,6 +100,16 @@ export async function getOfflineModule(moduleId: string): Promise<OfflineModule 
 export async function getOfflineModulesForCourse(courseId: string): Promise<OfflineModule[]> {
   const db = await getDB();
   return db.getAllFromIndex('offline_modules', 'by_course', courseId);
+}
+
+export async function getOfflineQuiz(quizId: string): Promise<OfflineQuiz | undefined> {
+  const db = await getDB();
+  const modules = (await db.getAll('offline_modules')) as OfflineModule[];
+  for (const m of modules) {
+    const q = m.quizzes?.find((x) => x.id === quizId);
+    if (q) return q;
+  }
+  return undefined;
 }
 
 export async function deleteOfflineModule(moduleId: string): Promise<void> {
@@ -112,6 +148,59 @@ export async function getPendingProgressUpdates(): Promise<PendingProgress[]> {
 export async function clearPendingProgress(key: string): Promise<void> {
   const db = await getDB();
   await db.delete('pending_progress', key);
+}
+
+// ─── Pending quiz attempt sync ────────────────────────────────────────────────
+
+export async function queueQuizAttempt(
+  quizId: string,
+  courseId: string,
+  moduleId: string,
+  answers: Record<string, string>,
+): Promise<PendingQuizAttempt> {
+  const db = await getDB();
+  const attemptedAt = Date.now();
+  const queuedAt = Date.now();
+  const entry: PendingQuizAttempt = {
+    key: `${quizId}_${queuedAt}`,
+    quizId,
+    courseId,
+    moduleId,
+    answers,
+    attemptedAt,
+    queuedAt,
+  };
+  await db.put('pending_quiz_attempts', entry);
+  return entry;
+}
+
+export async function getPendingQuizAttempts(): Promise<PendingQuizAttempt[]> {
+  const db = await getDB();
+  return db.getAll('pending_quiz_attempts');
+}
+
+export async function clearPendingQuizAttempt(key: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('pending_quiz_attempts', key);
+}
+
+export async function syncPendingQuizAttempts(
+  apiFn: (entry: PendingQuizAttempt) => Promise<unknown>,
+): Promise<number> {
+  const pending = await getPendingQuizAttempts();
+  let synced = 0;
+
+  for (const entry of pending) {
+    try {
+      await apiFn(entry);
+      await clearPendingQuizAttempt(entry.key);
+      synced++;
+    } catch {
+      // Leave in queue to retry later
+    }
+  }
+
+  return synced;
 }
 
 // ─── Sync pending progress updates when back online ──────────────────────────

@@ -23,6 +23,7 @@ export const UpdateCourseSchema = CreateCourseSchema.partial();
 export const CourseApprovalSchema = z.object({
   action: z.enum(['APPROVE', 'REJECT']),
   reason: z.string().max(500).optional(),
+  reviewerNotes: z.string().max(1000).optional(),
 });
 
 export const CreateModuleSchema = z.object({

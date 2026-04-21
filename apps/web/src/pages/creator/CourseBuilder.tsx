@@ -243,13 +243,13 @@ export default function CourseBuilder() {
 
   const createSectionMutation = useMutation({
     mutationFn: (payload: { moduleId: string; type: ContentType; order: number }) =>
-      api.post(`/api/courses/${id}/modules/${payload.moduleId}/sections`, {
+      api.post<Section>(`/api/courses/${id}/modules/${payload.moduleId}/sections`, {
         type: payload.type,
         title: `${formatLabel(payload.type)} section`,
         order: payload.order,
         content: '',
       }),
-    onSuccess: (createdSection: any) => {
+    onSuccess: (createdSection: Section) => {
       toast.success('Section added');
       queryClient.invalidateQueries({ queryKey: ['course-builder', id] });
       if (createdSection?.id) {
@@ -286,12 +286,13 @@ export default function CourseBuilder() {
   const [showAiPanel, setShowAiPanel] = useState(false);
   const [aiGuidelineText, setAiGuidelineText] = useState('');
   const [aiTargetCadre, setAiTargetCadre] = useState('Registered General Nurse');
+  const [aiSourceName, setAiSourceName] = useState('EDLIZ / MOHCC guideline');
 
   const aiGenerateMutation = useMutation({
     mutationFn: () =>
       api.post<{ message: string; moduleIds: string[]; preview: { moduleCount: number } }>(
         `/api/courses/${id}/ai-generate-content`,
-        { guidelineText: aiGuidelineText, targetCadre: aiTargetCadre },
+        { guidelineText: aiGuidelineText, targetCadre: aiTargetCadre, sourceName: aiSourceName },
       ),
     onSuccess: (data) => {
       toast.success(`AI generated ${data.preview.moduleCount} module(s). Check the curriculum panel.`);
@@ -681,6 +682,15 @@ export default function CourseBuilder() {
                   <option>Community Health Nurse</option>
                   <option>Clinical Nurse Specialist</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-600 mb-1">Source document name (for review trail)</label>
+                <input
+                  value={aiSourceName}
+                  onChange={(e) => setAiSourceName(e.target.value)}
+                  placeholder="e.g. EDLIZ 2023 — Pneumonia"
+                  className="w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-violet-400 focus:outline-none"
+                />
               </div>
               <div>
                 <label className="block text-xs text-slate-600 mb-1">

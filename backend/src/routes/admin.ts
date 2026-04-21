@@ -58,6 +58,91 @@ router.get('/config/ai', requireAuth, requireRole('ADMIN'), async (_req, res) =>
   });
 });
 
+router.get('/ai/health', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+  try {
+    const provider = await getAIProvider();
+    const since = new Date(Date.now() - 1000 * 60 * 60 * 24);
+    const events = await db.auditLog.findMany({
+      where: {
+        action: { startsWith: 'BOT_AI_TUTOR_' },
+        createdAt: { gte: since },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: { action: true, meta: true, createdAt: true },
+    });
+
+    let requests = 0;
+    let cacheHits = 0;
+    let failures = 0;
+    let paywalls = 0;
+    let fallbacks = 0;
+    let latencyTotal = 0;
+    let latencyCount = 0;
+    let lastFailureAt: string | null = null;
+    let lastFallbackAt: string | null = null;
+
+    for (const e of events) {
+      if (e.action === 'BOT_AI_TUTOR_REQUEST') requests++;
+      if (e.action === 'BOT_AI_TUTOR_CACHE_HIT') cacheHits++;
+      if (e.action === 'BOT_AI_TUTOR_FAILURE') {
+        failures++;
+        if (!lastFailureAt) lastFailureAt = e.createdAt.toISOString();
+      }
+      if (e.action === 'BOT_AI_TUTOR_PAYWALL') paywalls++;
+      const meta = (e.meta ?? null) as any;
+      if (meta?.fallbackUsed) {
+        fallbacks++;
+        if (!lastFallbackAt) lastFallbackAt = e.createdAt.toISOString();
+      }
+      if (typeof meta?.latencyMs === 'number') {
+        latencyTotal += meta.latencyMs;
+        latencyCount++;
+      }
+    }
+
+    const avgLatencyMs = latencyCount ? Math.round(latencyTotal / latencyCount) : null;
+    return res.json({
+      activeProvider: provider,
+      configuredProviders: getConfiguredProviders(),
+      windowHours: 24,
+      requests,
+      cacheHits,
+      failures,
+      paywalls,
+      fallbacks,
+      avgLatencyMs,
+      lastFailureAt,
+      lastFallbackAt,
+    });
+  } catch {
+    return res.status(500).json({ error: 'Could not load AI health' });
+  }
+});
+
+router.get('/telemetry/summary', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+  try {
+    const since24h = new Date(Date.now() - 1000 * 60 * 60 * 24);
+    const [enrollmentsCompleted, enrollmentsInProgress, quizAttempts24h, offlineDownloads24h, botTutorEvents24h] = await Promise.all([
+      db.enrollment.count({ where: { completedAt: { not: null } } }),
+      db.enrollment.count({ where: { completedAt: null } }),
+      db.quizAttempt.count({ where: { completedAt: { gte: since24h } } }),
+      db.auditLog.count({ where: { action: 'WEB_OFFLINE_MODULE_DOWNLOADED', createdAt: { gte: since24h } } }),
+      db.auditLog.count({ where: { action: { startsWith: 'BOT_AI_TUTOR_' }, createdAt: { gte: since24h } } }),
+    ]);
+
+    return res.json({
+      windowHours: 24,
+      enrollments: { inProgress: enrollmentsInProgress, completed: enrollmentsCompleted },
+      quizAttempts24h,
+      offlineDownloads24h,
+      botAiTutorEvents24h: botTutorEvents24h,
+    });
+  } catch {
+    return res.status(500).json({ error: 'Could not load telemetry summary' });
+  }
+});
+
 router.patch('/config/ai', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
   const { provider } = req.body as { provider?: string };
 

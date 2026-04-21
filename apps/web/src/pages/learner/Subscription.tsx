@@ -11,8 +11,18 @@ const PRICING: Array<{
   price: string;
   features: string[];
 }> = [
-  { tier: 'STANDARD', title: 'Standard', price: '$5 / year', features: ['Full course access', 'Quizzes & CPD points', 'Certificates'] },
-  { tier: 'DIASPORA', title: 'Diaspora', price: '$15 / year', features: ['All Standard features', 'Priority support', 'Sponsor a learner (coming soon)'] },
+  {
+    tier: 'STANDARD',
+    title: 'Standard',
+    price: '$5 / year',
+    features: ['Full web course library', 'AI Tutor on WhatsApp', 'Certificates', 'WhatsApp CPD + web CPD'],
+  },
+  {
+    tier: 'DIASPORA',
+    title: 'Diaspora',
+    price: '$15 / year',
+    features: ['All Standard features', 'Priority support', 'Sponsor a learner (coming soon)'],
+  },
 ];
 
 export default function SubscriptionPage() {

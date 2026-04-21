@@ -23,12 +23,14 @@ import {
 import clsx from 'clsx';
 import {
   saveModuleOffline,
+  type OfflineQuiz,
   getOfflineModulesForCourse,
   deleteOfflineModule,
   isModuleOffline,
   queueProgressUpdate,
 } from '../../lib/offlineDB';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { useAuthStore } from '../../store/auth.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,7 +45,20 @@ type ContentSection = {
 
 type Quiz = {
   id: string;
+  courseId?: string;
+  moduleId?: string;
   title: string;
+  passMark?: number;
+  attemptLimit?: number;
+  attemptsRemaining?: number;
+  showAnswersAfter?: boolean;
+  questions?: Array<{
+    id: string;
+    text: string;
+    imageUrl?: string | null;
+    correctOptionId?: string | null;
+    options: Array<{ id: string; text: string }>;
+  }>;
 };
 
 type Module = {
@@ -231,6 +246,7 @@ export default function CoursePlayerPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
+  const user = useAuthStore((state) => state.user);
 
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [reviewRating, setReviewRating] = useState(0);
@@ -303,8 +319,16 @@ export default function CoursePlayerPage() {
       void queryClient.invalidateQueries({ queryKey: ['enrollment-course', id] });
       void queryClient.invalidateQueries({ queryKey: ['enrollments'] });
     };
+    const quizHandler = () => {
+      void queryClient.invalidateQueries({ queryKey: ['cpd-summary'] });
+      void queryClient.invalidateQueries({ queryKey: ['cpd-records'] });
+    };
     window.addEventListener('nursepro:progress-synced', handler);
-    return () => window.removeEventListener('nursepro:progress-synced', handler);
+    window.addEventListener('nursepro:quiz-attempts-synced', quizHandler);
+    return () => {
+      window.removeEventListener('nursepro:progress-synced', handler);
+      window.removeEventListener('nursepro:quiz-attempts-synced', quizHandler);
+    };
   }, [isOnline, id, queryClient]);
 
   // ── Download a module for offline ──
@@ -314,6 +338,32 @@ export default function CoursePlayerPage() {
     if (!module) return;
     setDownloadingModuleId(moduleId);
     try {
+      const quizzes = module.quizzes ?? [];
+      const quizPayloads = await Promise.all(
+        quizzes.map(async (q) => {
+          try {
+            return await api.get<{
+              id: string;
+              courseId: string;
+              moduleId: string;
+              title: string;
+              passMark: number;
+              attemptLimit: number;
+              showAnswersAfter: boolean;
+              questions: Array<{
+                id: string;
+                text: string;
+                imageUrl?: string | null;
+                correctOptionId?: string | null;
+                options: Array<{ id: string; text: string }>;
+              }>;
+            }>(`/api/quizzes/${q.id}?offline=1`);
+          } catch {
+            return null;
+          }
+        }),
+      );
+
       await saveModuleOffline({
         id: module.id,
         courseId: id!,
@@ -321,10 +371,12 @@ export default function CoursePlayerPage() {
         moduleTitle: module.title,
         moduleOrder: module.order,
         sections: module.sections,
-        quizzes: module.quizzes ?? [],
+        quizzes: quizPayloads.filter(Boolean) as OfflineQuiz[],
         savedAt: Date.now(),
       });
       setOfflineModuleIds((prev) => new Set([...prev, moduleId]));
+      // Best-effort telemetry for admin release readiness (Sprint 30).
+      void api.post('/api/telemetry/offline-download', { courseId: id, moduleId }).catch(() => null);
     } finally {
       setDownloadingModuleId(null);
     }
@@ -341,6 +393,7 @@ export default function CoursePlayerPage() {
   const isEnrolled = !!enrollment;
   const isCompleted = enrollment?.status === 'COMPLETED';
   const progressPercent = enrollment?.progressPercent ?? 0;
+  const isFreeLearner = user?.role === 'LEARNER' && (user.subscriptionTier ?? 'FREE') === 'FREE';
 
   // Use live course data when online, fall back to offline cache when not
   const effectiveCourse = isOnline ? course : (course ?? offlineCourse);
@@ -486,23 +539,38 @@ export default function CoursePlayerPage() {
             <h1 className="text-2xl font-bold text-slate-900 mb-2">{effectiveCourse.title}</h1>
             {effectiveCourse.subtitle && <p className="text-base text-slate-600 mb-3">{effectiveCourse.subtitle}</p>}
             <p className="text-sm text-slate-500 line-clamp-4 mb-6">{effectiveCourse.description}</p>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => enrollMutation.mutate()}
-                disabled={enrollMutation.isPending}
-                className="inline-flex items-center gap-2 bg-primary-500 text-white font-semibold px-6 py-3 rounded-xl hover:bg-primary-600 disabled:opacity-50 transition-colors text-sm"
-              >
-                {enrollMutation.isPending ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <BookOpen size={16} />
+            {isFreeLearner ? (
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Free learners can still use WhatsApp CPD and micro-learning, but the full web course library is a premium feature.
+                </div>
+                <Link
+                  to="/subscription"
+                  className="inline-flex items-center gap-2 bg-slate-900 text-white font-semibold px-6 py-3 rounded-xl hover:bg-slate-800 transition-colors text-sm"
+                >
+                  <Lock size={16} />
+                  Upgrade To Access Web Courses
+                </Link>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => enrollMutation.mutate()}
+                  disabled={enrollMutation.isPending}
+                  className="inline-flex items-center gap-2 bg-primary-500 text-white font-semibold px-6 py-3 rounded-xl hover:bg-primary-600 disabled:opacity-50 transition-colors text-sm"
+                >
+                  {enrollMutation.isPending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <BookOpen size={16} />
+                  )}
+                  {enrollMutation.isPending ? 'Enrolling…' : 'Enroll & Start Learning'}
+                </button>
+                {enrollMutation.isError && (
+                  <p className="text-xs text-red-600">{(enrollMutation.error as Error).message}</p>
                 )}
-                {enrollMutation.isPending ? 'Enrolling…' : 'Enroll & Start Learning'}
-              </button>
-              {enrollMutation.isError && (
-                <p className="text-xs text-red-600">{(enrollMutation.error as Error).message}</p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

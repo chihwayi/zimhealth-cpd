@@ -86,6 +86,7 @@ export async function creditPoints(
       pointsEarned,
       quizScore,
       cycleYear,
+      nczSyncStatus: 'PENDING',
       isManualOverride: isManualOverride ?? false,
       overrideNote,
     },

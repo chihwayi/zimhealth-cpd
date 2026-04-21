@@ -5,6 +5,7 @@ import { requireRole } from '../middleware/role.middleware';
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { db } from '../lib/db';
 import { generateCertificate } from '../services/certificate';
+import { canGenerateCertificate } from '../services/entitlements';
 import { z } from 'zod';
 
 const router: ExpressRouter = Router();
@@ -19,6 +20,15 @@ router.post('/generate', requireAuth, requireRole('LEARNER'), async (req: AuthRe
       cycleYear: req.body?.cycleYear ? Number(req.body.cycleYear) : undefined,
     });
     const cycleYear = data.cycleYear ?? new Date().getFullYear();
+
+    const allowed = await canGenerateCertificate(req.user!.id, cycleYear);
+    if (!allowed) {
+      return res.status(402).json({
+        error: 'Upgrade required to generate certificates on the web.',
+        code: 'UPGRADE_REQUIRED',
+      });
+    }
+
     const cert = await generateCertificate(req.user!.id, cycleYear);
     res.json(cert);
   } catch (err: any) {

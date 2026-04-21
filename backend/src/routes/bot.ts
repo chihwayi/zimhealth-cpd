@@ -3,6 +3,7 @@ import type { Router as ExpressRouter } from 'express';
 import { db } from '../lib/db';
 import { requireBotSecret } from '../middleware/auth.middleware';
 import { randomBytes } from 'crypto';
+import { z } from 'zod';
 
 const router: ExpressRouter = Router();
 
@@ -190,6 +191,51 @@ router.post('/register', requireBotSecret, async (req, res) => {
       if (existing) return res.json({ userId: existing.id, fullName: existing.fullName, existing: true });
     }
     res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// ─── POST /api/bot/analytics/ai-tutor ─────────────────────────────────────────
+// Bot-only analytics + audit trail for AI tutor interactions.
+const AiTutorAnalyticsSchema = z.object({
+  phone: z.string().min(5),
+  event: z.enum(['REQUEST', 'CACHE_HIT', 'PAYWALL', 'FAILURE', 'FOLLOWUP_ANSWER', 'UPGRADE_CTA']),
+  provider: z.string().optional(),
+  latencyMs: z.number().int().nonnegative().optional(),
+  cacheHit: z.boolean().optional(),
+  fallbackUsed: z.boolean().optional(),
+  success: z.boolean().optional(),
+  theme: z.string().optional(),
+  meta: z.unknown().optional(),
+});
+
+router.post('/analytics/ai-tutor', requireBotSecret, async (req, res) => {
+  try {
+    const data = AiTutorAnalyticsSchema.parse(req.body);
+    const learner = await db.user.findUnique({ where: { phone: data.phone }, select: { id: true } });
+    if (!learner) return res.status(404).json({ error: 'Learner not found' });
+
+    await db.auditLog.create({
+      data: {
+        userId: learner.id,
+        action: `BOT_AI_TUTOR_${data.event}`,
+        entityType: 'AiTutor',
+        entityId: data.provider ?? 'unknown',
+        meta: {
+          provider: data.provider,
+          latencyMs: data.latencyMs,
+          cacheHit: data.cacheHit,
+          fallbackUsed: data.fallbackUsed,
+          success: data.success,
+          theme: data.theme,
+          ...(data.meta && typeof data.meta === 'object' ? { extra: data.meta } : {}),
+        },
+      },
+    });
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    if (err?.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    return res.status(500).json({ error: 'Could not record analytics' });
   }
 });
 

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search,
   Download,
@@ -13,6 +13,8 @@ import {
   FileText,
   X,
 } from 'lucide-react';
+import clsx from 'clsx';
+import { useLocation } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { StatCard } from '../../components/ui/StatCard';
 import { Badge } from '../../components/ui/Badge';
@@ -79,7 +81,28 @@ interface SyncLog {
   recordCount: number;
   success: boolean;
   errorMessage?: string | null;
+  dryRun?: boolean;
+  meta?: unknown;
   syncedAt: string;
+}
+
+interface SyncSummary {
+  pending: number;
+  blocked: number;
+  failed: number;
+  synced: number;
+}
+
+interface SyncRecordRow {
+  id: string;
+  pointsEarned: number;
+  activityType: string;
+  completedAt: string;
+  cycleYear: number;
+  nczLastError?: string | null;
+  nczLastAttemptAt?: string | null;
+  learner: { id: string; fullName: string; email: string; nczRegistrationNumber?: string | null };
+  course?: { title: string } | null;
 }
 
 const CADRE_OPTIONS = [
@@ -116,11 +139,23 @@ function buildCsvUrl(): string {
 
 export default function NczDashboard() {
   const accessToken = useAuthStore((state) => state.accessToken);
+  const location = useLocation();
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [cadre, setCadre] = useState('');
   const [page, setPage] = useState(1);
   const [selectedLearner, setSelectedLearner] = useState<Learner | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const q = params.get('search');
+    if (q && q.trim().length > 0) {
+      setSearchInput(q);
+      setSearch(q);
+      setPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   const learnersQuery = useQuery<LearnersResponse>({
     queryKey: ['ncz-learners', search, cadre, page],
@@ -411,10 +446,32 @@ function LearnerHistoryPanel({
   learner: Learner;
   onClose: () => void;
 }) {
+  const queryClient = useQueryClient();
+  const [editingNcz, setEditingNcz] = useState(false);
+  const [nczValue, setNczValue] = useState(learner.nczRegistrationNumber ?? '');
+
   const historyQuery = useQuery<LearnerHistoryResponse>({
     queryKey: ['ncz-learner-history', learner.id],
     queryFn: () => api.get(`/api/ncz/learners/${learner.id}/history`),
   });
+
+  async function saveNczNumber() {
+    setEditingNcz(true);
+    try {
+      const payload = { nczRegistrationNumber: nczValue.trim() ? nczValue.trim() : null };
+      const updated = await api.patch<Learner>(`/api/ncz/learners/${learner.id}`, payload);
+      toast.success('NCZ registration number updated.');
+      // Keep the panel header in sync and refresh queues/search lists.
+      learner.nczRegistrationNumber = updated.nczRegistrationNumber;
+      queryClient.invalidateQueries({ queryKey: ['ncz-learners'] });
+      queryClient.invalidateQueries({ queryKey: ['ncz-sync-blocked'] });
+      queryClient.invalidateQueries({ queryKey: ['ncz-learner-history', learner.id] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update NCZ number.');
+    } finally {
+      setEditingNcz(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 flex justify-end" onClick={onClose}>
@@ -429,6 +486,29 @@ function LearnerHistoryPanel({
               <p className="text-sm text-slate-500 mt-1">
                 {learner.nczRegistrationNumber ?? 'No NCZ registration number'} · {learner.cadre ?? 'Cadre not set'}
               </p>
+              <div className="mt-4 flex flex-col sm:flex-row sm:items-end gap-2">
+                <div className="w-full sm:w-80">
+                  <label htmlFor="ncz-number" className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    NCZ registration number
+                  </label>
+                  <input
+                    id="ncz-number"
+                    value={nczValue}
+                    onChange={(e) => setNczValue(e.target.value)}
+                    placeholder="e.g. NCZ-12345"
+                    className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void saveNczNumber()}
+                  disabled={editingNcz}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <CheckCircle size={16} />
+                  {editingNcz ? 'Saving…' : 'Save'}
+                </button>
+              </div>
             </div>
             <button
               onClick={onClose}
@@ -543,10 +623,37 @@ function LearnerHistoryPanel({
 
 function SyncStatusPanel() {
   const [triggering, setTriggering] = useState(false);
+  const [tab, setTab] = useState<'LOGS' | 'BLOCKED' | 'FAILED'>('LOGS');
+  const [retryingRecordId, setRetryingRecordId] = useState<string | null>(null);
+  const [retryingAllFailed, setRetryingAllFailed] = useState(false);
   const logsQuery = useQuery<SyncLog[]>({
     queryKey: ['ncz-sync-logs'],
     queryFn: () => api.get('/api/ncz/sync/logs'),
     refetchInterval: 30000,
+  });
+
+  const getLogMetaCounts = (meta: unknown): { sent: number; blocked: number } | null => {
+    if (!meta || typeof meta !== 'object') return null;
+    const m = meta as { sentIds?: unknown; blockedIds?: unknown };
+    const sent = Array.isArray(m.sentIds) ? m.sentIds.length : null;
+    const blocked = Array.isArray(m.blockedIds) ? m.blockedIds.length : null;
+    if (sent == null && blocked == null) return null;
+    return { sent: sent ?? 0, blocked: blocked ?? 0 };
+  };
+  const summaryQuery = useQuery<SyncSummary>({
+    queryKey: ['ncz-sync-summary'],
+    queryFn: () => api.get('/api/ncz/sync/summary'),
+    refetchInterval: 30000,
+  });
+  const blockedQuery = useQuery<{ records: SyncRecordRow[] }>({
+    queryKey: ['ncz-sync-blocked'],
+    queryFn: () => api.get('/api/ncz/sync/blocked?limit=50'),
+    enabled: tab === 'BLOCKED',
+  });
+  const failedQuery = useQuery<{ records: SyncRecordRow[] }>({
+    queryKey: ['ncz-sync-failed'],
+    queryFn: () => api.get('/api/ncz/sync/failed?limit=50'),
+    enabled: tab === 'FAILED',
   });
 
   async function triggerSync() {
@@ -563,6 +670,9 @@ function SyncStatusPanel() {
             : 'NCZ sync completed. No pending records were found.',
         );
         await logsQuery.refetch();
+        await summaryQuery.refetch();
+        if (tab === 'BLOCKED') await blockedQuery.refetch();
+        if (tab === 'FAILED') await failedQuery.refetch();
       } else {
         toast.error(result.errorMessage ?? 'NCZ sync failed.');
       }
@@ -571,6 +681,48 @@ function SyncStatusPanel() {
       toast.error(message);
     } finally {
       setTriggering(false);
+    }
+  }
+
+  async function retryAllFailed() {
+    setRetryingAllFailed(true);
+    try {
+      const result = await api.post<{ success: boolean; recordCount: number; errorMessage?: string }>(
+        '/api/ncz/sync/trigger?onlyFailed=true',
+      );
+      if (result.success) {
+        toast.success(
+          result.recordCount > 0 ? `Retried ${result.recordCount} failed record(s).` : 'No failed records to retry.',
+        );
+        await logsQuery.refetch();
+        await summaryQuery.refetch();
+        await failedQuery.refetch();
+      } else {
+        toast.error(result.errorMessage ?? 'Retry failed.');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Retry failed.');
+    } finally {
+      setRetryingAllFailed(false);
+    }
+  }
+
+  async function retryRecord(id: string) {
+    setRetryingRecordId(id);
+    try {
+      const result = await api.post<{ success: boolean; recordCount: number; errorMessage?: string }>(`/api/ncz/sync/retry/${id}`);
+      if (result.success) {
+        toast.success('Record retried successfully.');
+        await logsQuery.refetch();
+        await summaryQuery.refetch();
+        await failedQuery.refetch();
+      } else {
+        toast.error(result.errorMessage ?? 'Retry failed.');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Retry failed.');
+    } finally {
+      setRetryingRecordId(null);
     }
   }
 
@@ -591,46 +743,221 @@ function SyncStatusPanel() {
         </button>
       </div>
 
-      {logsQuery.isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-14 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
-          ))}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending</div>
+          <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">{summaryQuery.data?.pending ?? '—'}</div>
         </div>
-      ) : logsQuery.isError ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          Could not load NCZ sync logs right now.
+        <button
+          type="button"
+          onClick={() => setTab('BLOCKED')}
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100 transition-colors"
+        >
+          <div className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Blocked</div>
+          <div className="mt-1 text-xl font-bold text-amber-900 tabular-nums">{summaryQuery.data?.blocked ?? '—'}</div>
+          <div className="text-[11px] text-amber-800 mt-1">Missing NCZ number</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('FAILED')}
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-left hover:bg-red-100 transition-colors"
+        >
+          <div className="text-xs font-semibold text-red-700 uppercase tracking-wide">Failed</div>
+          <div className="mt-1 text-xl font-bold text-red-900 tabular-nums">{summaryQuery.data?.failed ?? '—'}</div>
+          <div className="text-[11px] text-red-800 mt-1">Retry needed</div>
+        </button>
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+          <div className="text-xs font-semibold text-green-700 uppercase tracking-wide">Synced</div>
+          <div className="mt-1 text-xl font-bold text-green-900 tabular-nums">{summaryQuery.data?.synced ?? '—'}</div>
         </div>
-      ) : logsQuery.data?.length ? (
-        <div className="space-y-2">
-          {logsQuery.data.slice(0, 5).map((log) => (
-            <div key={log.id} className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 p-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className={`inline-flex h-2.5 w-2.5 rounded-full ${log.success ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <p className="text-sm font-medium text-slate-900">{formatDateTime(log.syncedAt)}</p>
+      </div>
+
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+        {[
+          { key: 'LOGS' as const, label: 'Logs' },
+          { key: 'BLOCKED' as const, label: 'Blocked' },
+          { key: 'FAILED' as const, label: 'Failed' },
+        ].map((t) => (
+          <button
+            type="button"
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={clsx(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+              tab === t.key
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-white/60',
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'BLOCKED' ? (
+        blockedQuery.isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-14 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+            ))}
+          </div>
+        ) : blockedQuery.isError ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            Could not load blocked records right now.
+          </div>
+        ) : blockedQuery.data?.records?.length ? (
+          <div className="space-y-2">
+            {blockedQuery.data.records.slice(0, 10).map((r) => (
+              <div key={r.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{r.learner.fullName}</p>
+                    <p className="text-xs text-slate-700 mt-1">
+                      Missing NCZ registration number · {r.course?.title ?? 'No course'}
+                    </p>
+                    <p className="text-xs text-slate-600 mt-1">{r.learner.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const q = r.learner.email ? r.learner.email : r.learner.fullName;
+                      const params = new URLSearchParams({ search: q });
+                      window.location.href = `/ncz/search?${params.toString()}`;
+                    }}
+                    className="text-xs font-semibold text-amber-900 hover:underline flex-shrink-0"
+                  >
+                    Resolve →
+                  </button>
                 </div>
-                <p className="text-sm text-slate-600 mt-1">
-                  {log.recordCount} records processed{log.success ? '' : ' before failure'}.
-                </p>
-                {log.errorMessage ? (
-                  <p className="text-xs text-red-600 mt-2">{log.errorMessage}</p>
-                ) : null}
               </div>
-              <div className="text-right">
-                <Badge variant={log.success ? 'success' : 'error'}>{log.success ? 'Success' : 'Failed'}</Badge>
-                <p className="text-xs text-slate-500 mt-2">{log.triggeredBy ?? 'system'}</p>
-              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<RefreshCw size={28} />}
+            title="No blocked records"
+            description="Blocked records appear when a learner is missing an NCZ registration number."
+          />
+        )
+      ) : null}
+
+      {tab === 'FAILED' ? (
+        failedQuery.isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-14 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+            ))}
+          </div>
+        ) : failedQuery.isError ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            Could not load failed records right now.
+          </div>
+        ) : failedQuery.data?.records?.length ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-600">
+                {failedQuery.data.records.length} failed record{failedQuery.data.records.length !== 1 ? 's' : ''} (showing first 10)
+              </p>
+              <button
+                type="button"
+                onClick={() => void retryAllFailed()}
+                disabled={retryingAllFailed}
+                className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={retryingAllFailed ? 'animate-spin' : ''} />
+                {retryingAllFailed ? 'Retrying…' : 'Retry all failed'}
+              </button>
             </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          icon={<RefreshCw size={28} />}
-          title="No sync history yet"
-          description="Sync logs will appear here after the first scheduled or manual NCZ sync run."
-        />
-      )}
+            {failedQuery.data.records.slice(0, 10).map((r) => (
+              <div key={r.id} className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{r.learner.fullName}</p>
+                    <p className="text-xs text-slate-700 mt-1">{r.course?.title ?? 'No course'}</p>
+                    {r.nczLastError ? <p className="text-xs text-red-700 mt-2">{r.nczLastError}</p> : null}
+                    <button
+                      type="button"
+                      onClick={() => void retryRecord(r.id)}
+                      disabled={retryingRecordId === r.id}
+                      className="mt-3 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                    >
+                      <RefreshCw size={14} className={retryingRecordId === r.id ? 'animate-spin' : ''} />
+                      {retryingRecordId === r.id ? 'Retrying…' : 'Retry record'}
+                    </button>
+                  </div>
+                  <span className="text-xs text-slate-600 flex-shrink-0">
+                    {r.nczLastAttemptAt ? formatDateTime(r.nczLastAttemptAt) : '—'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<RefreshCw size={28} />}
+            title="No failed records"
+            description="Failed records appear when NCZ rejects a payload or the endpoint is unavailable."
+          />
+        )
+      ) : null}
+
+      {tab === 'LOGS'
+        ? logsQuery.isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="h-14 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+              ))}
+            </div>
+          ) : logsQuery.isError ? (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Could not load NCZ sync logs right now.
+            </div>
+          ) : logsQuery.data?.length ? (
+            <div className="space-y-2">
+              {logsQuery.data.slice(0, 5).map((log) => (
+                <div key={log.id} className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 p-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex h-2.5 w-2.5 rounded-full ${log.success ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <p className="text-sm font-medium text-slate-900">{formatDateTime(log.syncedAt)}</p>
+                      {log.dryRun ? (
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                          Dry run
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-sm text-slate-600 mt-1">
+                      {log.recordCount} records processed{log.success ? '' : ' before failure'}.
+                    </p>
+                    {(() => {
+                      const counts = getLogMetaCounts(log.meta);
+                      if (!counts) return null;
+                      return (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Sent: <span className="font-semibold tabular-nums text-slate-700">{counts.sent}</span> · Blocked:{' '}
+                          <span className="font-semibold tabular-nums text-slate-700">{counts.blocked}</span>
+                        </p>
+                      );
+                    })()}
+                    {log.errorMessage ? (
+                      <p className="text-xs text-red-600 mt-2">{log.errorMessage}</p>
+                    ) : null}
+                  </div>
+                  <div className="text-right">
+                    <Badge variant={log.success ? 'success' : 'error'}>{log.success ? 'Success' : 'Failed'}</Badge>
+                    <p className="text-xs text-slate-500 mt-2">{log.triggeredBy ?? 'system'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={<RefreshCw size={28} />}
+              title="No sync history yet"
+              description="Sync logs will appear here after the first scheduled or manual NCZ sync run."
+            />
+          )
+        : null}
     </div>
   );
 }

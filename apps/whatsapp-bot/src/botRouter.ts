@@ -73,6 +73,13 @@ export async function routeMessage(msg: IncomingMessage): Promise<void> {
     return;
   }
 
+  if (text === 'upgrade' || text === 'subscribe' || text === 'payment') {
+    session.state = 'PAYMENT';
+    await saveSession(session);
+    await handlePayment(msg, session);
+    return;
+  }
+
   // WhatsApp registration command — works from any state
   if (text === 'reg' || text === 'register') {
     if (session.userId) {

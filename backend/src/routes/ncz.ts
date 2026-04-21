@@ -3,8 +3,9 @@ import type { Router as ExpressRouter } from 'express';
 import { db } from '../lib/db';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
-import { runNczSync } from '../services/ncz-sync';
+import { retryNczRecord, runNczSync } from '../services/ncz-sync';
 import type { AuthRequest } from '../middleware/auth.middleware';
+import { z } from 'zod';
 
 const router: ExpressRouter = Router();
 const REQUIRED_POINTS = 12;
@@ -131,6 +132,37 @@ router.get('/learners/:id/history', requireAuth, requireRole('NCZ_OFFICER', 'ADM
   }
 });
 
+const UpdateLearnerNczSchema = z.object({
+  nczRegistrationNumber: z.string().min(4).max(50).nullable(),
+});
+
+router.patch('/learners/:id', requireAuth, requireRole('NCZ_OFFICER', 'ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    const data = UpdateLearnerNczSchema.parse(req.body);
+    const updated = await db.user.update({
+      where: { id: req.params.id },
+      data: { nczRegistrationNumber: data.nczRegistrationNumber },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        nczRegistrationNumber: true,
+        cadre: true,
+        institution: true,
+        province: true,
+        district: true,
+        subscriptionTier: true,
+        isActive: true,
+      },
+    });
+    return res.json(updated);
+  } catch (err: any) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    if (err?.code === 'P2002') return res.status(409).json({ error: 'NCZ registration number is already in use.' });
+    return res.status(500).json({ error: 'Could not update learner' });
+  }
+});
+
 router.get('/compliance', requireAuth, requireRole('NCZ_OFFICER', 'ADMIN'), async (req, res) => {
   try {
     const year = parseInt((req.query.year as string) ?? String(new Date().getFullYear()), 10);
@@ -253,13 +285,23 @@ router.post(
   requireRole('NCZ_OFFICER', 'ADMIN'),
   async (req: AuthRequest, res) => {
     try {
-      const result = await runNczSync(req.user?.id ?? 'manual');
+      const onlyFailed = req.query.onlyFailed === 'true';
+      const result = await runNczSync(req.user?.id ?? 'manual', { onlyFailed });
       return res.json(result);
     } catch {
       return res.status(500).json({ error: 'Sync trigger failed' });
     }
   },
 );
+
+router.post('/sync/retry/:id', requireAuth, requireRole('NCZ_OFFICER', 'ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    const result = await retryNczRecord(req.params.id, req.user?.id ?? 'manual');
+    return res.json(result);
+  } catch {
+    return res.status(500).json({ error: 'Retry failed' });
+  }
+});
 
 router.get('/sync/logs', requireAuth, requireRole('NCZ_OFFICER', 'ADMIN'), async (_req, res) => {
   try {
@@ -270,6 +312,56 @@ router.get('/sync/logs', requireAuth, requireRole('NCZ_OFFICER', 'ADMIN'), async
     return res.json(logs);
   } catch {
     return res.status(500).json({ error: 'Could not fetch sync logs' });
+  }
+});
+
+router.get('/sync/summary', requireAuth, requireRole('NCZ_OFFICER', 'ADMIN'), async (_req, res) => {
+  try {
+    const [pending, blocked, failed, synced] = await Promise.all([
+      db.cPDRecord.count({ where: { nczSyncStatus: 'PENDING' } }),
+      db.cPDRecord.count({ where: { nczSyncStatus: 'BLOCKED_MISSING_NCZ' } }),
+      db.cPDRecord.count({ where: { nczSyncStatus: 'FAILED' } }),
+      db.cPDRecord.count({ where: { nczSyncStatus: 'SYNCED' } }),
+    ]);
+    return res.json({ pending, blocked, failed, synced });
+  } catch {
+    return res.status(500).json({ error: 'Could not fetch sync summary' });
+  }
+});
+
+router.get('/sync/blocked', requireAuth, requireRole('NCZ_OFFICER', 'ADMIN'), async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 200);
+    const rows = await db.cPDRecord.findMany({
+      where: { nczSyncStatus: 'BLOCKED_MISSING_NCZ', syncedToNcz: false },
+      orderBy: { completedAt: 'desc' },
+      take: limit,
+      include: {
+        learner: { select: { id: true, fullName: true, email: true, nczRegistrationNumber: true } },
+        course: { select: { title: true } },
+      },
+    });
+    return res.json({ records: rows });
+  } catch {
+    return res.status(500).json({ error: 'Could not fetch blocked records' });
+  }
+});
+
+router.get('/sync/failed', requireAuth, requireRole('NCZ_OFFICER', 'ADMIN'), async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 200);
+    const rows = await db.cPDRecord.findMany({
+      where: { nczSyncStatus: 'FAILED', syncedToNcz: false },
+      orderBy: [{ nczLastAttemptAt: 'desc' }, { completedAt: 'desc' }],
+      take: limit,
+      include: {
+        learner: { select: { id: true, fullName: true, email: true, nczRegistrationNumber: true } },
+        course: { select: { title: true } },
+      },
+    });
+    return res.json({ records: rows });
+  } catch {
+    return res.status(500).json({ error: 'Could not fetch failed records' });
   }
 });
 

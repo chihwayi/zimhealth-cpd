@@ -256,6 +256,7 @@ export async function handleLearn(msg: IncomingMessage, session: BotSession): Pr
     ls.sections = content.sections;
     ls.quizId = firstQuiz?.id ?? null;
     ls.quizQuestions = firstQuiz?.questions ?? undefined;
+      ls.quizSource = firstQuiz ? 'MODULE_QUIZ' : undefined;
     ls.sectionIndex = 0;
     await saveSession(session);
 
@@ -366,6 +367,10 @@ async function startModuleQuiz(to: string, session: BotSession): Promise<void> {
 
   session.quizState = {
     quizId: ls.quizId,
+    courseId: ls.courseId,
+    moduleId: ls.moduleId,
+    moduleTitle: ls.moduleTitle,
+    quizSource: 'MODULE_QUIZ',
     questions: ls.quizQuestions,
     currentIndex: 0,
     answers: {},

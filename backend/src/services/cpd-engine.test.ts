@@ -36,6 +36,27 @@ describe('CPD Engine', () => {
     expect(result.pointsEarned).toBe(0);
   });
 
+  it('prevents duplicate quiz crediting when quizId is provided', async () => {
+    const quiz = await db.quiz.findFirst({ select: { id: true, courseId: true } });
+    expect(quiz?.id).toBeTruthy();
+    // Credit once for this quiz
+    const first = await creditPoints({
+      learnerId: graceId,
+      courseId: quiz!.courseId,
+      quizId: quiz!.id,
+      activityType: 'QUIZ_PASS',
+    });
+    expect(first.pointsEarned).toBeGreaterThanOrEqual(0);
+    // Attempt duplicate — should return 0 new points
+    const second = await creditPoints({
+      learnerId: graceId,
+      courseId: quiz!.courseId,
+      quizId: quiz!.id,
+      activityType: 'QUIZ_PASS',
+    });
+    expect(second.pointsEarned).toBe(0);
+  });
+
   it('detects earned points correctly', async () => {
     const earned = await hasEarnedPoints(graceId, 'course-seed-001', 'QUIZ_PASS');
     expect(earned).toBe(true);

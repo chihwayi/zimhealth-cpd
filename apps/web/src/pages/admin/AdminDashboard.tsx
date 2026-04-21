@@ -10,6 +10,7 @@ import {
   XCircle,
   Search,
   ShieldAlert,
+  ClipboardCheck,
   Settings,
   BarChart2,
   CreditCard,
@@ -48,6 +49,10 @@ interface PendingCourse {
   title: string;
   cpdPoints: number;
   status: string;
+  aiSourceName?: string | null;
+  aiGeneratedAt?: string | null;
+  aiGeneratedProvider?: string | null;
+  aiReviewNotes?: string | null;
   creator: { fullName: string; email: string };
   _count: { modules: number };
   updatedAt: string;
@@ -114,6 +119,28 @@ interface SystemConfig {
   subscriptionPricing: Array<{ tier: string; priceUsd: number; label: string }>;
 }
 
+interface AiHealth {
+  activeProvider: string | null;
+  configuredProviders: string[];
+  windowHours: number;
+  requests: number;
+  cacheHits: number;
+  failures: number;
+  paywalls: number;
+  fallbacks: number;
+  avgLatencyMs: number | null;
+  lastFailureAt: string | null;
+  lastFallbackAt: string | null;
+}
+
+interface TelemetrySummary {
+  windowHours: number;
+  enrollments: { inProgress: number; completed: number };
+  quizAttempts24h: number;
+  offlineDownloads24h: number;
+  botAiTutorEvents24h: number;
+}
+
 const ADMIN_SECTIONS = [
   { key: 'dashboard', label: 'Dashboard', path: '/admin', icon: Users },
   { key: 'users', label: 'Users', path: '/admin/users', icon: Users },
@@ -122,6 +149,7 @@ const ADMIN_SECTIONS = [
   { key: 'payments', label: 'Payments', path: '/admin/payments', icon: CreditCard },
   { key: 'ncz-sync', label: 'NCZ Sync', path: '/admin/ncz-sync', icon: RefreshCw },
   { key: 'audit', label: 'Audit Log', path: '/admin/audit', icon: ShieldAlert },
+  { key: 'release', label: 'Release Readiness', path: '/admin/release', icon: ClipboardCheck },
   { key: 'settings', label: 'Settings', path: '/admin/settings', icon: Settings },
 ] as const;
 
@@ -207,6 +235,7 @@ export default function AdminDashboard() {
       {section === 'courses' && <ApprovalsSection standalone />}
       {section === 'analytics' && <AnalyticsSection />}
       {section === 'audit' && <AuditSection />}
+      {section === 'release' && <ReleaseReadinessSection />}
       {section === 'settings' && <SettingsSection />}
       {section === 'payments' && (
         <PlaceholderSection
@@ -284,14 +313,15 @@ function OverviewSection() {
 
 function ApprovalsSection({ standalone = false }: { standalone?: boolean }) {
   const qc = useQueryClient();
+  const [notesByCourseId, setNotesByCourseId] = useState<Record<string, string>>({});
   const pendingQuery = useQuery<PendingCourse[]>({
     queryKey: ['pending-courses'],
     queryFn: () => api.get('/api/admin/courses/pending'),
   });
 
   const approveMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'APPROVE' | 'REJECT' }) =>
-      api.post(`/api/courses/${id}/approve`, { action }),
+    mutationFn: ({ id, action, reviewerNotes }: { id: string; action: 'APPROVE' | 'REJECT'; reviewerNotes?: string }) =>
+      api.post(`/api/courses/${id}/approve`, { action, reviewerNotes }),
     onSuccess: (_data, variables) => {
       toast.success(variables.action === 'APPROVE' ? 'Course approved.' : 'Course sent back to draft.');
       qc.invalidateQueries({ queryKey: ['pending-courses'] });
@@ -336,7 +366,7 @@ function ApprovalsSection({ standalone = false }: { standalone?: boolean }) {
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
-                {['Course', 'Creator', 'Points', 'Modules', 'Submitted', 'Actions'].map((heading) => (
+                {['Course', 'Creator', 'Points', 'Modules', 'Submitted', 'Review notes', 'Actions'].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500"
@@ -352,6 +382,13 @@ function ApprovalsSection({ standalone = false }: { standalone?: boolean }) {
                   <td className="px-4 py-4">
                     <div className="font-medium text-slate-900">{course.title}</div>
                     <div className="text-xs text-slate-500 mt-1">{course.status}</div>
+                    {course.aiGeneratedAt ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge variant="info">AI-generated</Badge>
+                        {course.aiSourceName ? <Badge variant="default">{course.aiSourceName}</Badge> : null}
+                        {course.aiGeneratedProvider ? <Badge variant="default">{course.aiGeneratedProvider}</Badge> : null}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-4">
                     <div className="text-slate-700">{course.creator.fullName}</div>
@@ -361,9 +398,33 @@ function ApprovalsSection({ standalone = false }: { standalone?: boolean }) {
                   <td className="px-4 py-4 tabular-nums">{course._count.modules}</td>
                   <td className="px-4 py-4 text-slate-500">{formatDate(course.updatedAt)}</td>
                   <td className="px-4 py-4">
+                    <label htmlFor={`review-notes-${course.id}`} className="sr-only">
+                      Review notes for {course.title}
+                    </label>
+                    <textarea
+                      id={`review-notes-${course.id}`}
+                      value={notesByCourseId[course.id] ?? ''}
+                      onChange={(e) =>
+                        setNotesByCourseId((prev) => ({
+                          ...prev,
+                          [course.id]: e.target.value,
+                        }))
+                      }
+                      placeholder="Optional notes (AI source, guideline reference, changes needed)…"
+                      className="w-64 max-w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                      rows={2}
+                    />
+                  </td>
+                  <td className="px-4 py-4">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => approveMutation.mutate({ id: course.id, action: 'APPROVE' })}
+                        onClick={() =>
+                          approveMutation.mutate({
+                            id: course.id,
+                            action: 'APPROVE',
+                            reviewerNotes: notesByCourseId[course.id]?.trim() || undefined,
+                          })
+                        }
                         disabled={approveMutation.isPending}
                         className="inline-flex items-center gap-1 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-60"
                       >
@@ -371,7 +432,13 @@ function ApprovalsSection({ standalone = false }: { standalone?: boolean }) {
                         Approve
                       </button>
                       <button
-                        onClick={() => approveMutation.mutate({ id: course.id, action: 'REJECT' })}
+                        onClick={() =>
+                          approveMutation.mutate({
+                            id: course.id,
+                            action: 'REJECT',
+                            reviewerNotes: notesByCourseId[course.id]?.trim() || undefined,
+                          })
+                        }
                         disabled={approveMutation.isPending}
                         className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
                       >
@@ -672,6 +739,11 @@ function SettingsSection() {
     queryKey: ['admin-system-config'],
     queryFn: () => api.get('/api/admin/config/system'),
   });
+  const aiHealthQuery = useQuery<AiHealth>({
+    queryKey: ['admin-ai-health'],
+    queryFn: () => api.get('/api/admin/ai/health'),
+    refetchInterval: 30000,
+  });
 
   const [selectedProvider, setSelectedProvider] = useState('');
 
@@ -753,6 +825,58 @@ function SettingsSection() {
             </Badge>
           ))}
         </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">AI Tutor Health (last 24h)</h2>
+          <p className="text-sm text-slate-500 mt-1">Operational visibility into provider stability, latency, cache, and fallbacks.</p>
+        </div>
+
+        {aiHealthQuery.isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+            ))}
+          </div>
+        ) : aiHealthQuery.isError || !aiHealthQuery.data ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            Could not load AI tutor health telemetry.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Requests</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{aiHealthQuery.data.requests}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Cache hits: <span className="font-medium tabular-nums">{aiHealthQuery.data.cacheHits}</span>
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Avg latency</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">
+                {aiHealthQuery.data.avgLatencyMs == null ? '—' : `${aiHealthQuery.data.avgLatencyMs}ms`}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Fallbacks: <span className="font-medium tabular-nums">{aiHealthQuery.data.fallbacks}</span>
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Failures</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{aiHealthQuery.data.failures}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Last: {aiHealthQuery.data.lastFailureAt ? formatDateTime(aiHealthQuery.data.lastFailureAt) : '—'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Paywalls</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{aiHealthQuery.data.paywalls}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Active: <span className="font-medium">{aiHealthQuery.data.activeProvider ?? '—'}</span>
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
@@ -868,6 +992,94 @@ function AuditSection() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function ReleaseReadinessSection() {
+  const telemetryQuery = useQuery<TelemetrySummary>({
+    queryKey: ['admin-telemetry-summary'],
+    queryFn: () => api.get('/api/admin/telemetry/summary'),
+    refetchInterval: 30000,
+  });
+
+  const checklist = [
+    { label: 'Offline quizzes work + sync safely', status: 'done' },
+    { label: 'WhatsApp CPD credit dedupe + cap enforced', status: 'done' },
+    { label: 'NCZ sync blocked/failed queues + dry-run safety', status: 'done' },
+    { label: 'AI tutor gating + safety wrapper + fallback', status: 'done' },
+    { label: 'Recommendations use weakness/deadline signals + reasons', status: 'done' },
+    { label: 'AI guideline→course flow has review trail', status: 'done' },
+    { label: 'Manual QA checklist completed', status: 'pending' },
+  ] as const;
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-2">
+        <h2 className="text-base font-semibold text-slate-900">Feature-truth matrix (internal)</h2>
+        <p className="text-sm text-slate-500">
+          This is an internal “truth” view: it should match real backend behavior, not marketing copy.
+        </p>
+        <div className="mt-4 space-y-2">
+          {checklist.map((item) => (
+            <div key={item.label} className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-sm text-slate-800">{item.label}</p>
+              <Badge variant={item.status === 'done' ? 'success' : 'warning'}>
+                {item.status === 'done' ? 'Ready' : 'Needs QA'}
+              </Badge>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-slate-500 mt-3">
+          Manual QA doc: <span className="font-mono">docs/QA_PRE_MOBILE.md</span>
+        </p>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Release telemetry snapshot (last 24h)</h2>
+          <p className="text-sm text-slate-500 mt-1">Basic volume signals for launch readiness and ops monitoring.</p>
+        </div>
+
+        {telemetryQuery.isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+            ))}
+          </div>
+        ) : telemetryQuery.isError || !telemetryQuery.data ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            Could not load telemetry summary.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Offline downloads</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{telemetryQuery.data.offlineDownloads24h}</p>
+              <p className="mt-1 text-xs text-slate-500">Web module downloads</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quiz attempts</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{telemetryQuery.data.quizAttempts24h}</p>
+              <p className="mt-1 text-xs text-slate-500">All channels</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Enrollments</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">
+                {telemetryQuery.data.enrollments.inProgress}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                In progress · Completed {telemetryQuery.data.enrollments.completed}
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">AI tutor events</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{telemetryQuery.data.botAiTutorEvents24h}</p>
+              <p className="mt-1 text-xs text-slate-500">WhatsApp tutor usage</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

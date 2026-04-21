@@ -42,6 +42,7 @@ type RecommendedCourse = {
   creatorName?: string | null;
   modules?: Array<{ isOfflineReady: boolean }>;
   aiReason?: string;
+  aiReasonCategories?: string[];
 };
 
 type RecommendationsResponse = {
@@ -98,6 +99,7 @@ export default function LearnerDashboard() {
   const daysLeft = Math.ceil((renewalDeadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   const isUrgent = daysLeft <= 60;
   const isCpdComplete = (cpd?.percentComplete ?? 0) >= 100;
+  const profileMissing = !user?.cadre || !user?.institution || !user?.province;
 
   const hasCourses = (recommendations?.courses?.length ?? 0) > 0;
   const isProfileBased = recommendations?.isProfileBased;
@@ -144,6 +146,27 @@ export default function LearnerDashboard() {
             className="ml-auto flex-shrink-0 bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-amber-600 transition-colors"
           >
             Find courses →
+          </Link>
+        </div>
+      )}
+
+      {/* Profile completeness prompt */}
+      {profileMissing && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-start gap-4 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center flex-shrink-0">
+            <Sparkles size={18} className="text-primary-700" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-900">Improve your recommendations</p>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Add your cadre, institution, and province to get more accurate course suggestions and better CPD planning.
+            </p>
+          </div>
+          <Link
+            to="/profile"
+            className="flex-shrink-0 inline-flex items-center gap-1.5 bg-primary-500 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-primary-600 transition-colors"
+          >
+            Update profile →
           </Link>
         </div>
       )}

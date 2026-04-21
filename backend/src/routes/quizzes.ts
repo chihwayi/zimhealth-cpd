@@ -43,14 +43,32 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     // If learner, hide correct answers and apply randomization
     if (req.user!.role === 'LEARNER') {
+      const offlineMode = req.query.offline === '1';
       const attemptCount = await db.quizAttempt.count({
         where: { learnerId: req.user!.id, quizId: quiz.id },
       });
       const attemptsRemaining = Math.max(0, quiz.attemptLimit - attemptCount);
       const questions = quiz.randomiseQuestions ? shuffle(quiz.questions) : quiz.questions;
 
+      if (offlineMode) {
+        const enrollment = await db.enrollment.findUnique({
+          where: {
+            learnerId_courseId: {
+              learnerId: req.user!.id,
+              courseId: quiz.courseId,
+            },
+          },
+          select: { id: true },
+        });
+        if (!enrollment) {
+          return res.status(403).json({ error: 'Enroll in this course before downloading its quiz offline.' });
+        }
+      }
+
       return res.json({
         id: quiz.id,
+        courseId: quiz.courseId,
+        moduleId: quiz.moduleId,
         title: quiz.title,
         passMark: quiz.passMark,
         attemptLimit: quiz.attemptLimit,
@@ -64,6 +82,7 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
           text: q.text,
           imageUrl: q.imageUrl,
           points: q.points,
+          correctOptionId: offlineMode ? q.options.find((o) => o.isCorrect)?.id ?? null : undefined,
           options: q.options.map((o) => ({ id: o.id, text: o.text })),
         })),
       });
@@ -187,7 +206,7 @@ router.delete('/:id/questions/:qid', requireAuth, requireRole('CONTENT_MANAGER',
 // POST /api/quizzes/:id/attempt — submit answers
 router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
   try {
-    const { answers } = SubmitQuizAttemptSchema.parse(req.body);
+    const { answers, attemptedAt } = SubmitQuizAttemptSchema.parse(req.body);
 
     const quiz = await db.quiz.findUnique({
       where: { id: req.params.id },
@@ -234,7 +253,14 @@ router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: Aut
         attemptsRemaining = Math.max(0, quiz.attemptLimit - (attemptCount + 1));
 
         return tx.quizAttempt.create({
-          data: { learnerId: req.user!.id, quizId: quiz.id, score, passed, answers },
+          data: {
+            learnerId: req.user!.id,
+            quizId: quiz.id,
+            score,
+            passed,
+            answers,
+            completedAt: attemptedAt,
+          },
         });
       },
       {

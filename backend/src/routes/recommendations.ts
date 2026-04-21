@@ -5,12 +5,14 @@ import { requireRole } from '../middleware/role.middleware';
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { getRecommendations, invalidateRecommendations } from '../services/adaptive-learning';
 import { db } from '../lib/db';
+import { getLearnerEntitlements } from '../services/entitlements';
 
 const router: ExpressRouter = Router();
 
 // GET /api/recommendations — personalised course recommendations for the learner
 router.get('/recommendations', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
   try {
+    const ent = await getLearnerEntitlements(req.user!.id);
     const recs = await getRecommendations(req.user!.id);
 
     if (!recs.courseIds.length) {
@@ -52,10 +54,16 @@ router.get('/recommendations', requireAuth, requireRole('LEARNER'), async (req: 
           creatorName: course!.creator.fullName,
           modules: course!.modules,
           aiReason: recs.explanations[course!.id],
+          aiReasonCategories: recs.reasonCategories[course!.id] ?? [],
+          locked: !ent.premiumWebAccess,
         };
       });
 
-    return res.json({ courses: ordered, isProfileBased: recs.isProfileBased });
+    return res.json({
+      courses: ordered,
+      isProfileBased: recs.isProfileBased,
+      premiumWebAccess: ent.premiumWebAccess,
+    });
   } catch {
     return res.status(500).json({ error: 'Could not fetch recommendations' });
   }

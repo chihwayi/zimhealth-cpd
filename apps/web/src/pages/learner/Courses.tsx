@@ -6,6 +6,7 @@ import { CourseCard } from '../../components/course/CourseCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { BookOpen } from 'lucide-react';
 import clsx from 'clsx';
+import { useAuthStore } from '../../store/auth.store';
 
 type CourseSummary = {
   id: string;
@@ -56,6 +57,7 @@ const CADRE_LABELS: Record<string, string> = {
 };
 
 export default function CoursesPage() {
+  const user = useAuthStore((state) => state.user);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [difficulty, setDifficulty] = useState('');
@@ -81,8 +83,12 @@ export default function CoursesPage() {
   });
 
   const sortedCourses = useMemo(
-    () => sortCourses(data?.courses ?? [], sort),
-    [data?.courses, sort],
+    () =>
+      sortCourses(data?.courses ?? [], sort).map((course) => ({
+        ...course,
+        locked: user?.role === 'LEARNER' && (user.subscriptionTier ?? 'FREE') === 'FREE',
+      })),
+    [data?.courses, sort, user?.role, user?.subscriptionTier],
   );
 
   const activeFiltersCount = [search, category, difficulty, cadre].filter(Boolean).length;

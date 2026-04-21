@@ -62,19 +62,25 @@ export async function invalidateRecommendations(learnerId: string): Promise<void
 
 export async function getRecommendations(
   learnerId: string,
-): Promise<{ courseIds: string[]; explanations: Record<string, string>; isProfileBased: boolean }> {
+): Promise<{
+  courseIds: string[];
+  explanations: Record<string, string>;
+  reasonCategories: Record<string, string[]>;
+  isProfileBased: boolean;
+}> {
   const cacheKey = `ai:recs:${learnerId}`;
   const cached = await redisGetSafe(cacheKey);
   if (cached) {
     return JSON.parse(cached) as {
       courseIds: string[];
       explanations: Record<string, string>;
+      reasonCategories: Record<string, string[]>;
       isProfileBased: boolean;
     };
   }
 
   // ── Gather learner context ────────────────────────────────────────────────
-  const [learner, summary, completedEnrollments] = await Promise.all([
+  const [learner, summary, completedEnrollments, inProgressEnrollments, recentQuizAttempts] = await Promise.all([
     db.user.findUnique({
       where: { id: learnerId },
       select: { cadre: true, institution: true, province: true },
@@ -84,6 +90,27 @@ export async function getRecommendations(
       where: { learnerId, completedAt: { not: null } },
       select: { courseId: true, course: { select: { title: true, category: true, tags: true } } },
       take: 20,
+    }),
+    db.enrollment.findMany({
+      where: { learnerId, completedAt: null },
+      select: {
+        progress: true,
+        lastAccessAt: true,
+        course: { select: { title: true, category: true } },
+      },
+      orderBy: [{ lastAccessAt: 'desc' }, { enrolledAt: 'desc' }],
+      take: 10,
+    }),
+    db.quizAttempt.findMany({
+      where: { learnerId },
+      orderBy: { completedAt: 'desc' },
+      take: 30,
+      select: {
+        score: true,
+        passed: true,
+        completedAt: true,
+        quiz: { select: { title: true, courseId: true } },
+      },
     }),
   ]);
 
@@ -99,7 +126,7 @@ export async function getRecommendations(
   });
 
   if (!availableCourses.length) {
-    return { courseIds: [], explanations: {}, isProfileBased: false };
+    return { courseIds: [], explanations: {}, reasonCategories: {}, isProfileBased: false };
   }
 
   const ai = new AIClient(buildAiConfig());
@@ -107,6 +134,27 @@ export async function getRecommendations(
   const daysToRenewal = Math.ceil((yearEnd.getTime() - Date.now()) / 86400000);
 
   const isProfileBased = completedEnrollments.length === 0;
+
+  const quizCourseIds = [...new Set(recentQuizAttempts.map((a) => a.quiz.courseId))];
+  const quizCourses = await db.course.findMany({
+    where: { id: { in: quizCourseIds } },
+    select: { id: true, category: true, title: true },
+  });
+  const courseById = new Map(quizCourses.map((c) => [c.id, c]));
+
+  const categoryStats = new Map<string, { total: number; count: number; failures: number }>();
+  for (const a of recentQuizAttempts) {
+    const cat = courseById.get(a.quiz.courseId)?.category ?? 'UNKNOWN';
+    const existing = categoryStats.get(cat) ?? { total: 0, count: 0, failures: 0 };
+    existing.total += a.score;
+    existing.count += 1;
+    if (!a.passed) existing.failures += 1;
+    categoryStats.set(cat, existing);
+  }
+  const weakestCategories = [...categoryStats.entries()]
+    .map(([cat, v]) => ({ cat, avg: v.count ? v.total / v.count : 0, failures: v.failures, count: v.count }))
+    .sort((a, b) => a.avg - b.avg)
+    .slice(0, 2);
 
   // ── Cold-start: profile-only prompt (no completion history) ──────────────
   const prompt = isProfileBased
@@ -131,12 +179,23 @@ Order by relevance to their cadre. Max 3.`
 - CPD Points: ${summary.totalPoints}/${summary.requiredPoints} (${summary.percentComplete}% complete)
 - Days to renewal: ${daysToRenewal}
 - Completed courses: ${completedEnrollments.map((e) => e.course.title).join(', ')}
+- In-progress courses: ${inProgressEnrollments.length ? inProgressEnrollments.map((e) => `${e.course.title} (${Math.round(e.progress * 100)}%)`).join(', ') : 'None'}
+- Weakest quiz categories: ${weakestCategories.length ? weakestCategories.map((w) => `${w.cat} (avg ${Math.round(w.avg)}%, fails ${w.failures}/${w.count})`).join(', ') : 'No quiz attempts yet'}
 
 Available courses:
 ${availableCourses.map((c) => `- ${c.id}: "${c.title}" (${c.category}, ${c.cpdPoints} pts)`).join('\n')}
 
-Return JSON: { "recommendations": [ { "courseId": "...", "reason": "under 20 words" } ] }
-Order by highest value for this learner. Max 3.`;
+Return JSON:
+{
+  "recommendations": [
+    {
+      "courseId": "...",
+      "reason": "under 25 words",
+      "categories": ["deadline" | "specialty_fit" | "knowledge_gap" | "points_efficiency"]
+    }
+  ]
+}
+Prioritise: renewal gap closure → weak knowledge areas → cadre fit → points efficiency. Max 3.`;
 
   try {
     const raw = await ai.complete(prompt, {
@@ -149,22 +208,30 @@ Order by highest value for this learner. Max 3.`;
     if (!jsonMatch) throw new Error('Invalid AI response');
 
     const parsed = JSON.parse(jsonMatch[0]) as {
-      recommendations?: Array<{ courseId?: string; reason?: string }>;
+      recommendations?: Array<{ courseId?: string; reason?: string; categories?: string[] }>;
     };
 
     const recommendations = (parsed.recommendations ?? [])
-      .filter((item): item is { courseId: string; reason: string } => Boolean(item.courseId && item.reason))
+      .filter((item): item is { courseId: string; reason: string; categories?: string[] } => Boolean(item.courseId && item.reason))
       .slice(0, 3);
 
     const result = {
       courseIds: recommendations.map((item) => item.courseId),
       explanations: Object.fromEntries(recommendations.map((item) => [item.courseId, item.reason])),
+      reasonCategories: Object.fromEntries(
+        recommendations.map((item) => [
+          item.courseId,
+          (item.categories ?? []).filter((c) =>
+            ['deadline', 'specialty_fit', 'knowledge_gap', 'points_efficiency'].includes(c),
+          ),
+        ]),
+      ),
       isProfileBased,
     };
 
     await redisSetexSafe(cacheKey, CACHE_TTL, JSON.stringify(result));
     return result;
   } catch {
-    return { courseIds: [], explanations: {}, isProfileBased };
+    return { courseIds: [], explanations: {}, reasonCategories: {}, isProfileBased };
   }
 }

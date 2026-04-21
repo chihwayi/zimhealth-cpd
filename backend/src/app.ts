@@ -15,11 +15,13 @@ import enrollmentsRouter from './routes/enrollments';
 import quizzesRouter from './routes/quizzes';
 import paymentsRouter from './routes/payments';
 import certificatesRouter from './routes/certificates';
+import entitlementsRouter from './routes/entitlements';
 import adminRouter from './routes/admin';
 import nczRouter from './routes/ncz';
 import creatorRouter from './routes/creator';
 import botRouter from './routes/bot';
 import aiRouter from './routes/ai';
+import telemetryRouter from './routes/telemetry';
 import { scheduleDailySync } from './jobs/syncWorker';
 import recommendationsRouter from './routes/recommendations';
 import { scheduleRenewalReminders } from './jobs/notificationWorker';
@@ -79,12 +81,14 @@ app.use('/api/enrollments', enrollmentsRouter);
 app.use('/api/quizzes', quizzesRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/certificates', certificatesRouter);
+app.use('/api/entitlements', entitlementsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/ncz', nczRouter);
 app.use('/api/creator', creatorRouter);
 app.use('/api', recommendationsRouter);
 app.use('/api/bot', botRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api', telemetryRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'nursepro-api', timestamp: new Date().toISOString() });

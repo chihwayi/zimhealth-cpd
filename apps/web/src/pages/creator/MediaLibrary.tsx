@@ -55,8 +55,8 @@ export default function MediaLibrary() {
     try {
       const res = await api.get<{ assets: Asset[] }>('/api/media/assets');
       setAssets(res.assets);
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Could not load media assets.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not load media assets.');
     } finally {
       setLoading(false);
     }
@@ -64,7 +64,6 @@ export default function MediaLibrary() {
 
   useEffect(() => {
     void loadAssets();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = useMemo(() => {
@@ -88,15 +87,15 @@ export default function MediaLibrary() {
         body: form,
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `Upload failed (${res.status})`);
+        const body = (await res.json().catch(() => ({}))) as { error?: unknown };
+        throw new Error(typeof body.error === 'string' ? body.error : `Upload failed (${res.status})`);
       }
       await res.json().catch(() => ({}));
       toast.success('Uploaded.');
       setFile(null);
       await loadAssets();
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Upload failed.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed.');
     } finally {
       setUploading(false);
     }
@@ -107,8 +106,8 @@ export default function MediaLibrary() {
       await api.delete(`/api/media/assets/${id}`);
       setAssets((prev) => prev.filter((a) => a.id !== id));
       toast.success('Deleted.');
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Could not delete asset.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not delete asset.');
     }
   }
 
@@ -142,7 +141,7 @@ export default function MediaLibrary() {
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Type</label>
             <select
               value={type}
-              onChange={(e) => setType(e.target.value as any)}
+              onChange={(e) => setType(e.target.value as 'image' | 'video' | 'document')}
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-100 focus:border-violet-500"
             >
               <option value="image">Image (JPG/PNG/WebP)</option>
@@ -155,7 +154,7 @@ export default function MediaLibrary() {
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Image folder</label>
             <select
               value={folder}
-              onChange={(e) => setFolder(e.target.value as any)}
+              onChange={(e) => setFolder(e.target.value as 'thumbnails' | 'banners' | 'profiles')}
               disabled={type !== 'image'}
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-violet-100 focus:border-violet-500"
             >

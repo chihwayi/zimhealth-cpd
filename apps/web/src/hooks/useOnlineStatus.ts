@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { syncPendingProgress } from '../lib/offlineDB';
+import { syncPendingProgress, syncPendingQuizAttempts } from '../lib/offlineDB';
 import { api } from '../lib/api';
 
 export function useOnlineStatus() {
@@ -13,6 +13,16 @@ export function useOnlineStatus() {
       if (synced > 0) {
         // Dispatch a custom event so components can react (e.g. invalidate TanStack queries)
         window.dispatchEvent(new CustomEvent('nursepro:progress-synced', { detail: { count: synced } }));
+      }
+
+      const quizSynced = await syncPendingQuizAttempts((entry) =>
+        api.post(`/api/quizzes/${entry.quizId}/attempt`, {
+          answers: entry.answers,
+          attemptedAt: new Date(entry.attemptedAt).toISOString(),
+        }),
+      );
+      if (quizSynced > 0) {
+        window.dispatchEvent(new CustomEvent('nursepro:quiz-attempts-synced', { detail: { count: quizSynced } }));
       }
     } catch {
       // Silent — will retry on next reconnect

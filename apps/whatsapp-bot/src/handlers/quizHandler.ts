@@ -6,6 +6,16 @@ import { sendMessage } from '../twilio';
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const BOT_SECRET = process.env.BOT_SECRET ?? '';
 
+function shaLike(input: string): string {
+  // deterministic, URL-safe-ish attempt key without pulling crypto deps
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return `k${(h >>> 0).toString(16)}`;
+}
+
 // ─── Static fallback quiz bank (used only when no module quiz is loaded) ──────
 const QUIZ_BANK = [
   {
@@ -63,6 +73,7 @@ export async function handleQuiz(msg: IncomingMessage, session: BotSession): Pro
     const questions = [...QUIZ_BANK].sort(() => 0.5 - Math.random()).slice(0, 3);
     session.quizState = {
       quizId: 'whatsapp-micro',
+      quizSource: 'MICRO_QUIZ',
       questions,
       currentIndex: 0,
       answers: {},
@@ -121,15 +132,38 @@ export async function handleQuiz(msg: IncomingMessage, session: BotSession): Pro
     let resultMsg = `${feedback}\n\n📊 *Quiz Result*\nScore: ${score}/${total} (${Math.round((score / total) * 100)}%)\n\n`;
 
     if (passed) {
-      try {
-        await fetch(`${API_URL}/api/points/bot/credit`, {
+      const isModuleQuiz = quizState.quizSource === 'MODULE_QUIZ' && quizState.quizId !== 'whatsapp-micro';
+      if (!isModuleQuiz) {
+        resultMsg += `🎉 You passed!\n\nThis was a practice quiz (no CPD credit).`;
+      } else {
+        try {
+          const phone = msg.from.replace('whatsapp:', '');
+          const attemptKey = shaLike(
+            `${phone}|${quizState.quizId}|${quizState.courseId ?? ''}|${quizState.moduleId ?? ''}|${score}/${total}`,
+          );
+          const res = await fetch(`${API_URL}/api/points/bot/credit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-bot-secret': BOT_SECRET },
-          body: JSON.stringify({ phone: msg.from.replace('whatsapp:', ''), quizScore: score / total }),
-        });
-        resultMsg += `🎉 You passed! *+1 CPD point* awarded.`;
-      } catch {
-        resultMsg += `🎉 You passed!`;
+          body: JSON.stringify({
+            phone,
+            quizId: quizState.quizId,
+            courseId: quizState.courseId,
+            moduleId: quizState.moduleId,
+            attemptKey,
+            quizScore: Math.round((score / total) * 100),
+          }),
+          });
+          const json = (await res.json().catch(() => ({}))) as { pointsEarned?: number; error?: unknown };
+          if (!res.ok) throw new Error(typeof json.error === 'string' ? json.error : 'Credit failed');
+          const earned = typeof json.pointsEarned === 'number' ? json.pointsEarned : 0;
+          if (earned > 0) {
+            resultMsg += `🎉 You passed! *+${earned} CPD point${earned !== 1 ? 's' : ''}* awarded.`;
+          } else {
+            resultMsg += `🎉 You passed, but this quiz was already credited for this cycle.`;
+          }
+        } catch {
+          resultMsg += `🎉 You passed! (CPD credit could not be confirmed right now.)`;
+        }
       }
     } else {
       resultMsg += `You need 70% to earn a CPD point. Keep practising!`;

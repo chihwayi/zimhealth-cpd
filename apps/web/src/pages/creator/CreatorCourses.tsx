@@ -81,7 +81,7 @@ export default function CreatorCourses() {
           <Filter size={16} className="text-slate-400" />
           <select
             value={status}
-            onChange={(e) => setStatus(e.target.value as any)}
+            onChange={(e) => setStatus(e.target.value as 'ALL' | 'DRAFT' | 'UNDER_REVIEW' | 'PUBLISHED')}
             className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-100 focus:border-violet-500"
           >
             <option value="ALL">All statuses</option>
