@@ -13,6 +13,7 @@ enum Role {
   ADMIN
   CONTENT_MANAGER
   NCZ_OFFICER
+  COUNCIL_OFFICER
   LEARNER
 }
 
@@ -65,6 +66,13 @@ enum ContentType {
   QUIZ
 }
 
+enum MediaAssetStatus {
+  UPLOADED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
 enum QuestionType {
   MULTIPLE_CHOICE
   TRUE_FALSE
@@ -80,6 +88,13 @@ enum ActivityType {
   WHATSAPP_QUIZ
 }
 
+enum NczSyncStatus {
+  PENDING
+  BLOCKED_MISSING_NCZ
+  SYNCED
+  FAILED
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -88,6 +103,10 @@ model User {
   passwordHash          String
   fullName              String
   role                  Role             @default(LEARNER)
+  councilId             String?
+  council               Council?         @relation(fields: [councilId], references: [id])
+  professionalTitle     String?
+  registrationNumber    String?          @unique
   cadre                 Cadre?
   nczRegistrationNumber String?          @unique
   institution           String?
@@ -95,6 +114,9 @@ model User {
   district              String?
   phone                 String?          @unique
   avatarUrl             String?
+  specialtyArea         String?
+  resetPasswordTokenHash String?
+  resetPasswordExpiresAt DateTime?
   subscriptionTier      SubscriptionTier @default(FREE)
   subscriptionExpiresAt DateTime?
   isActive              Boolean          @default(true)
@@ -113,7 +135,29 @@ model User {
 
   @@index([email])
   @@index([nczRegistrationNumber])
+  @@index([registrationNumber])
+  @@index([councilId])
   @@index([role])
+}
+
+model Council {
+  id                 String   @id @default(cuid())
+  name               String
+  slug               String   @unique
+  acronym            String   @unique
+  requiredPoints     Int      @default(12)
+  renewalMonth       Int      @default(12)
+  renewalDay         Int      @default(31)
+  registrationPrefix String?
+  allowedTitles      String[]
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  users User[]
+
+  @@index([isActive])
+  @@index([name])
 }
 
 model Course {
@@ -124,7 +168,10 @@ model Course {
   thumbnailUrl       String?
   promoVideoUrl      String?
   category           CPDCategory
+  isPublicToAll      Boolean      @default(false)
   targetCadres       String[]
+  targetCouncilIds   String[]     @default([])
+  targetTitles       String[]     @default([])
   specialtyArea      String?
   difficulty         Difficulty   @default(FOUNDATION)
   language           Language     @default(ENGLISH)
@@ -132,6 +179,10 @@ model Course {
   estimatedMinutes   Int
   accreditationBody  String?
   tags               String[]
+  aiSourceName        String?
+  aiGeneratedAt       DateTime?
+  aiGeneratedProvider String?
+  aiReviewNotes       String?
   status             CourseStatus @default(DRAFT)
   expiresAt          DateTime?
   priceOverride      Decimal?
@@ -152,11 +203,11 @@ model Course {
 }
 
 model Module {
-  id            String  @id @default(cuid())
-  courseId      String
-  course        Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  title         String
-  order         Int
+  id             String  @id @default(cuid())
+  courseId       String
+  course         Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title          String
+  order          Int
   isOfflineReady Boolean @default(false)
 
   sections ContentSection[]
@@ -197,6 +248,7 @@ model Quiz {
 
   questions    Question[]
   quizAttempts QuizAttempt[]
+  cpdRecords   CPDRecord[]
 }
 
 model Question {
@@ -226,51 +278,60 @@ model QuestionOption {
 }
 
 model QuizAttempt {
-  id           String    @id @default(cuid())
-  learnerId    String
-  learner      User      @relation(fields: [learnerId], references: [id])
-  quizId       String
-  quiz         Quiz      @relation(fields: [quizId], references: [id])
-  score        Float
-  passed       Boolean
-  answers      Json      // { questionId: optionId }
-  completedAt  DateTime  @default(now())
+  id          String   @id @default(cuid())
+  learnerId   String
+  learner     User     @relation(fields: [learnerId], references: [id])
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id])
+  score       Float
+  passed      Boolean
+  answers     Json     // { questionId: optionId }
+  completedAt DateTime @default(now())
 
   @@index([learnerId, quizId])
 }
 
 model Enrollment {
-  id           String    @id @default(cuid())
-  learnerId    String
-  learner      User      @relation(fields: [learnerId], references: [id])
-  courseId     String
-  course       Course    @relation(fields: [courseId], references: [id])
-  enrolledAt   DateTime  @default(now())
-  completedAt  DateTime?
-  progress     Float     @default(0) // 0–1
-  lastAccessAt DateTime?
+  id                String   @id @default(cuid())
+  learnerId         String
+  learner           User     @relation(fields: [learnerId], references: [id])
+  courseId          String
+  course            Course   @relation(fields: [courseId], references: [id])
+  enrolledAt        DateTime @default(now())
+  completedAt       DateTime?
+  progress          Float    @default(0) // 0–1, auto-calculated from completedSections
+  completedSections String[] @default([]) // section IDs marked complete
+  lastAccessAt      DateTime?
 
   @@unique([learnerId, courseId])
   @@index([learnerId])
 }
 
 model CPDRecord {
-  id           String       @id @default(cuid())
-  learnerId    String
-  learner      User         @relation(fields: [learnerId], references: [id])
-  courseId     String?
-  course       Course?      @relation(fields: [courseId], references: [id])
-  activityType ActivityType
-  pointsEarned Int
-  quizScore    Float?
-  completedAt  DateTime     @default(now())
-  cycleYear    Int
-  syncedToNcz  Boolean      @default(false)
-  nczSyncedAt  DateTime?
-  isManualOverride Boolean  @default(false)
-  overrideNote String?
+  id               String       @id @default(cuid())
+  learnerId        String
+  learner          User         @relation(fields: [learnerId], references: [id])
+  courseId         String?
+  course           Course?      @relation(fields: [courseId], references: [id])
+  quizId           String?
+  quiz             Quiz?        @relation(fields: [quizId], references: [id])
+  sourceAttemptKey String?      // bot/offline attempt dedupe/audit key
+  nczSyncStatus    NczSyncStatus @default(PENDING)
+  nczLastError     String?
+  nczLastAttemptAt DateTime?
+  activityType     ActivityType
+  pointsEarned     Int
+  quizScore        Float?
+  completedAt      DateTime     @default(now())
+  cycleYear        Int
+  syncedToNcz      Boolean      @default(false)
+  nczSyncedAt      DateTime?
+  isManualOverride Boolean      @default(false)
+  overrideNote     String?
 
   @@index([learnerId, cycleYear])
+  @@index([learnerId, quizId, cycleYear])
+  @@index([learnerId, sourceAttemptKey, cycleYear])
   @@index([syncedToNcz])
 }
 
@@ -291,39 +352,52 @@ model Certificate {
 }
 
 model CourseReview {
-  id          String   @id @default(cuid())
-  courseId    String
-  course      Course   @relation(fields: [courseId], references: [id])
-  learnerId   String
-  rating      Int      // 1–5
-  comment     String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id])
+  learnerId String
+  rating    Int      // 1–5
+  comment   String?
+  createdAt DateTime @default(now())
 
   @@unique([courseId, learnerId])
 }
 
 model MediaAsset {
-  id           String   @id @default(cuid())
-  ownerId      String
-  s3Key        String   @unique
-  cdnUrl       String
-  fileName     String
-  mimeType     String
-  sizeBytes    BigInt
-  width        Int?
-  height       Int?
-  durationSecs Int?
-  isProcessed  Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  id                  String           @id @default(cuid())
+  ownerId             String
+  s3Key               String           @unique
+  cdnUrl              String
+  fileName            String
+  mimeType            String
+  sizeBytes           BigInt
+  width               Int?
+  height              Int?
+  durationSecs        Int?
+  isProcessed         Boolean          @default(false)
+  status              MediaAssetStatus @default(UPLOADED)
+  processedS3Key      String?
+  processedCdnUrl     String?
+  thumbnailS3Key      String?
+  thumbnailCdnUrl     String?
+  processingError     String?
+  processingAttempts  Int              @default(0)
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  variants            Json?
+  createdAt           DateTime         @default(now())
+
+  @@index([ownerId, createdAt])
+  @@index([status, createdAt])
 }
 
 model NczFlag {
-  id         String   @id @default(cuid())
-  learnerId  String
-  learner    User     @relation(fields: [learnerId], references: [id])
-  officerId  String
-  note       String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  learnerId String
+  learner   User     @relation(fields: [learnerId], references: [id])
+  officerId String
+  note      String
+  createdAt DateTime @default(now())
 
   @@index([learnerId])
 }
@@ -334,6 +408,8 @@ model NczSyncLog {
   recordCount  Int
   success      Boolean
   errorMessage String?
+  dryRun       Boolean  @default(false)
+  meta         Json?
   syncedAt     DateTime @default(now())
 }
 
@@ -354,12 +430,12 @@ model AuditLog {
 }
 
 model Subscription {
-  id          String           @id @default(cuid())
-  learnerId   String           @unique
-  tier        SubscriptionTier
-  startsAt    DateTime
-  expiresAt   DateTime
-  paymentRef  String?
-  gateway     String?          // "paynow" | "stripe"
-  createdAt   DateTime         @default(now())
+  id         String           @id @default(cuid())
+  learnerId  String           @unique
+  tier       SubscriptionTier
+  startsAt   DateTime
+  expiresAt  DateTime
+  paymentRef String?
+  gateway    String?          // "paynow" | "stripe"
+  createdAt  DateTime         @default(now())
 }

@@ -21,6 +21,7 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
       ADMIN: '/admin',
       CONTENT_MANAGER: '/creator',
       NCZ_OFFICER: '/ncz',
+      COUNCIL_OFFICER: '/council',
       LEARNER: '/dashboard',
     };
     return <Navigate to={homeMap[user.role] ?? '/'} replace />;

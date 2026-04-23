@@ -12,6 +12,7 @@ import {
   ClipboardList,
   CreditCard,
   ShieldAlert,
+  Wand2,
   X,
   LogOut,
 } from 'lucide-react';
@@ -35,17 +36,18 @@ const CREATOR_NAV = [
   { to: '/creator/media', icon: FileCheck, label: 'Media Library' },
 ];
 
-const NCZ_NAV = [
-  { to: '/ncz', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/ncz/search', icon: Users, label: 'Learner Search' },
-  { to: '/ncz/reports', icon: BarChart2, label: 'Reports' },
-  { to: '/ncz/sync', icon: RefreshCw, label: 'Sync Status' },
+const COUNCIL_NAV = [
+  { to: '/council', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/council/search', icon: Users, label: 'Learner Search' },
+  { to: '/council/reports', icon: BarChart2, label: 'Reports' },
+  { to: '/council/sync', icon: RefreshCw, label: 'Sync Status' },
 ];
 
 const ADMIN_NAV = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/admin/users', icon: Users, label: 'Users' },
   { to: '/admin/courses', icon: BookOpen, label: 'Course Approvals' },
+  { to: '/admin/guidelines', icon: Wand2, label: 'Guideline Lab' },
   { to: '/admin/analytics', icon: BarChart2, label: 'Analytics' },
   { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
   { to: '/admin/ncz-sync', icon: RefreshCw, label: 'NCZ Sync' },
@@ -56,7 +58,8 @@ const ADMIN_NAV = [
 const NAV_BY_ROLE: Record<string, typeof LEARNER_NAV> = {
   LEARNER: LEARNER_NAV,
   CONTENT_MANAGER: CREATOR_NAV,
-  NCZ_OFFICER: NCZ_NAV,
+  NCZ_OFFICER: COUNCIL_NAV,
+  COUNCIL_OFFICER: COUNCIL_NAV,
   ADMIN: ADMIN_NAV,
 };
 
@@ -64,6 +67,7 @@ const ROLE_ACCENT: Record<string, string> = {
   LEARNER: 'border-primary-500',
   CONTENT_MANAGER: 'border-violet-500',
   NCZ_OFFICER: 'border-blue-600',
+  COUNCIL_OFFICER: 'border-blue-600',
   ADMIN: 'border-rose-600',
 };
 
@@ -71,6 +75,7 @@ const ROLE_ACTIVE: Record<string, string> = {
   LEARNER: 'bg-primary-50 text-primary-700 border-l-2 border-primary-500',
   CONTENT_MANAGER: 'bg-violet-50 text-violet-700 border-l-2 border-violet-500',
   NCZ_OFFICER: 'bg-blue-50 text-blue-700 border-l-2 border-blue-600',
+  COUNCIL_OFFICER: 'bg-blue-50 text-blue-700 border-l-2 border-blue-600',
   ADMIN: 'bg-rose-50 text-rose-700 border-l-2 border-rose-600',
 };
 
@@ -78,13 +83,15 @@ const ROLE_AVATAR: Record<string, string> = {
   LEARNER: 'bg-primary-100 text-primary-700',
   CONTENT_MANAGER: 'bg-violet-100 text-violet-700',
   NCZ_OFFICER: 'bg-blue-100 text-blue-700',
+  COUNCIL_OFFICER: 'bg-blue-100 text-blue-700',
   ADMIN: 'bg-rose-100 text-rose-700',
 };
 
 const ROLE_LABEL: Record<string, string> = {
   LEARNER: 'Learner',
   CONTENT_MANAGER: 'Course Creator',
-  NCZ_OFFICER: 'NCZ Officer',
+  NCZ_OFFICER: 'Council Officer',
+  COUNCIL_OFFICER: 'Council Officer',
   ADMIN: 'System Admin',
 };
 
@@ -103,6 +110,13 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
 
   const navItems = NAV_BY_ROLE[user.role] ?? LEARNER_NAV;
 
+  const isActiveLink = (to: string) => {
+    const isRoleRoot =
+      to === '/dashboard' || to === '/creator' || to === '/ncz' || to === '/council' || to === '/admin';
+    if (isRoleRoot) return pathname === to;
+    return pathname === to || pathname.startsWith(`${to}/`);
+  };
+
   return (
     <aside
       className={clsx(
@@ -114,9 +128,16 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
       {/* Logo + role accent */}
       <div className={clsx('px-5 py-5 border-b-4', ROLE_ACCENT[user.role])}>
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="font-bold text-lg text-slate-900 tracking-tight">NursePro CPD</div>
-            <div className="text-xs text-slate-500 mt-0.5">{ROLE_LABEL[user.role]}</div>
+          <div className="flex items-start gap-3 min-w-0">
+            <img
+              src="/logo.png"
+              alt="ZimHealth CPD"
+              className="h-10 w-10 rounded-2xl object-cover ring-1 ring-slate-200 bg-white flex-shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="font-bold text-lg text-slate-900 tracking-tight truncate">ZimHealth CPD</div>
+              <div className="text-xs text-slate-500 mt-0.5 truncate">{ROLE_LABEL[user.role]}</div>
+            </div>
           </div>
           {mobile && (
             <button
@@ -134,7 +155,7 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
       {/* Nav items */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
         {navItems.map(({ to, icon: Icon, label }) => {
-          const active = pathname === to || pathname.startsWith(to + '/');
+          const active = isActiveLink(to);
           return (
             <Link
               key={to}

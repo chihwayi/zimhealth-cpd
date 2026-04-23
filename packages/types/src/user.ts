@@ -2,6 +2,7 @@ export enum Role {
   ADMIN = 'ADMIN',
   CONTENT_MANAGER = 'CONTENT_MANAGER',
   NCZ_OFFICER = 'NCZ_OFFICER',
+  COUNCIL_OFFICER = 'COUNCIL_OFFICER',
   LEARNER = 'LEARNER',
 }
 
@@ -18,6 +19,10 @@ export interface User {
   email: string;
   fullName: string;
   role: Role;
+  councilId?: string;
+  council?: Council;
+  professionalTitle?: string;
+  registrationNumber?: string;
   cadre?: Cadre;
   nczRegistrationNumber?: string;
   institution?: string;
@@ -29,6 +34,19 @@ export interface User {
   subscriptionExpiresAt?: string;
   isActive: boolean;
   createdAt: string;
+}
+
+export interface Council {
+  id: string;
+  name: string;
+  slug: string;
+  acronym: string;
+  requiredPoints: number;
+  renewalMonth: number;
+  renewalDay: number;
+  registrationPrefix?: string;
+  allowedTitles: string[];
+  isActive: boolean;
 }
 
 export enum SubscriptionTier {

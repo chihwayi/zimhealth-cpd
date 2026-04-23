@@ -5,10 +5,22 @@ interface AuthUser {
   id: string;
   email: string;
   fullName: string;
-  role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'LEARNER';
+  role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER' | 'LEARNER';
   subscriptionTier?: string;
   subscriptionExpiresAt?: string;
   avatarUrl?: string;
+  councilId?: string | null;
+  council?: {
+    id: string;
+    name: string;
+    acronym: string;
+    requiredPoints: number;
+    renewalMonth?: number;
+    renewalDay?: number;
+    allowedTitles?: string[];
+  } | null;
+  professionalTitle?: string | null;
+  registrationNumber?: string | null;
   nczRegistrationNumber?: string | null;
   cadre?: string | null;
   phone?: string | null;
@@ -37,7 +49,6 @@ export const useAuthStore = create<AuthState>()(
       clearAuth: () => set({ user: null, accessToken: null, refreshToken: null }),
       updateUser: (updates) => set((s) => ({ user: s.user ? { ...s.user, ...updates } : null })),
     }),
-    { name: 'nursepro-auth' },
+    { name: 'zimhealth-auth' },
   ),
 );
-

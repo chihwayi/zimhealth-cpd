@@ -9,6 +9,7 @@ const ROLE_REDIRECT: Record<string, string> = {
   ADMIN: '/admin',
   CONTENT_MANAGER: '/creator',
   NCZ_OFFICER: '/ncz',
+  COUNCIL_OFFICER: '/council',
   LEARNER: '/dashboard',
 };
 
@@ -36,11 +37,14 @@ export default function Login() {
           id: string;
           email: string;
           fullName: string;
-          role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'LEARNER';
+          role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER' | 'LEARNER';
           subscriptionTier?: string;
           subscriptionExpiresAt?: string;
           avatarUrl?: string;
           nczRegistrationNumber?: string | null;
+          councilId?: string | null;
+          professionalTitle?: string | null;
+          registrationNumber?: string | null;
         };
         accessToken: string;
         refreshToken: string;
@@ -67,9 +71,9 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-500 shadow-lg mb-4">
             <Award size={28} className="text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">NursePro CPD</h1>
+          <h1 className="text-3xl font-bold text-slate-900">ZimHealth CPD</h1>
           <p className="text-slate-500 mt-2 text-sm">
-            Continuing Professional Development for Zimbabwe's nurses
+            Continuing Professional Development for Zimbabwe's health professionals
           </p>
         </header>
 
@@ -163,7 +167,7 @@ export default function Login() {
 
         {/* Footer */}
         <footer className="text-center text-xs text-slate-400 mt-6">
-          NursePro CPD · Zimbabwe · Learn. Earn. Advance.
+          ZimHealth CPD · Zimbabwe · Learn. Earn. Advance.
         </footer>
       </div>
     </main>

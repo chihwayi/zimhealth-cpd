@@ -3,7 +3,11 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
 import { Toaster } from './components/ui/Toast';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import VerifyCertificatePage from './pages/VerifyCertificate';
 import { useAuthStore } from './store/auth.store';
 
@@ -54,7 +58,7 @@ export default function App() {
           <div className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-sm p-8 text-center">
             <h1 className="text-2xl font-bold text-slate-900">Scheduled Maintenance</h1>
             <p className="text-sm text-slate-500 mt-3">
-              NursePro CPD is temporarily unavailable while system maintenance is in progress. Please check back shortly.
+              ZimHealth CPD is temporarily unavailable while system maintenance is in progress. Please check back shortly.
             </p>
           </div>
         </main>
@@ -69,8 +73,11 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify/:uuid" element={<VerifyCertificatePage />} />
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Landing />} />
 
         {/* Learner */}
         <Route
@@ -230,7 +237,19 @@ export default function App() {
         <Route
           path="/ncz/*"
           element={
-            <ProtectedRoute allowedRoles={['NCZ_OFFICER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN']}>
+              <AppShell>
+                <NczDashboard />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Council Portal (generic, council-scoped; UI reuses NCZ portal) */}
+        <Route
+          path="/council/*"
+          element={
+            <ProtectedRoute allowedRoles={['NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN']}>
               <AppShell>
                 <NczDashboard />
               </AppShell>

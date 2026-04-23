@@ -13,6 +13,7 @@ enum Role {
   ADMIN
   CONTENT_MANAGER
   NCZ_OFFICER
+  COUNCIL_OFFICER
   LEARNER
 }
 
@@ -65,6 +66,13 @@ enum ContentType {
   QUIZ
 }
 
+enum MediaAssetStatus {
+  UPLOADED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
 enum QuestionType {
   MULTIPLE_CHOICE
   TRUE_FALSE
@@ -95,6 +103,10 @@ model User {
   passwordHash          String
   fullName              String
   role                  Role             @default(LEARNER)
+  councilId             String?
+  council               Council?         @relation(fields: [councilId], references: [id])
+  professionalTitle     String?
+  registrationNumber    String?          @unique
   cadre                 Cadre?
   nczRegistrationNumber String?          @unique
   institution           String?
@@ -103,6 +115,8 @@ model User {
   phone                 String?          @unique
   avatarUrl             String?
   specialtyArea         String?
+  resetPasswordTokenHash String?
+  resetPasswordExpiresAt DateTime?
   subscriptionTier      SubscriptionTier @default(FREE)
   subscriptionExpiresAt DateTime?
   isActive              Boolean          @default(true)
@@ -121,7 +135,29 @@ model User {
 
   @@index([email])
   @@index([nczRegistrationNumber])
+  @@index([registrationNumber])
+  @@index([councilId])
   @@index([role])
+}
+
+model Council {
+  id                 String   @id @default(cuid())
+  name               String
+  slug               String   @unique
+  acronym            String   @unique
+  requiredPoints     Int      @default(12)
+  renewalMonth       Int      @default(12)
+  renewalDay         Int      @default(31)
+  registrationPrefix String?
+  allowedTitles      String[]
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  users User[]
+
+  @@index([isActive])
+  @@index([name])
 }
 
 model Course {
@@ -132,7 +168,10 @@ model Course {
   thumbnailUrl       String?
   promoVideoUrl      String?
   category           CPDCategory
+  isPublicToAll      Boolean      @default(false)
   targetCadres       String[]
+  targetCouncilIds   String[]     @default([])
+  targetTitles       String[]     @default([])
   specialtyArea      String?
   difficulty         Difficulty   @default(FOUNDATION)
   language           Language     @default(ENGLISH)
@@ -325,18 +364,31 @@ model CourseReview {
 }
 
 model MediaAsset {
-  id           String   @id @default(cuid())
-  ownerId      String
-  s3Key        String   @unique
-  cdnUrl       String
-  fileName     String
-  mimeType     String
-  sizeBytes    BigInt
-  width        Int?
-  height       Int?
-  durationSecs Int?
-  isProcessed  Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  id                  String           @id @default(cuid())
+  ownerId             String
+  s3Key               String           @unique
+  cdnUrl              String
+  fileName            String
+  mimeType            String
+  sizeBytes           BigInt
+  width               Int?
+  height              Int?
+  durationSecs        Int?
+  isProcessed         Boolean          @default(false)
+  status              MediaAssetStatus @default(UPLOADED)
+  processedS3Key      String?
+  processedCdnUrl     String?
+  thumbnailS3Key      String?
+  thumbnailCdnUrl     String?
+  processingError     String?
+  processingAttempts  Int              @default(0)
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  variants            Json?
+  createdAt           DateTime         @default(now())
+
+  @@index([ownerId, createdAt])
+  @@index([status, createdAt])
 }
 
 model NczFlag {
@@ -387,4 +439,3 @@ model Subscription {
   gateway    String?          // "paynow" | "stripe"
   createdAt  DateTime         @default(now())
 }
-
