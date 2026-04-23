@@ -18,7 +18,7 @@ export function AppShell({ children }: Props) {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-dvh bg-slate-50">
+    <div className="flex min-h-dvh bg-gradient-to-br from-primary-50 via-white to-slate-50">
       {/* Desktop sidebar */}
       <Sidebar className="hidden md:flex" />
 
@@ -33,7 +33,10 @@ export function AppShell({ children }: Props) {
           >
             <Menu size={18} />
           </button>
-          <div className="font-semibold text-slate-900 truncate">NursePro CPD</div>
+          <div className="flex items-center gap-2 min-w-0">
+            <img src="/logo.png" alt="ZimHealth CPD" className="h-8 w-8 rounded-xl object-cover ring-1 ring-slate-200 bg-white" />
+            <div className="font-semibold text-slate-900 truncate">ZimHealth CPD</div>
+          </div>
         </div>
       </header>
 
