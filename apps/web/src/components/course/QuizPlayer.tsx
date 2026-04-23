@@ -42,7 +42,7 @@ type AttemptResult = {
   }>;
 };
 
-export function QuizPlayer({ quizId }: { quizId: string }) {
+export function QuizPlayer({ quizId, onPass }: { quizId: string; onPass?: () => void }) {
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [result, setResult] = useState<AttemptResult | null>(null);
@@ -101,11 +101,16 @@ export function QuizPlayer({ quizId }: { quizId: string }) {
       if (!isOnline) {
         setResult(res);
         toast.info('You are offline. Your score was calculated on this device and your attempt will sync when you reconnect.');
+        if (res.passed) onPass?.();
         return;
       }
       setResult(res);
-      if (res.passed) toast.success(`Quiz passed! You earned ${res.pointsEarned} CPD point${res.pointsEarned !== 1 ? 's' : ''}.`);
-      else toast.info(`Score: ${Math.round(res.score)}%. Pass mark is ${quiz ? Math.round(quiz.passMark * 100) : '–'}%.`);
+      if (res.passed) {
+        toast.success(`Quiz passed! You earned ${res.pointsEarned} CPD point${res.pointsEarned !== 1 ? 's' : ''}.`);
+        onPass?.();
+      } else {
+        toast.info(`Score: ${Math.round(res.score)}%. Pass mark is ${quiz ? Math.round(quiz.passMark * 100) : '–'}%.`);
+      }
     },
     onError: (err: Error) => {
       toast.error(err.message ?? 'Could not submit quiz.');

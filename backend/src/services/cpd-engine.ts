@@ -1,6 +1,6 @@
 import type { ActivityType } from '@prisma/client';
 import { db } from '../lib/db';
-import { getRequiredPoints, getCurrentCycleYear } from './cpd-rules';
+import { getRequiredPoints, getCurrentCycleYear, ACTIVITY_POINTS } from './cpd-rules';
 import { logger } from '../lib/logger';
 
 export interface CreditPointsInput {
@@ -49,6 +49,11 @@ export async function creditPoints(
   let pointsEarned: number;
   if (typeof pointsOverride === 'number') {
     pointsEarned = pointsOverride;
+  } else if (activityType === 'QUIZ_PASS') {
+    // Quiz passes earn a fixed activity bonus, not the full council-assigned course points.
+    // The full council points are awarded separately on course completion (via VIDEO_WATCH).
+    // This prevents double-awarding for courses that contain quiz sections.
+    pointsEarned = ACTIVITY_POINTS['QUIZ_PASS'] ?? 3;
   } else if (courseId) {
     const learner = await db.user.findUnique({ where: { id: learnerId }, select: { councilId: true } });
     if (learner?.councilId) {

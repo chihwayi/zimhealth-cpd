@@ -135,9 +135,11 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
 function SectionContent({
   section,
   activeQuizId,
+  onQuizPass,
 }: {
   section: ContentSection;
   activeQuizId: string | null;
+  onQuizPass?: () => void;
 }) {
   const mediaExt = (section.mediaUrl ?? '').split('?')[0].split('#')[0].toLowerCase();
   const isPdf = mediaExt.endsWith('.pdf');
@@ -272,7 +274,7 @@ function SectionContent({
 
   if (section.type === 'QUIZ') {
     return activeQuizId ? (
-      <QuizPlayer quizId={activeQuizId} />
+      <QuizPlayer quizId={activeQuizId} onPass={onQuizPass} />
     ) : (
       <div className="flex flex-col items-center justify-center h-48 bg-slate-50 rounded-xl gap-3">
         <Lock size={28} className="text-slate-300" />
@@ -767,7 +769,15 @@ export default function CoursePlayerPage() {
             {/* Content */}
             <div className="p-6">
               {active ? (
-                <SectionContent section={active.section} activeQuizId={activeQuizId} />
+                <SectionContent
+                  section={active.section}
+                  activeQuizId={activeQuizId}
+                  onQuizPass={
+                    active.section.type === 'QUIZ'
+                      ? () => void markSectionCompleteMutation.mutate(active.section.id)
+                      : undefined
+                  }
+                />
               ) : (
                 <p className="text-sm text-slate-500">No content available.</p>
               )}
