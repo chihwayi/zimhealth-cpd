@@ -7,6 +7,7 @@ import {
   User,
   BarChart2,
   Settings,
+  Building2,
   Users,
   RefreshCw,
   ClipboardList,
@@ -41,16 +42,18 @@ const COUNCIL_NAV = [
   { to: '/council/search', icon: Users, label: 'Learner Search' },
   { to: '/council/reports', icon: BarChart2, label: 'Reports' },
   { to: '/council/sync', icon: RefreshCw, label: 'Sync Status' },
+  { to: '/council/settings', icon: Settings, label: 'Council Settings' },
 ];
 
 const ADMIN_NAV = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/admin/councils', icon: Building2, label: 'Councils' },
   { to: '/admin/users', icon: Users, label: 'Users' },
   { to: '/admin/courses', icon: BookOpen, label: 'Course Approvals' },
   { to: '/admin/guidelines', icon: Wand2, label: 'Guideline Lab' },
   { to: '/admin/analytics', icon: BarChart2, label: 'Analytics' },
   { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
-  { to: '/admin/ncz-sync', icon: RefreshCw, label: 'NCZ Sync' },
+  { to: '/admin/ncz-sync', icon: RefreshCw, label: 'Council Sync' },
   { to: '/admin/audit', icon: ShieldAlert, label: 'Audit Log' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ];
@@ -109,6 +112,8 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
   if (!user) return null;
 
   const navItems = NAV_BY_ROLE[user.role] ?? LEARNER_NAV;
+  const isCouncilRole = user.role === 'NCZ_OFFICER' || user.role === 'COUNCIL_OFFICER';
+  const isAdmin = user.role === 'ADMIN';
 
   const isActiveLink = (to: string) => {
     const isRoleRoot =
@@ -120,8 +125,14 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
   return (
     <aside
       className={clsx(
-        'w-72 sm:w-80 md:w-60 flex-shrink-0 bg-white h-dvh md:h-screen md:sticky md:top-0 flex flex-col',
-        mobile ? 'ring-1 ring-slate-200' : 'border-r border-slate-200',
+        // Let the sidebar stretch with page height (no sticky).
+        'w-72 sm:w-80 md:w-60 flex-shrink-0 min-h-dvh flex flex-col',
+        isCouncilRole
+          ? 'bg-[#071510] text-white'
+          : isAdmin
+            ? 'bg-gradient-to-b from-rose-50 via-white to-white text-slate-900'
+            : 'bg-white text-slate-900',
+        mobile ? (isCouncilRole ? 'ring-1 ring-white/10' : 'ring-1 ring-slate-200') : isCouncilRole ? '' : 'border-r border-slate-200',
         className,
       )}
     >
@@ -132,11 +143,18 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
             <img
               src="/logo.png"
               alt="ZimHealth CPD"
-              className="h-10 w-10 rounded-2xl object-cover ring-1 ring-slate-200 bg-white flex-shrink-0"
+              className={clsx(
+                'h-10 w-10 rounded-2xl object-cover bg-white flex-shrink-0',
+                isCouncilRole ? 'ring-1 ring-white/15' : 'ring-1 ring-slate-200',
+              )}
             />
             <div className="min-w-0">
-              <div className="font-bold text-lg text-slate-900 tracking-tight truncate">ZimHealth CPD</div>
-              <div className="text-xs text-slate-500 mt-0.5 truncate">{ROLE_LABEL[user.role]}</div>
+              <div className={clsx('font-bold text-lg tracking-tight truncate', isCouncilRole ? 'text-white' : 'text-slate-900')}>
+                ZimHealth CPD
+              </div>
+              <div className={clsx('text-xs mt-0.5 truncate', isCouncilRole ? 'text-white/70' : 'text-slate-500')}>
+                {ROLE_LABEL[user.role]}
+              </div>
             </div>
           </div>
           {mobile && (
@@ -153,7 +171,7 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+      <nav className={clsx('flex-1 px-3 py-4 space-y-0.5', isCouncilRole ? 'overflow-y-auto' : 'overflow-visible')}>
         {navItems.map(({ to, icon: Icon, label }) => {
           const active = isActiveLink(to);
           return (
@@ -165,7 +183,11 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors duration-150',
                 active
                   ? clsx(ROLE_ACTIVE[user.role], 'font-medium')
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                  : isCouncilRole
+                    ? 'text-white/75 hover:bg-white/10 hover:text-white'
+                    : isAdmin
+                      ? 'text-slate-700 hover:bg-rose-100/70 hover:text-rose-900'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
               )}
             >
               <Icon size={18} />
@@ -176,7 +198,7 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
       </nav>
 
       {/* User card at bottom */}
-      <div className="px-4 py-4 border-t border-slate-200">
+      <div className={clsx('px-4 py-4', isCouncilRole ? 'border-t border-white/10' : 'border-t border-slate-200')}>
         <div className="flex items-center gap-3">
           <div
             className={clsx(
@@ -187,8 +209,10 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
             {user.fullName.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-slate-900 truncate">{user.fullName}</div>
-            <div className="text-xs text-slate-500 truncate">{user.email}</div>
+            <div className={clsx('text-sm font-medium truncate', isCouncilRole ? 'text-white' : 'text-slate-900')}>
+              {user.fullName}
+            </div>
+            <div className={clsx('text-xs truncate', isCouncilRole ? 'text-white/70' : 'text-slate-500')}>{user.email}</div>
           </div>
         </div>
 
@@ -198,7 +222,12 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
             clearAuth();
             window.location.href = '/login';
           }}
-          className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className={clsx(
+            'mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold',
+            isCouncilRole
+              ? 'border border-white/15 bg-white/10 text-white hover:bg-white/15'
+              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+          )}
         >
           <LogOut size={16} />
           Logout

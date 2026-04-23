@@ -109,7 +109,39 @@ interface SyncRecordRow {
 
 type TitleOption = { value: string; label: string };
 
-type SectionKey = 'dashboard' | 'search' | 'reports' | 'sync';
+type SectionKey = 'dashboard' | 'search' | 'reports' | 'sync' | 'settings';
+
+function pad2(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function isLeapYear(year: number) {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+function daysInMonth(year: number, month1to12: number) {
+  const m = Math.min(Math.max(month1to12, 1), 12);
+  const days = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return days[m - 1];
+}
+
+function clampRenewalDay(year: number, month1to12: number, day1to31: number) {
+  const m = Math.min(Math.max(month1to12, 1), 12);
+  return Math.min(Math.max(day1to31, 1), daysInMonth(year, m));
+}
+
+function toDateInputValue(year: number, month1to12: number, day1to31: number) {
+  const m = Math.min(Math.max(month1to12, 1), 12);
+  const d = clampRenewalDay(year, m, day1to31);
+  return `${year}-${pad2(m)}-${pad2(d)}`;
+}
+
+function formatRenewalLabel(month1to12: number, day1to31: number) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const m = Math.min(Math.max(month1to12, 1), 12);
+  const d = Math.min(Math.max(day1to31, 1), 31);
+  return `${d} ${months[m - 1]}`;
+}
 
 function buildSections(basePath: '/ncz' | '/council') {
   return [
@@ -117,6 +149,7 @@ function buildSections(basePath: '/ncz' | '/council') {
     { key: 'search' as const, label: 'Learner Search', path: `${basePath}/search` },
     { key: 'reports' as const, label: 'Reports', path: `${basePath}/reports` },
     { key: 'sync' as const, label: 'Sync Status', path: `${basePath}/sync` },
+    { key: 'settings' as const, label: 'Council Settings', path: `${basePath}/settings` },
   ];
 }
 
@@ -156,6 +189,7 @@ function buildCsvUrl(): string {
 export default function NczDashboard() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const storeUser = useAuthStore((state) => state.user);
+  const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
   const basePath = location.pathname.startsWith('/council') ? '/council' : '/ncz';
@@ -166,6 +200,7 @@ export default function NczDashboard() {
   const [professionalTitle, setProfessionalTitle] = useState('');
   const [page, setPage] = useState(1);
   const [selectedLearner, setSelectedLearner] = useState<Learner | null>(null);
+  const [savingCouncil, setSavingCouncil] = useState(false);
 
   const meQuery = useQuery({
     queryKey: ['auth-me'],
@@ -194,6 +229,16 @@ export default function NczDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
+
+  const [councilDraft, setCouncilDraft] = useState<{ requiredPoints: string; renewalMonth: string; renewalDay: string } | null>(null);
+  useEffect(() => {
+    const c = meQuery.data?.council;
+    if (!c) return;
+    setCouncilDraft((current) => {
+      if (current) return current;
+      return { requiredPoints: String(c.requiredPoints), renewalMonth: String(c.renewalMonth), renewalDay: String(c.renewalDay) };
+    });
+  }, [meQuery.data?.council]);
 
   const learnersQuery = useQuery<LearnersResponse>({
     queryKey: ['ncz-learners', search, professionalTitle, page],
@@ -255,6 +300,32 @@ export default function NczDashboard() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not export the compliance report.';
       toast.error(message);
+    }
+  }
+
+  async function saveCouncilSettings() {
+    if (!councilDraft) return;
+    const requiredPoints = Number(councilDraft.requiredPoints);
+    const renewalMonth = Number(councilDraft.renewalMonth);
+    const renewalDay = Number(councilDraft.renewalDay);
+    if (!Number.isFinite(requiredPoints) || !Number.isFinite(renewalMonth) || !Number.isFinite(renewalDay)) {
+      toast.error('Please enter valid numbers for required points and renewal date.');
+      return;
+    }
+
+    setSavingCouncil(true);
+    try {
+      await api.patch('/api/ncz/settings', { requiredPoints, renewalMonth, renewalDay });
+      toast.success('Council settings updated. Learner targets will reflect this automatically.');
+      // Refresh key views that depend on council.requiredPoints / renewal date.
+      queryClient.invalidateQueries({ queryKey: ['auth-me'] });
+      queryClient.invalidateQueries({ queryKey: ['cpd-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['ncz-compliance'] });
+      queryClient.invalidateQueries({ queryKey: ['ncz-learners'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update council settings.');
+    } finally {
+      setSavingCouncil(false);
     }
   }
 
@@ -560,6 +631,110 @@ export default function NczDashboard() {
       )}
 
       {section === 'sync' && <SyncStatusPanel basePath={basePath} />}
+
+      {section === 'settings' && (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 md:p-8 space-y-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-xl md:text-2xl font-black tracking-tight text-slate-900">Council CPD Requirements</h2>
+              <p className="text-sm md:text-[15px] text-slate-600 mt-2 max-w-2xl leading-relaxed">
+                Set your council’s annual CPD target and renewal deadline. The learner portal and compliance checks update automatically from this configuration.
+              </p>
+            </div>
+            <div className="hidden sm:inline-flex items-center gap-2 rounded-full bg-blue-50 border border-blue-100 px-3 py-1.5 text-xs font-semibold text-blue-700 flex-shrink-0">
+              <span className="inline-flex h-2 w-2 rounded-full bg-blue-600" />
+              Council settings
+            </div>
+          </div>
+
+          {!meQuery.data?.council ? (
+            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Your account is not linked to a council yet. Ask an admin to assign your council.
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:p-5">
+              <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 lg:gap-6 items-stretch">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Required points</div>
+                  <div className="mt-3 flex items-end gap-3">
+                    <input
+                      inputMode="numeric"
+                      value={councilDraft?.requiredPoints ?? ''}
+                      onChange={(e) => setCouncilDraft((d) => (d ? { ...d, requiredPoints: e.target.value } : d))}
+                      className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                    <div className="pb-2 text-sm font-semibold text-slate-500">pts</div>
+                  </div>
+                  <p className="mt-2 text-[12px] text-slate-500 leading-snug">
+                    This is the annual CPD target learners must reach to be compliant.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Renewal deadline</div>
+                      <div className="mt-2 text-sm font-semibold text-slate-900">
+                        Every year on{' '}
+                        <span className="text-blue-700">
+                          {formatRenewalLabel(
+                            Number(councilDraft?.renewalMonth ?? meQuery.data?.council?.renewalMonth ?? 1),
+                            Number(councilDraft?.renewalDay ?? meQuery.data?.council?.renewalDay ?? 1),
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="hidden sm:inline-flex items-center gap-2 rounded-full bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                      Repeats yearly
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-3 items-start">
+                    <div className="text-[12px] text-slate-500 leading-snug">
+                      Pick any valid date—only the month/day is stored, and we’ll use it as the yearly renewal deadline (leap years handled automatically).
+                    </div>
+                    <input
+                      type="date"
+                      value={(() => {
+                        const year = new Date().getFullYear();
+                        const month = Number(councilDraft?.renewalMonth ?? meQuery.data?.council?.renewalMonth ?? 1);
+                        const day = Number(councilDraft?.renewalDay ?? meQuery.data?.council?.renewalDay ?? 1);
+                        return toDateInputValue(year, month, day);
+                      })()}
+                      onChange={(e) => {
+                        const raw = e.target.value; // YYYY-MM-DD
+                        const [y, m, d] = raw.split('-').map((v) => Number(v));
+                        if (!y || !m || !d) return;
+                        setCouncilDraft((prev) =>
+                          prev
+                            ? { ...prev, renewalMonth: String(m), renewalDay: String(d) }
+                            : {
+                                requiredPoints: String(meQuery.data?.council?.requiredPoints ?? 12),
+                                renewalMonth: String(m),
+                                renewalDay: String(d),
+                              },
+                        );
+                      }}
+                      className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void saveCouncilSettings()}
+                      disabled={savingCouncil || !councilDraft}
+                      className="sm:w-auto w-full h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 shadow-sm shadow-blue-900/10"
+                    >
+                      {savingCouncil ? 'Saving…' : 'Save settings'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {selectedLearner ? (
         <LearnerHistoryPanel learner={selectedLearner} onClose={() => setSelectedLearner(null)} />

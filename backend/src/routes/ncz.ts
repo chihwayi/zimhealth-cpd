@@ -23,6 +23,57 @@ async function getCouncilRequiredPoints(councilId: string | null): Promise<numbe
   return council?.requiredPoints ?? 12;
 }
 
+const UpdateOwnCouncilSchema = z.object({
+  requiredPoints: z.number().int().min(1).max(500).optional(),
+  renewalMonth: z.number().int().min(1).max(12).optional(),
+  renewalDay: z.number().int().min(1).max(31).optional(),
+});
+
+// PATCH /api/ncz/settings (also available under /api/council/settings via alias mounting)
+// Council officers can update THEIR council CPD requirements.
+router.patch(
+  '/settings',
+  requireAuth,
+  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  async (req: AuthRequest, res) => {
+    try {
+      if (req.user?.role === 'ADMIN') {
+        return res.status(400).json({ error: 'Admins should use /api/councils/:id to update council settings.' });
+      }
+
+      const councilId = await getOfficerCouncilId(req);
+      if (!councilId || councilId === '__NO_COUNCIL__') {
+        return res.status(400).json({ error: 'Council officer is not assigned to a council.' });
+      }
+
+      const data = UpdateOwnCouncilSchema.parse(req.body);
+      if (!Object.keys(data).length) {
+        return res.status(400).json({ error: 'No updates provided.' });
+      }
+
+      const updated = await db.council.update({
+        where: { id: councilId },
+        data,
+        select: {
+          id: true,
+          name: true,
+          acronym: true,
+          requiredPoints: true,
+          renewalMonth: true,
+          renewalDay: true,
+          allowedTitles: true,
+          isActive: true,
+        },
+      });
+
+      return res.json({ council: updated });
+    } catch (err: any) {
+      if (err?.name === 'ZodError') return res.status(400).json({ error: err.errors });
+      return res.status(500).json({ error: 'Could not update council settings' });
+    }
+  },
+);
+
 router.get(
   '/learners',
   requireAuth,

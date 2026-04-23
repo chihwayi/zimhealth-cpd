@@ -9,6 +9,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Prevent service worker caching from hiding UI changes in development.
+      // (Backend and data APIs still behave normally; only SW caching is disabled.)
+      devOptions: { enabled: false },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'ZimHealth CPD',

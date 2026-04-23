@@ -215,12 +215,13 @@ interface IngestGuidelineResponse {
 
 const ADMIN_SECTIONS = [
   { key: 'dashboard', label: 'Dashboard', path: '/admin', icon: Users },
+  { key: 'councils', label: 'Councils', path: '/admin/councils', icon: Building2 },
   { key: 'users', label: 'Users', path: '/admin/users', icon: Users },
   { key: 'courses', label: 'Course Approvals', path: '/admin/courses', icon: BookOpen },
   { key: 'guidelines', label: 'Guideline Lab', path: '/admin/guidelines', icon: Wand2 },
   { key: 'analytics', label: 'Analytics', path: '/admin/analytics', icon: BarChart2 },
   { key: 'payments', label: 'Payments', path: '/admin/payments', icon: CreditCard },
-  { key: 'ncz-sync', label: 'NCZ Sync', path: '/admin/ncz-sync', icon: RefreshCw },
+  { key: 'ncz-sync', label: 'Council Sync', path: '/admin/ncz-sync', icon: RefreshCw },
   { key: 'audit', label: 'Audit Log', path: '/admin/audit', icon: ShieldAlert },
   { key: 'release', label: 'Release Readiness', path: '/admin/release', icon: ClipboardCheck },
   { key: 'settings', label: 'Settings', path: '/admin/settings', icon: Settings },
@@ -304,6 +305,7 @@ export default function AdminDashboard() {
       </div>
 
       {section === 'dashboard' && <OverviewSection />}
+      {section === 'councils' && <CouncilsSection />}
       {section === 'users' && <UsersSection />}
       {section === 'courses' && <ApprovalsSection standalone />}
       {section === 'guidelines' && <GuidelineLabSection />}
@@ -313,6 +315,243 @@ export default function AdminDashboard() {
       {section === 'settings' && <SettingsSection />}
       {section === 'payments' && <PaymentsSection />}
       {section === 'ncz-sync' && <NczSyncSection />}
+    </div>
+  );
+}
+
+function CouncilsSection() {
+  const qc = useQueryClient();
+  const councilsQuery = useQuery<CouncilsAdminResponse>({
+    queryKey: ['admin-councils'],
+    queryFn: () => api.get('/api/councils/all'),
+  });
+
+  const [draftByCouncilId, setDraftByCouncilId] = useState<
+    Record<string, { requiredPoints: string; renewalMonth: string; renewalDay: string; isActive: boolean } | undefined>
+  >({});
+
+  useEffect(() => {
+    if (!councilsQuery.data?.councils?.length) return;
+    setDraftByCouncilId((current) => {
+      const next = { ...current };
+      for (const c of councilsQuery.data!.councils) {
+        if (next[c.id]) continue;
+        next[c.id] = {
+          requiredPoints: String(c.requiredPoints),
+          renewalMonth: String(c.renewalMonth),
+          renewalDay: String(c.renewalDay),
+          isActive: c.isActive,
+        };
+      }
+      return next;
+    });
+  }, [councilsQuery.data]);
+
+  const updateCouncilMutation = useMutation({
+    mutationFn: async (payload: { id: string; requiredPoints: number; renewalMonth: number; renewalDay: number; isActive: boolean }) =>
+      api.patch(`/api/councils/${payload.id}`, {
+        requiredPoints: payload.requiredPoints,
+        renewalMonth: payload.renewalMonth,
+        renewalDay: payload.renewalDay,
+        isActive: payload.isActive,
+      }),
+    onSuccess: () => {
+      toast.success('Council settings updated.');
+      qc.invalidateQueries({ queryKey: ['admin-councils'] });
+      qc.invalidateQueries({ queryKey: ['cpd-summary'] });
+      qc.invalidateQueries({ queryKey: ['ncz-compliance'] });
+      qc.invalidateQueries({ queryKey: ['ncz-learners'] });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not update council settings.'),
+  });
+
+  const councilRows = useMemo(() => councilsQuery.data?.councils ?? [], [councilsQuery.data]);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 md:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-xl md:text-2xl font-black tracking-tight text-slate-900">Councils</h2>
+            <p className="text-sm md:text-[15px] text-slate-600 mt-2 max-w-2xl leading-relaxed">
+              Manage council CPD targets, renewal dates, and activation status. Learner dashboards and council compliance views read from this data.
+            </p>
+          </div>
+          <div className="hidden sm:inline-flex items-center gap-2 rounded-full bg-rose-50 border border-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-700 flex-shrink-0">
+            <Building2 size={14} />
+            Council registry
+          </div>
+        </div>
+
+        <div className="mt-6">
+          {councilsQuery.isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} className="h-16 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+              ))}
+            </div>
+          ) : councilsQuery.isError ? (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Could not load councils.
+            </div>
+          ) : councilRows.length === 0 ? (
+            <EmptyState
+              icon={<Building2 size={28} />}
+              title="No councils found"
+              description="Seed councils in the database to begin configuring required points and renewal deadlines."
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="min-w-full text-sm bg-white">
+                <thead className="bg-slate-50">
+                  <tr>
+                    {['Council', 'Required points', 'Renewal month', 'Renewal day', 'Status', ''].map((heading) => (
+                      <th key={heading} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {councilRows.map((council) => {
+                    const draft = draftByCouncilId[council.id];
+                    const isSaving = updateCouncilMutation.isPending && updateCouncilMutation.variables?.id === council.id;
+                    return (
+                      <tr key={council.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-4">
+                          <div className="font-semibold text-slate-900">{council.acronym}</div>
+                          <div className="text-xs text-slate-500 mt-1">{council.name}</div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <input
+                            inputMode="numeric"
+                            value={draft?.requiredPoints ?? String(council.requiredPoints)}
+                            onChange={(e) =>
+                              setDraftByCouncilId((prev) => ({
+                                ...prev,
+                                [council.id]: {
+                                  requiredPoints: e.target.value,
+                                  renewalMonth: prev[council.id]?.renewalMonth ?? String(council.renewalMonth),
+                                  renewalDay: prev[council.id]?.renewalDay ?? String(council.renewalDay),
+                                  isActive: prev[council.id]?.isActive ?? council.isActive,
+                                },
+                              }))
+                            }
+                            className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <input
+                            inputMode="numeric"
+                            value={draft?.renewalMonth ?? String(council.renewalMonth)}
+                            onChange={(e) =>
+                              setDraftByCouncilId((prev) => ({
+                                ...prev,
+                                [council.id]: {
+                                  requiredPoints: prev[council.id]?.requiredPoints ?? String(council.requiredPoints),
+                                  renewalMonth: e.target.value,
+                                  renewalDay: prev[council.id]?.renewalDay ?? String(council.renewalDay),
+                                  isActive: prev[council.id]?.isActive ?? council.isActive,
+                                },
+                              }))
+                            }
+                            className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <input
+                            inputMode="numeric"
+                            value={draft?.renewalDay ?? String(council.renewalDay)}
+                            onChange={(e) =>
+                              setDraftByCouncilId((prev) => ({
+                                ...prev,
+                                [council.id]: {
+                                  requiredPoints: prev[council.id]?.requiredPoints ?? String(council.requiredPoints),
+                                  renewalMonth: prev[council.id]?.renewalMonth ?? String(council.renewalMonth),
+                                  renewalDay: e.target.value,
+                                  isActive: prev[council.id]?.isActive ?? council.isActive,
+                                },
+                              }))
+                            }
+                            className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDraftByCouncilId((prev) => ({
+                                ...prev,
+                                [council.id]: {
+                                  requiredPoints: prev[council.id]?.requiredPoints ?? String(council.requiredPoints),
+                                  renewalMonth: prev[council.id]?.renewalMonth ?? String(council.renewalMonth),
+                                  renewalDay: prev[council.id]?.renewalDay ?? String(council.renewalDay),
+                                  isActive: !(prev[council.id]?.isActive ?? council.isActive),
+                                },
+                              }))
+                            }
+                            className={clsx(
+                              'rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors',
+                              (draft?.isActive ?? council.isActive)
+                                ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                                : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200',
+                            )}
+                          >
+                            {(draft?.isActive ?? council.isActive) ? 'Active' : 'Inactive'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDraftByCouncilId((prev) => ({
+                                  ...prev,
+                                  [council.id]: {
+                                    requiredPoints: String(council.requiredPoints),
+                                    renewalMonth: String(council.renewalMonth),
+                                    renewalDay: String(council.renewalDay),
+                                    isActive: council.isActive,
+                                  },
+                                }));
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                              title="Reset row"
+                            >
+                              <X size={12} />
+                              Reset
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isSaving || !draft}
+                              onClick={() => {
+                                const requiredPoints = Math.max(1, Math.min(500, parseInt(draft!.requiredPoints, 10) || council.requiredPoints));
+                                const renewalMonth = Math.max(1, Math.min(12, parseInt(draft!.renewalMonth, 10) || council.renewalMonth));
+                                const renewalDay = Math.max(1, Math.min(31, parseInt(draft!.renewalDay, 10) || council.renewalDay));
+                                updateCouncilMutation.mutate({
+                                  id: council.id,
+                                  requiredPoints,
+                                  renewalMonth,
+                                  renewalDay,
+                                  isActive: draft!.isActive,
+                                });
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                            >
+                              <Save size={12} />
+                              {isSaving ? 'Saving…' : 'Save'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1077,52 +1316,7 @@ function SettingsSection() {
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not update system configuration.'),
   });
 
-  const councilsQuery = useQuery<CouncilsAdminResponse>({
-    queryKey: ['admin-councils'],
-    queryFn: () => api.get('/api/councils/all'),
-  });
-
-  const [draftByCouncilId, setDraftByCouncilId] = useState<
-    Record<string, { requiredPoints: string; renewalMonth: string; renewalDay: string; isActive: boolean } | undefined>
-  >({});
-
-  useEffect(() => {
-    if (!councilsQuery.data?.councils?.length) return;
-    setDraftByCouncilId((current) => {
-      const next = { ...current };
-      for (const c of councilsQuery.data!.councils) {
-        if (next[c.id]) continue;
-        next[c.id] = {
-          requiredPoints: String(c.requiredPoints),
-          renewalMonth: String(c.renewalMonth),
-          renewalDay: String(c.renewalDay),
-          isActive: c.isActive,
-        };
-      }
-      return next;
-    });
-  }, [councilsQuery.data]);
-
-  const updateCouncilMutation = useMutation({
-    mutationFn: async (payload: { id: string; requiredPoints: number; renewalMonth: number; renewalDay: number; isActive: boolean }) =>
-      api.patch(`/api/councils/${payload.id}`, {
-        requiredPoints: payload.requiredPoints,
-        renewalMonth: payload.renewalMonth,
-        renewalDay: payload.renewalDay,
-        isActive: payload.isActive,
-      }),
-    onSuccess: () => {
-      toast.success('Council settings updated.');
-      qc.invalidateQueries({ queryKey: ['admin-councils'] });
-      // Learner and council portals read required points from council config.
-      qc.invalidateQueries({ queryKey: ['cpd-summary'] });
-      qc.invalidateQueries({ queryKey: ['ncz-compliance'] });
-      qc.invalidateQueries({ queryKey: ['ncz-learners'] });
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not update council settings.'),
-  });
-
-  const councilRows = useMemo(() => councilsQuery.data?.councils ?? [], [councilsQuery.data]);
+  // Council management lives in /admin/councils (dedicated home).
 
   if (configQuery.isLoading) {
     return (
@@ -1144,191 +1338,6 @@ function SettingsSection() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">Council CPD Requirements</h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Update annual CPD targets and renewal dates once — learner dashboards and council compliance views will reflect changes automatically.
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600">
-            <Building2 size={14} />
-            Councils
-          </div>
-        </div>
-
-        {councilsQuery.isLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="h-16 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
-            ))}
-          </div>
-        ) : councilsQuery.isError ? (
-          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            Could not load councils.
-          </div>
-        ) : councilRows.length === 0 ? (
-          <EmptyState
-            icon={<Building2 size={28} />}
-            title="No councils found"
-            description="Create a council in the database seed or add a council admin screen in a future sprint."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  {['Council', 'Required points', 'Renewal month', 'Renewal day', 'Status', ''].map((heading) => (
-                    <th
-                      key={heading}
-                      className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500"
-                    >
-                      {heading}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {councilRows.map((council) => {
-                  const draft = draftByCouncilId[council.id];
-                  const isSaving = updateCouncilMutation.isPending && updateCouncilMutation.variables?.id === council.id;
-                  return (
-                    <tr key={council.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-4">
-                        <div className="font-semibold text-slate-900">{council.acronym}</div>
-                        <div className="text-xs text-slate-500 mt-1">{council.name}</div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <input
-                          inputMode="numeric"
-                          value={draft?.requiredPoints ?? String(council.requiredPoints)}
-                          onChange={(e) =>
-                            setDraftByCouncilId((prev) => ({
-                              ...prev,
-                              [council.id]: {
-                                requiredPoints: e.target.value,
-                                renewalMonth: prev[council.id]?.renewalMonth ?? String(council.renewalMonth),
-                                renewalDay: prev[council.id]?.renewalDay ?? String(council.renewalDay),
-                                isActive: prev[council.id]?.isActive ?? council.isActive,
-                              },
-                            }))
-                          }
-                          className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
-                        />
-                      </td>
-                      <td className="px-4 py-4">
-                        <input
-                          inputMode="numeric"
-                          value={draft?.renewalMonth ?? String(council.renewalMonth)}
-                          onChange={(e) =>
-                            setDraftByCouncilId((prev) => ({
-                              ...prev,
-                              [council.id]: {
-                                requiredPoints: prev[council.id]?.requiredPoints ?? String(council.requiredPoints),
-                                renewalMonth: e.target.value,
-                                renewalDay: prev[council.id]?.renewalDay ?? String(council.renewalDay),
-                                isActive: prev[council.id]?.isActive ?? council.isActive,
-                              },
-                            }))
-                          }
-                          className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
-                        />
-                      </td>
-                      <td className="px-4 py-4">
-                        <input
-                          inputMode="numeric"
-                          value={draft?.renewalDay ?? String(council.renewalDay)}
-                          onChange={(e) =>
-                            setDraftByCouncilId((prev) => ({
-                              ...prev,
-                              [council.id]: {
-                                requiredPoints: prev[council.id]?.requiredPoints ?? String(council.requiredPoints),
-                                renewalMonth: prev[council.id]?.renewalMonth ?? String(council.renewalMonth),
-                                renewalDay: e.target.value,
-                                isActive: prev[council.id]?.isActive ?? council.isActive,
-                              },
-                            }))
-                          }
-                          className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
-                        />
-                      </td>
-                      <td className="px-4 py-4">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setDraftByCouncilId((prev) => ({
-                              ...prev,
-                              [council.id]: {
-                                requiredPoints: prev[council.id]?.requiredPoints ?? String(council.requiredPoints),
-                                renewalMonth: prev[council.id]?.renewalMonth ?? String(council.renewalMonth),
-                                renewalDay: prev[council.id]?.renewalDay ?? String(council.renewalDay),
-                                isActive: !(prev[council.id]?.isActive ?? council.isActive),
-                              },
-                            }))
-                          }
-                          className={clsx(
-                            'rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors',
-                            (draft?.isActive ?? council.isActive)
-                              ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                              : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200',
-                          )}
-                        >
-                          {(draft?.isActive ?? council.isActive) ? 'Active' : 'Inactive'}
-                        </button>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2 justify-end">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDraftByCouncilId((prev) => ({
-                                ...prev,
-                                [council.id]: {
-                                  requiredPoints: String(council.requiredPoints),
-                                  renewalMonth: String(council.renewalMonth),
-                                  renewalDay: String(council.renewalDay),
-                                  isActive: council.isActive,
-                                },
-                              }));
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                            title="Reset row"
-                          >
-                            <X size={12} />
-                            Reset
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isSaving || !draft}
-                            onClick={() => {
-                              const requiredPoints = Math.max(1, Math.min(500, parseInt(draft!.requiredPoints, 10) || council.requiredPoints));
-                              const renewalMonth = Math.max(1, Math.min(12, parseInt(draft!.renewalMonth, 10) || council.renewalMonth));
-                              const renewalDay = Math.max(1, Math.min(31, parseInt(draft!.renewalDay, 10) || council.renewalDay));
-                              updateCouncilMutation.mutate({
-                                id: council.id,
-                                requiredPoints,
-                                renewalMonth,
-                                renewalDay,
-                                isActive: draft!.isActive,
-                              });
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-                          >
-                            <Save size={12} />
-                            {isSaving ? 'Saving…' : 'Save'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
         <div>
           <h2 className="text-base font-semibold text-slate-900">AI Provider</h2>
@@ -1806,14 +1815,16 @@ function NczSyncSection() {
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">NCZ Sync Operations</h2>
-            <p className="text-sm text-slate-500 mt-1">Admin can monitor release health here and jump into the NCZ portal for retry and record-level actions.</p>
+            <h2 className="text-base font-semibold text-slate-900">Council Sync Operations</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              This is the current council sync adapter (NCZ). As other councils add integrations, they will appear here too.
+            </p>
           </div>
           <Link
-            to="/ncz"
+            to="/council"
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
           >
-            Open NCZ Portal
+            Open Council Portal
             <ArrowRight size={15} />
           </Link>
         </div>

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Menu } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { useAuthStore } from '../../store/auth.store';
 
 interface Props {
   children: ReactNode;
@@ -12,14 +13,23 @@ interface Props {
 export function AppShell({ children }: Props) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const user = useAuthStore((s) => s.user);
+  const isCouncilRole = user?.role === 'NCZ_OFFICER' || user?.role === 'COUNCIL_OFFICER';
+  const isAdmin = user?.role === 'ADMIN';
 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
   return (
-    <div className="relative flex min-h-dvh bg-[#071510] text-[#0B1F1A] overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(78,203,160,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
+    <div className={isCouncilRole ? 'relative flex min-h-dvh bg-[#071510]' : 'relative flex min-h-dvh bg-slate-100'}>
+      {isCouncilRole ? (
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(78,203,160,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
+      ) : isAdmin ? (
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(244,63,94,0.10),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(14,165,233,0.10),transparent_45%)]" />
+      ) : (
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(20,184,166,0.10),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.08),transparent_45%)]" />
+      )}
       {/* Desktop sidebar */}
       <Sidebar className="hidden md:flex" />
 
@@ -55,7 +65,11 @@ export function AppShell({ children }: Props) {
         </div>
       )}
 
-      <main id="main-content" className="relative flex-1 overflow-y-auto pt-14 md:pt-0" tabIndex={-1}>
+      <main
+        id="main-content"
+        className="relative flex-1 pt-14 md:pt-0 bg-slate-50 text-slate-900"
+        tabIndex={-1}
+      >
         <OfflineBanner />
         {children}
       </main>

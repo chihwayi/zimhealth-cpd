@@ -86,6 +86,9 @@ async function main() {
     },
   });
 
+  const pczCouncil = await db.council.findUnique({ where: { acronym: 'PCZ' }, select: { id: true } });
+  const pczCouncilId = pczCouncil?.id;
+
   // Additional councils from "Zimbabwe Health Councils CPD Overview.xlsx"
   // Some councils are marked "Required" without a published number; seed defaults (12) and adjust via Admin UI.
   await db.council.upsert({
@@ -218,6 +221,51 @@ async function main() {
   });
   console.log('✅ Content Manager:', creator.email);
 
+  // ─── 2b. Council-specific creators (demo) ───────────────────────────────────
+  const councilCreatorPassword = await bcrypt.hash('Creator@1234', 12);
+  const councilCreators = await Promise.all([
+    db.user.upsert({
+      where: { email: 'creator.ncz@zimhealthcpd.co.zw' },
+      update: { councilId: nczCouncil.id, professionalTitle: 'Nurse Educator' },
+      create: {
+        email: 'creator.ncz@zimhealthcpd.co.zw',
+        passwordHash: councilCreatorPassword,
+        fullName: 'NCZ Course Creator',
+        role: Role.CONTENT_MANAGER,
+        councilId: nczCouncil.id,
+        professionalTitle: 'Nurse Educator',
+        isApproved: true,
+      },
+    }),
+    db.user.upsert({
+      where: { email: 'creator.mdpcz@zimhealthcpd.co.zw' },
+      update: { councilId: mdpczCouncil.id, professionalTitle: 'Medical Educator' },
+      create: {
+        email: 'creator.mdpcz@zimhealthcpd.co.zw',
+        passwordHash: councilCreatorPassword,
+        fullName: 'MDPCZ Course Creator',
+        role: Role.CONTENT_MANAGER,
+        councilId: mdpczCouncil.id,
+        professionalTitle: 'Medical Educator',
+        isApproved: true,
+      },
+    }),
+    db.user.upsert({
+      where: { email: 'creator.pcz@zimhealthcpd.co.zw' },
+      update: { councilId: pczCouncilId ?? undefined, professionalTitle: 'Pharmacy Educator' },
+      create: {
+        email: 'creator.pcz@zimhealthcpd.co.zw',
+        passwordHash: councilCreatorPassword,
+        fullName: 'PCZ Course Creator',
+        role: Role.CONTENT_MANAGER,
+        councilId: pczCouncilId ?? undefined,
+        professionalTitle: 'Pharmacy Educator',
+        isApproved: true,
+      },
+    }),
+  ]);
+  console.log('✅ Council creators:', councilCreators.map((u) => u.email).join(', '));
+
   // ─── 3. NCZ Officer ─────────────────────────────────────────────────────────
   const nczPassword = await bcrypt.hash('Ncz@12345', 12);
   const ncz = await db.user.upsert({
@@ -299,6 +347,51 @@ async function main() {
         institution: 'Mpilo Central Hospital',
         province: 'Bulawayo',
         phone: '+263772345678',
+        subscriptionTier: SubscriptionTier.FREE,
+      },
+    }),
+    // Council-specific demo learners (one per council)
+    db.user.upsert({
+      where: { email: 'learner.mdpcz@zimhealthcpd.co.zw' },
+      update: {
+        councilId: mdpczCouncil.id,
+        professionalTitle: 'Clinical Officer',
+        registrationNumber: 'MDPCZ-2026-000001',
+      },
+      create: {
+        email: 'learner.mdpcz@zimhealthcpd.co.zw',
+        passwordHash: learnerPassword,
+        fullName: 'MDPCZ Demo Learner',
+        role: Role.LEARNER,
+        councilId: mdpczCouncil.id,
+        professionalTitle: 'Clinical Officer',
+        registrationNumber: 'MDPCZ-2026-000001',
+        cadre: Cadre.CLINICAL_OFFICER,
+        institution: 'Parirenyatwa Group of Hospitals',
+        province: 'Harare',
+        phone: '+263773000001',
+        subscriptionTier: SubscriptionTier.FREE,
+      },
+    }),
+    db.user.upsert({
+      where: { email: 'learner.pcz@zimhealthcpd.co.zw' },
+      update: {
+        councilId: pczCouncilId ?? undefined,
+        professionalTitle: 'Pharmacist',
+        registrationNumber: 'PCZ-2026-000001',
+      },
+      create: {
+        email: 'learner.pcz@zimhealthcpd.co.zw',
+        passwordHash: learnerPassword,
+        fullName: 'PCZ Demo Learner',
+        role: Role.LEARNER,
+        councilId: pczCouncilId ?? undefined,
+        professionalTitle: 'Pharmacist',
+        registrationNumber: 'PCZ-2026-000001',
+        cadre: Cadre.PHARMACIST,
+        institution: 'Harare Central Hospital',
+        province: 'Harare',
+        phone: '+263773000002',
         subscriptionTier: SubscriptionTier.FREE,
       },
     }),
@@ -428,6 +521,11 @@ async function main() {
   console.log('  NCZ:      officer@ncz.co.zw / Ncz@12345');
   console.log('  Council:  officer@council.co.zw / Council@12345');
   console.log('  Learner:  grace@zimhealthcpd.co.zw / Learner@1234');
+  console.log('  Learner (MDPCZ): learner.mdpcz@zimhealthcpd.co.zw / Learner@1234');
+  console.log('  Learner (PCZ):   learner.pcz@zimhealthcpd.co.zw / Learner@1234');
+  console.log('  Creator (NCZ):   creator.ncz@zimhealthcpd.co.zw / Creator@1234');
+  console.log('  Creator (MDPCZ): creator.mdpcz@zimhealthcpd.co.zw / Creator@1234');
+  console.log('  Creator (PCZ):   creator.pcz@zimhealthcpd.co.zw / Creator@1234');
 }
 
 main()
