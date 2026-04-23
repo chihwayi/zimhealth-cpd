@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { BookOpen, Plus, Search, Filter } from 'lucide-react';
+import { BookOpen, Plus, Search, Filter, RefreshCw } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { toast } from '../../components/ui/Toast';
 
 interface MyCourse {
   id: string;
@@ -13,6 +14,15 @@ interface MyCourse {
   cpdPoints: number;
   updatedAt?: string;
   _count: { enrollments: number };
+  councilReviews?: Array<{
+    id: string;
+    status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+    points?: number | null;
+    rejectionReason?: string | null;
+    reviewedAt?: string | null;
+    updatedAt: string;
+    council: { id: string; name: string; acronym: string };
+  }>;
 }
 
 function formatLabel(value: string) {
@@ -33,9 +43,20 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant={map[status] ?? 'default'}>{formatLabel(status)}</Badge>;
 }
 
+function ReviewBadge({ status, points }: { status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED'; points?: number | null }) {
+  const variant: 'success' | 'warning' | 'error' | 'info' =
+    status === 'APPROVED' ? 'success' : status === 'REJECTED' ? 'error' : 'warning';
+  return (
+    <Badge variant={variant}>
+      {status === 'PENDING_REVIEW' ? 'Pending' : status === 'APPROVED' ? `Approved (${points ?? 0} pts)` : 'Rejected'}
+    </Badge>
+  );
+}
+
 export default function CreatorCourses() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<'ALL' | 'DRAFT' | 'UNDER_REVIEW' | 'PUBLISHED'>('ALL');
+  const [resubmittingId, setResubmittingId] = useState<string | null>(null);
 
   const coursesQuery = useQuery<{ courses: MyCourse[] }>({
     queryKey: ['creator-courses'],
@@ -51,6 +72,19 @@ export default function CreatorCourses() {
       return c.title.toLowerCase().includes(term);
     });
   }, [coursesQuery.data, q, status]);
+
+  async function resubmitToCouncils(courseId: string) {
+    setResubmittingId(courseId);
+    try {
+      await api.post(`/api/courses/${courseId}/resubmit-council`);
+      toast.success('Resubmitted to councils. It will return to “Waiting for points”.');
+      await coursesQuery.refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not resubmit to councils.');
+    } finally {
+      setResubmittingId(null);
+    }
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -134,12 +168,40 @@ export default function CreatorCourses() {
                   <div className="font-semibold text-slate-900 truncate">{course.title}</div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                     <StatusBadge status={course.status} />
-                    <span>{course.cpdPoints} points</span>
-                    <span>•</span>
+                    <span className="hidden sm:inline">•</span>
                     <span>{course._count.enrollments} enrollments</span>
                   </div>
+                  {course.councilReviews?.length ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {course.councilReviews.slice(0, 6).map((review) => (
+                        <span key={review.id} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                          <span className="text-[11px] font-semibold text-slate-700">{review.council.acronym}</span>
+                          <ReviewBadge status={review.status} points={review.points} />
+                        </span>
+                      ))}
+                      {course.councilReviews.length > 6 ? (
+                        <span className="text-[11px] text-slate-500">+{course.councilReviews.length - 6} more</span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {course.councilReviews?.some((r) => r.status === 'REJECTED') ? (
+                    <div className="mt-2 text-xs text-red-700">
+                      A council rejected this course. Open it to address feedback, then resubmit.
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex gap-2">
+                  {course.councilReviews?.some((r) => r.status === 'REJECTED') ? (
+                    <button
+                      type="button"
+                      onClick={() => void resubmitToCouncils(course.id)}
+                      disabled={resubmittingId === course.id}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      <RefreshCw size={16} className={resubmittingId === course.id ? 'animate-spin' : ''} />
+                      {resubmittingId === course.id ? 'Resubmitting…' : 'Resubmit'}
+                    </button>
+                  ) : null}
                   <Link
                     to={`/creator/courses/${course.id}/edit`}
                     className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"

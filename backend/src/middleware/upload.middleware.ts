@@ -18,6 +18,8 @@ const ALLOWED_MIME: Record<string, number> = {
   'audio/mpeg': getEnvMb('MEDIA_MAX_AUDIO_MB', 200),
   'audio/wav': getEnvMb('MEDIA_MAX_AUDIO_MB', 200),
   'application/pdf': getEnvMb('MEDIA_MAX_PDF_MB', 50),
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': getEnvMb('MEDIA_MAX_DOCX_MB', 50),
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': getEnvMb('MEDIA_MAX_PPTX_MB', 100),
   'text/plain': getEnvMb('MEDIA_MAX_TEXT_MB', 10),
   'text/html': getEnvMb('MEDIA_MAX_TEXT_MB', 10),
   'application/zip': getEnvMb('MEDIA_MAX_ARCHIVE_MB', 500),

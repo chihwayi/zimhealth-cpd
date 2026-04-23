@@ -19,7 +19,7 @@ async function main() {
   console.log('Seeding database...');
 
   const nczCouncil = await db.council.upsert({
-    where: { acronym: 'NCZ' },
+    where: { slug: 'nurses-council-of-zimbabwe' },
     update: {
       name: 'Nurses Council of Zimbabwe',
       slug: 'nurses-council-of-zimbabwe',
@@ -43,7 +43,7 @@ async function main() {
   });
 
   const mdpczCouncil = await db.council.upsert({
-    where: { acronym: 'MDPCZ' },
+    where: { slug: 'medical-dental-practitioners-council-of-zimbabwe' },
     update: {
       name: 'Medical and Dental Practitioners Council of Zimbabwe',
       slug: 'medical-dental-practitioners-council-of-zimbabwe',
@@ -67,7 +67,7 @@ async function main() {
   });
 
   await db.council.upsert({
-    where: { acronym: 'PCZ' },
+    where: { slug: 'pharmacists-council-of-zimbabwe' },
     update: {
       name: 'Pharmacists Council of Zimbabwe',
       slug: 'pharmacists-council-of-zimbabwe',
@@ -418,13 +418,37 @@ async function main() {
       specialtyArea: 'Infection Control',
       difficulty: Difficulty.FOUNDATION,
       language: Language.ENGLISH,
-      cpdPoints: 3,
+      // Council-specific points now come from CouncilCourseReview.
+      cpdPoints: 0,
       estimatedMinutes: 90,
       accreditationBody: 'NCZ',
       tags: ['IPC', 'infection control', 'hand hygiene', 'PPE'],
       status: CourseStatus.PUBLISHED,
       creatorId: creator.id,
     },
+  });
+
+  // Seed council approvals + points (demo): course visible to NCZ + MDPCZ once points exist
+  await db.councilCourseReview.createMany({
+    skipDuplicates: true,
+    data: [
+      {
+        courseId: course.id,
+        councilId: nczCouncil.id,
+        status: 'APPROVED',
+        points: 3,
+        reviewedAt: new Date(),
+        reviewedByUserId: ncz.id,
+      },
+      {
+        courseId: course.id,
+        councilId: mdpczCouncil.id,
+        status: 'APPROVED',
+        points: 3,
+        reviewedAt: new Date(),
+        reviewedByUserId: ncz.id,
+      },
+    ],
   });
 
   // Module

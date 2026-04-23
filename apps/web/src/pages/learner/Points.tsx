@@ -40,7 +40,7 @@ export default function PointsPage() {
 
   const { data: records, isLoading: recordsLoading } = useQuery<CPDRecord[]>({
     queryKey: ['cpd-records', selectedYear],
-    queryFn: () => api.get(`/api/points?year=${selectedYear}&limit=50`),
+    queryFn: () => api.get(`/api/points/records?year=${selectedYear}&limit=50`),
   });
 
   const years = [currentYear, currentYear - 1, currentYear - 2];

@@ -11,6 +11,7 @@ type CourseCardCourse = {
   thumbnailUrl?: string | null;
   estimatedMinutes: number;
   cpdPoints: number;
+  effectivePoints?: number | null;
   averageRating?: number | null;
   reviewCount?: number | null;
   creatorName?: string | null;
@@ -59,6 +60,7 @@ export function CourseCard({ course }: { course: CourseCardCourse }) {
   const isOffline = course.modules?.some((m) => m.isOfflineReady);
   const categoryVariant = CATEGORY_VARIANT[course.category] ?? 'default';
   const isLocked = Boolean(course.locked);
+  const points = course.effectivePoints ?? course.cpdPoints;
 
   return (
     <Link
@@ -154,9 +156,13 @@ export function CourseCard({ course }: { course: CourseCardCourse }) {
               <Clock size={12} />
               {course.estimatedMinutes} min
             </span>
-            <span className="flex items-center gap-1 text-primary-700 font-medium">
+            <span
+              className="flex items-center gap-1 text-primary-700 font-medium"
+              title="Council-assigned CPD points (approved by your council)"
+            >
               <Award size={12} />
-              {course.cpdPoints} pts
+              <span className="tabular-nums">{points}</span>
+              <span className="text-slate-400 font-medium">Council CPD</span>
             </span>
           </div>
 

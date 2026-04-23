@@ -91,7 +91,7 @@ router.post(
   },
 );
 
-// POST /api/media/document — upload PDF or audio
+// POST /api/media/document — upload document (PDF, DOCX, PPTX) or audio
 router.post(
   '/document',
   requireAuth,
@@ -101,14 +101,60 @@ router.post(
     try {
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
       const folder = req.file.mimetype.startsWith('audio') ? 'audio' : 'documents';
-      const url = await uploadRawFile(
-        req.file.buffer,
-        req.file.originalname,
-        req.file.mimetype,
-        folder,
-        req.user!.id,
-      );
-      res.json({ url });
+
+      const isOffice =
+        req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        req.file.mimetype === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+      // DOCX/PPTX: upload original, then queue conversion to PDF.
+      if (isOffice) {
+        const key = generateS3Key(`${folder}/original`, req.file.originalname);
+        const url = await uploadToS3(key, req.file.buffer, req.file.mimetype);
+
+        const asset = await db.mediaAsset.create({
+          data: {
+            ownerId: req.user!.id,
+            s3Key: key,
+            cdnUrl: url,
+            fileName: req.file.originalname,
+            mimeType: req.file.mimetype,
+            sizeBytes: BigInt(req.file.size),
+            isProcessed: false,
+            status: 'UPLOADED',
+          },
+        });
+
+        await mediaQueue.add(
+          'convert-office-to-pdf',
+          {
+            s3Key: key,
+            assetId: asset.id,
+            ownerId: req.user!.id,
+            originalName: req.file.originalname,
+          },
+          {
+            attempts: Number(process.env.MEDIA_PROCESSING_MAX_ATTEMPTS ?? 3),
+            backoff: {
+              type: 'exponential',
+              delay: Number(process.env.MEDIA_PROCESSING_RETRY_DELAY_MS ?? 5_000),
+            },
+            removeOnComplete: true,
+            removeOnFail: false,
+          },
+        );
+
+        return res.json({
+          assetId: asset.id,
+          originalUrl: url,
+          status: asset.status,
+          processingStatus: asset.status,
+          message: 'Uploaded. Converting to PDF…',
+        });
+      }
+
+      // PDF/audio/plain files: store as-is and mark processed.
+      const storedUrl = await uploadRawFile(req.file.buffer, req.file.originalname, req.file.mimetype, folder, req.user!.id);
+      return res.json({ url: storedUrl });
     } catch (err: any) {
       res.status(500).json({ error: err.message ?? 'Upload failed' });
     }

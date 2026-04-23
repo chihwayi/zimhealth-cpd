@@ -6,6 +6,7 @@ import { requireRole } from '../middleware/role.middleware';
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { UpdateProgressSchema, SubmitReviewSchema } from './enrollments.schema';
 import { invalidateRecommendations } from '../services/adaptive-learning';
+import { creditPoints } from '../services/cpd-engine';
 
 const router: ExpressRouter = Router();
 
@@ -37,21 +38,35 @@ function mapEnrollmentRow(e: {
   };
 }
 
-const courseInclude = {
-  select: {
-    id: true,
-    title: true,
-    category: true,
-    difficulty: true,
-    thumbnailUrl: true,
-    estimatedMinutes: true,
-    cpdPoints: true,
-  },
-} as const;
+function buildCourseInclude(councilId?: string | null) {
+  return {
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      difficulty: true,
+      thumbnailUrl: true,
+      estimatedMinutes: true,
+      cpdPoints: true,
+      ...(councilId
+        ? {
+            councilReviews: {
+              where: { councilId, status: 'APPROVED' as const, points: { not: null } },
+              select: { points: true },
+              take: 1,
+            },
+          }
+        : {}),
+    },
+  } as const;
+}
 
 // GET /api/enrollments — Learner's enrollments (filter by status or courseId)
 router.get('/', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
   try {
+    const learner = await db.user.findUnique({ where: { id: req.user!.id }, select: { councilId: true } });
+    const courseInclude = buildCourseInclude(learner?.councilId ?? null);
+
     const courseId = typeof req.query.courseId === 'string' ? req.query.courseId.trim() : '';
     if (courseId) {
       const e = await db.enrollment.findUnique({
@@ -59,7 +74,12 @@ router.get('/', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, re
         include: { course: courseInclude },
       });
       if (!e) return res.json([]);
-      return res.json([mapEnrollmentRow(e)]);
+      const row: any = mapEnrollmentRow(e as any);
+      if (Array.isArray(row.course?.councilReviews) && row.course.councilReviews.length) {
+        row.course.effectivePoints = row.course.councilReviews[0].points;
+      }
+      delete row.course.councilReviews;
+      return res.json([row]);
     }
 
     const status = (req.query.status as string) || 'IN_PROGRESS';
@@ -82,7 +102,15 @@ router.get('/', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, re
       include: { course: courseInclude },
     });
 
-    res.json(enrollments.map(mapEnrollmentRow));
+    const rows: any[] = enrollments.map((e: any) => {
+      const row: any = mapEnrollmentRow(e);
+      if (Array.isArray(row.course?.councilReviews) && row.course.councilReviews.length) {
+        row.course.effectivePoints = row.course.councilReviews[0].points;
+      }
+      delete row.course.councilReviews;
+      return row;
+    });
+    res.json(rows);
   } catch {
     res.status(500).json({ error: 'Could not fetch enrollments' });
   }
@@ -97,6 +125,26 @@ router.patch('/:id/progress', requireAuth, requireRole('LEARNER'), async (req: A
     if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
     if (enrollment.learnerId !== req.user!.id) return res.status(403).json({ error: 'Not authorised' });
 
+    if (data.sectionId) {
+      const sectionExists = await db.contentSection.findFirst({
+        where: {
+          id: data.sectionId,
+          module: { courseId: enrollment.courseId },
+        },
+        select: { id: true },
+      });
+      if (!sectionExists) {
+        return res.status(400).json({ error: 'Section does not belong to this course.' });
+      }
+    }
+
+    // Never trust client-supplied totalSections when completion can unlock CPD credit.
+    const courseModules = await db.module.findMany({
+      where: { courseId: enrollment.courseId },
+      select: { _count: { select: { sections: true } } },
+    });
+    const realTotalSections = courseModules.reduce((sum, module) => sum + module._count.sections, 0);
+
     let newProgress = data.progress ?? enrollment.progress;
     let newCompletedSections = enrollment.completedSections;
 
@@ -105,8 +153,8 @@ router.patch('/:id/progress', requireAuth, requireRole('LEARNER'), async (req: A
       if (!newCompletedSections.includes(data.sectionId)) {
         newCompletedSections = [...newCompletedSections, data.sectionId];
       }
-      if (data.totalSections && data.totalSections > 0) {
-        newProgress = newCompletedSections.length / data.totalSections;
+      if (realTotalSections > 0) {
+        newProgress = newCompletedSections.length / realTotalSections;
       }
     }
 
@@ -122,6 +170,26 @@ router.patch('/:id/progress', requireAuth, requireRole('LEARNER'), async (req: A
         completedAt: justCompleted ? new Date() : enrollment.completedAt,
       },
     });
+
+    // Award CPD points exactly once when the enrollment transitions to completed.
+    if (justCompleted) {
+      try {
+        const enrollmentWithCourse = await db.enrollment.findUnique({
+          where: { id: req.params.id },
+          select: { courseId: true },
+        });
+        if (enrollmentWithCourse?.courseId) {
+          await creditPoints({
+            learnerId: req.user!.id,
+            courseId: enrollmentWithCourse.courseId,
+            activityType: 'VIDEO_WATCH',
+          });
+        }
+      } catch (creditErr) {
+        // Progress should still succeed even if post-completion crediting fails.
+        console.error('CPD credit failed after course completion', creditErr);
+      }
+    }
 
     // Bust recommendation cache so the learner sees fresh suggestions after completing a course
     if (justCompleted) {

@@ -12,7 +12,8 @@ export const CreateCourseSchema = z.object({
   specialtyArea: z.string().max(100).optional(),
   difficulty: z.enum(['FOUNDATION', 'INTERMEDIATE', 'ADVANCED']).default('FOUNDATION'),
   language: z.enum(['ENGLISH', 'SHONA', 'NDEBELE']).default('ENGLISH'),
-  cpdPoints: z.number().int().min(1).max(50),
+  // Council assigns final CPD points per council at approval time.
+  cpdPoints: z.number().int().min(0).max(50).default(0),
   estimatedMinutes: z.number().int().min(5),
   accreditationBody: z.string().max(200).optional(),
   thumbnailUrl: z.string().url().optional(),

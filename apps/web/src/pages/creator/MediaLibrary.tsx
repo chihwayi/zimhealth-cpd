@@ -42,7 +42,52 @@ function kindFromMime(mime: string) {
   if (mime.startsWith('image/')) return 'image';
   if (mime.startsWith('video/')) return 'video';
   if (mime === 'application/pdf') return 'pdf';
+  if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'docx';
+  if (mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'pptx';
   return 'file';
+}
+
+function viewerHint(asset: Asset): { label: string; classes: string } | null {
+  const kind = kindFromMime(asset.mimeType);
+  const url = asset.processedCdnUrl ?? asset.cdnUrl;
+  const isPdfOutput = typeof url === 'string' && url.toLowerCase().split('?')[0].endsWith('.pdf');
+
+  // PDF: viewable inline
+  if (kind === 'pdf') {
+    return { label: 'Inline viewer ready', classes: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+  }
+
+  // DOCX/PPTX: conversion pipeline → PDF
+  if (kind === 'docx' || kind === 'pptx') {
+    if (asset.status === 'FAILED') {
+      return { label: 'Conversion failed', classes: 'bg-red-50 text-red-700 border border-red-200' };
+    }
+    if (asset.status === 'PROCESSING' || asset.status === 'UPLOADED') {
+      return { label: 'Converting to PDF…', classes: 'bg-amber-50 text-amber-800 border border-amber-200' };
+    }
+    if (asset.status === 'PROCESSED' && isPdfOutput) {
+      return { label: 'PDF ready (inline)', classes: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+    }
+    return { label: 'Ready (download)', classes: 'bg-slate-50 text-slate-700 border border-slate-200' };
+  }
+
+  // Video: playable in-app when processed
+  if (kind === 'video') {
+    if (asset.status === 'PROCESSED') {
+      return { label: 'Playback ready', classes: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+    }
+    if (asset.status === 'FAILED') {
+      return { label: 'Processing failed', classes: 'bg-red-50 text-red-700 border border-red-200' };
+    }
+    return { label: 'Processing…', classes: 'bg-amber-50 text-amber-800 border border-amber-200' };
+  }
+
+  // Images: always viewable
+  if (kind === 'image') {
+    return { label: 'Ready', classes: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+  }
+
+  return null;
 }
 
 function formatDuration(value?: number | null) {
@@ -71,7 +116,7 @@ export default function MediaLibrary() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [filter, setFilter] = useState<'ALL' | 'image' | 'video' | 'pdf'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'image' | 'video' | 'pdf' | 'docx' | 'pptx'>('ALL');
   const [file, setFile] = useState<File | null>(null);
   const [type, setType] = useState<'image' | 'video' | 'document'>('image');
   const [folder, setFolder] = useState<'thumbnails' | 'banners' | 'profiles'>('thumbnails');
@@ -239,7 +284,7 @@ export default function MediaLibrary() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {(['ALL', 'image', 'video', 'pdf'] as const).map((k) => (
+        {(['ALL', 'image', 'video', 'pdf', 'docx', 'pptx'] as const).map((k) => (
           <button
             key={k}
             type="button"
@@ -297,6 +342,15 @@ export default function MediaLibrary() {
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClasses(a.status)}`}>
                           {statusLabel(a.status)}
                         </span>
+                        {(() => {
+                          const hint = viewerHint(a);
+                          if (!hint) return null;
+                          return (
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${hint.classes}`}>
+                              {hint.label}
+                            </span>
+                          );
+                        })()}
                         <span className="text-[11px] text-slate-500">{formatBytes(a.sizeBytes)}</span>
                         {a.width && a.height ? (
                           <span className="text-[11px] text-slate-500">

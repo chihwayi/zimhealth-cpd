@@ -26,6 +26,17 @@ if ! command -v pnpm >/dev/null; then
   corepack prepare pnpm@9 --activate
 fi
 
+echo "==> Installing LibreOffice (for DOCX/PPTX → PDF conversion)"
+if [[ "$(uname -s)" == "Linux" ]]; then
+  if [[ $EUID -ne 0 ]]; then
+    echo "WARN: Not running as root; skipping LibreOffice auto-install. Install manually or run deploy with sudo."
+  else
+    ./scripts/install-libreoffice.sh
+  fi
+else
+  echo "Skipping LibreOffice install on non-Linux host."
+fi
+
 echo "==> Installing dependencies"
 pnpm install --frozen-lockfile=false
 

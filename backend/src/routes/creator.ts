@@ -23,6 +23,18 @@ router.get('/courses', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), asy
       orderBy: { updatedAt: 'desc' },
       include: {
         _count: { select: { enrollments: true } },
+        councilReviews: {
+          orderBy: [{ updatedAt: 'desc' }],
+          select: {
+            id: true,
+            status: true,
+            points: true,
+            rejectionReason: true,
+            reviewedAt: true,
+            updatedAt: true,
+            council: { select: { id: true, name: true, acronym: true } },
+          },
+        },
       },
     });
     res.json({ courses });

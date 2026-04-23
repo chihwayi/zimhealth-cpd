@@ -77,6 +77,7 @@ type CourseDetail = {
   description: string;
   thumbnailUrl?: string | null;
   cpdPoints: number;
+  effectivePoints?: number | null;
   estimatedMinutes: number;
   category: string;
   difficulty: string;
@@ -138,6 +139,11 @@ function SectionContent({
   section: ContentSection;
   activeQuizId: string | null;
 }) {
+  const mediaExt = (section.mediaUrl ?? '').split('?')[0].split('#')[0].toLowerCase();
+  const isPdf = mediaExt.endsWith('.pdf');
+  const isDocx = mediaExt.endsWith('.docx');
+  const isPptx = mediaExt.endsWith('.pptx');
+
   if (section.type === 'VIDEO') {
     return section.mediaUrl ? (
       <div className="space-y-4">
@@ -190,10 +196,48 @@ function SectionContent({
 
   if (section.type === 'READING') {
     return (
-      <div
-        className="prose prose-slate max-w-none prose-headings:font-semibold prose-a:text-primary-600"
-        dangerouslySetInnerHTML={{ __html: section.content ?? '' }}
-      />
+      <div className="space-y-4">
+        {section.mediaUrl && isPdf ? (
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold text-slate-900">PDF document</div>
+              <a
+                href={section.mediaUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <ExternalLink size={14} />
+                Open in new tab
+              </a>
+            </div>
+            <iframe title={section.title} src={section.mediaUrl} className="w-full h-[70vh] bg-white" />
+          </div>
+        ) : section.mediaUrl && (isDocx || isPptx) ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-sm font-semibold text-slate-900">Document attachment</div>
+            <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+              This file type opens in your device’s document viewer.
+            </p>
+            <a
+              href={section.mediaUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              <Download size={16} />
+              {isPptx ? 'Open PowerPoint (PPTX)' : 'Open Word document (DOCX)'}
+            </a>
+          </div>
+        ) : null}
+
+        {section.content ? (
+          <div
+            className="prose prose-slate max-w-none prose-headings:font-semibold prose-a:text-primary-600"
+            dangerouslySetInnerHTML={{ __html: section.content ?? '' }}
+          />
+        ) : null}
+      </div>
     );
   }
 
@@ -397,6 +441,7 @@ export default function CoursePlayerPage() {
 
   // Use live course data when online, fall back to offline cache when not
   const effectiveCourse = isOnline ? course : (course ?? offlineCourse);
+  const pointsLabel = (effectiveCourse?.effectivePoints ?? effectiveCourse?.cpdPoints ?? 0);
 
   const allSections = useMemo(() => {
     return (effectiveCourse?.modules ?? []).flatMap((m) =>
@@ -534,7 +579,12 @@ export default function CoursePlayerPage() {
               <span className="text-slate-300 text-xs">·</span>
               <span className="text-xs text-slate-500">{effectiveCourse.estimatedMinutes} min</span>
               <span className="text-slate-300 text-xs">·</span>
-              <span className="text-xs font-semibold text-emerald-600">{effectiveCourse.cpdPoints} CPD pts</span>
+              <span
+                className="text-xs font-semibold text-emerald-600"
+                title="Council-assigned CPD points (approved by your council)"
+              >
+                <span className="tabular-nums">{pointsLabel}</span> Council CPD
+              </span>
             </div>
             <h1 className="text-2xl font-bold text-slate-900 mb-2">{effectiveCourse.title}</h1>
             {effectiveCourse.subtitle && <p className="text-base text-slate-600 mb-3">{effectiveCourse.subtitle}</p>}
@@ -592,7 +642,7 @@ export default function CoursePlayerPage() {
             <p className="text-slate-500 text-sm">
               You finished <span className="font-semibold text-slate-800">{effectiveCourse.title}</span>.
             </p>
-            <p className="text-sm font-semibold text-emerald-600 mt-1">+{effectiveCourse.cpdPoints} CPD points earned</p>
+            <p className="text-sm font-semibold text-emerald-600 mt-1">+{pointsLabel} CPD points earned</p>
           </div>
 
           <div className="bg-slate-50 rounded-xl p-4">
@@ -668,7 +718,9 @@ export default function CoursePlayerPage() {
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-slate-900 truncate">{effectiveCourse.title}</h1>
           <div className="flex flex-wrap items-center gap-3 mt-1">
-            <span className="text-xs text-slate-500">{effectiveCourse.cpdPoints} CPD pts</span>
+            <span className="text-xs text-slate-500" title="Council-assigned CPD points (approved by your council)">
+              <span className="tabular-nums">{pointsLabel}</span> Council CPD
+            </span>
             <span className="text-slate-300 text-xs">·</span>
             <span className="text-xs text-slate-500">{effectiveCourse.estimatedMinutes} min</span>
             <span className="text-slate-300 text-xs">·</span>

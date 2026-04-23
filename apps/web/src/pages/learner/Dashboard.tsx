@@ -86,7 +86,7 @@ export default function LearnerDashboard() {
 
   const { data: recentActivity } = useQuery<RecentActivity[]>({
     queryKey: ['cpd-records', 'recent'],
-    queryFn: () => api.get('/api/points?limit=5'),
+    queryFn: () => api.get('/api/points/records?limit=5'),
   });
 
   const {

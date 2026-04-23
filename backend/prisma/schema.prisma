@@ -95,6 +95,12 @@ enum NczSyncStatus {
   FAILED
 }
 
+enum CouncilCourseReviewStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -132,6 +138,7 @@ model User {
   quizAttempts     QuizAttempt[]
   nczFlags         NczFlag[]
   auditLogs        AuditLog[]
+  councilCourseReviewsReviewed CouncilCourseReview[] @relation("CouncilCourseReviewedBy")
 
   @@index([email])
   @@index([nczRegistrationNumber])
@@ -155,6 +162,7 @@ model Council {
   updatedAt          DateTime @updatedAt
 
   users User[]
+  courseReviews CouncilCourseReview[]
 
   @@index([isActive])
   @@index([name])
@@ -175,7 +183,9 @@ model Course {
   specialtyArea      String?
   difficulty         Difficulty   @default(FOUNDATION)
   language           Language     @default(ENGLISH)
-  cpdPoints          Int
+  // Legacy field: council-specific points now live in CouncilCourseReview.points.
+  // Keep a default for backwards compatibility until all callers migrate.
+  cpdPoints          Int         @default(0)
   estimatedMinutes   Int
   accreditationBody  String?
   tags               String[]
@@ -196,10 +206,32 @@ model Course {
   enrollments Enrollment[]
   cpdRecords  CPDRecord[]
   reviews     CourseReview[]
+  councilReviews CouncilCourseReview[]
 
   @@index([status])
   @@index([creatorId])
   @@index([category])
+}
+
+model CouncilCourseReview {
+  id              String                   @id @default(cuid())
+  courseId        String
+  councilId       String
+  status          CouncilCourseReviewStatus @default(PENDING_REVIEW)
+  points          Int?
+  rejectionReason String?
+  reviewedAt      DateTime?
+  reviewedByUserId String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  course          Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  council         Council @relation(fields: [councilId], references: [id], onDelete: Cascade)
+  reviewedBy      User?   @relation("CouncilCourseReviewedBy", fields: [reviewedByUserId], references: [id])
+
+  @@unique([courseId, councilId])
+  @@index([councilId, status])
+  @@index([courseId, status])
 }
 
 model Module {

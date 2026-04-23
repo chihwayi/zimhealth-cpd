@@ -19,28 +19,55 @@ const BotCreditSchema = z.object({
   quizScore: z.number().min(0).max(100),
 });
 
-// GET /api/points — learner's CPD records (optional year + limit; default recent across years)
-router.get('/', requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '50'), 10) || 50, 1), 100);
-    const yearRaw = req.query.year;
-    const where: { learnerId: string; cycleYear?: number } = { learnerId: req.user!.id };
-    if (yearRaw !== undefined && yearRaw !== '') {
-      const y = parseInt(String(yearRaw), 10);
-      if (!Number.isNaN(y)) where.cycleYear = y;
-    }
+async function listLearnerCPDRecords(req: AuthRequest, defaultToCurrentYear: boolean) {
+  const learner = await db.user.findUnique({ where: { id: req.user!.id }, select: { councilId: true } });
+  const limit = Math.min(Math.max(parseInt(String(req.query.limit || '50'), 10) || 50, 1), 100);
+  const yearRaw = req.query.year;
+  const where: { learnerId: string; cycleYear?: number } = { learnerId: req.user!.id };
 
-    const records = await db.cPDRecord.findMany({
-      where,
-      orderBy: { completedAt: 'desc' },
-      take: limit,
-      include: { course: { select: { title: true, category: true } } },
-    });
-
-    res.json(records);
-  } catch {
-    res.status(500).json({ error: 'Could not fetch CPD records' });
+  if (yearRaw !== undefined && yearRaw !== '') {
+    const y = parseInt(String(yearRaw), 10);
+    if (!Number.isNaN(y)) where.cycleYear = y;
+  } else if (defaultToCurrentYear) {
+    where.cycleYear = new Date().getFullYear();
   }
+
+  const records = await db.cPDRecord.findMany({
+    where,
+    orderBy: { completedAt: 'desc' },
+    take: limit,
+    include: { course: { select: { id: true, title: true, category: true, cpdPoints: true } } },
+  });
+
+  const courseIds = records.map((record) => record.course?.id).filter(Boolean) as string[];
+  const pointsByCourseId =
+    learner?.councilId && courseIds.length
+      ? Object.fromEntries(
+          (
+            await db.councilCourseReview.findMany({
+              where: { councilId: learner.councilId, courseId: { in: courseIds }, status: 'APPROVED', points: { not: null } },
+              select: { courseId: true, points: true },
+            })
+          ).map((row) => [row.courseId, row.points]),
+        )
+      : {};
+
+  return records.map((record: any) => {
+    const effectivePoints =
+      record.course?.id && pointsByCourseId[record.course.id] != null
+        ? pointsByCourseId[record.course.id]
+        : (record.course?.cpdPoints ?? null);
+    return {
+      ...record,
+      course: record.course ? { title: record.course.title, category: record.course.category, effectivePoints } : null,
+    };
+  });
+}
+
+// GET /api/points — deprecated root endpoint; redirect to /records.
+router.get('/', requireAuth, async (req: AuthRequest, res) => {
+  const qs = new URLSearchParams(req.query as Record<string, string>).toString();
+  return res.redirect(307, `/api/points/records${qs ? `?${qs}` : ''}`);
 });
 
 // GET /api/points/summary — learner's own summary
@@ -57,12 +84,7 @@ router.get('/summary', requireAuth, async (req: AuthRequest, res) => {
 // GET /api/points/records — learner's own records
 router.get('/records', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
-    const records = await db.cPDRecord.findMany({
-      where: { learnerId: req.user!.id, cycleYear: year },
-      orderBy: { completedAt: 'desc' },
-      include: { course: { select: { title: true } } },
-    });
+    const records = await listLearnerCPDRecords(req, true);
     res.json(records);
   } catch {
     res.status(500).json({ error: 'Could not fetch CPD records' });

@@ -46,6 +46,17 @@ async function getRequestLearner(req: any) {
   }
 }
 
+async function getRequestRole(req: any): Promise<string | null> {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return null;
+  try {
+    const payload = verifyAccessToken(header.slice(7));
+    return payload.role ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Course CRUD ─────────────────────────────────────────────────────────────
 
 // GET /api/courses — public browsing (published courses only, with filters)
@@ -85,12 +96,30 @@ router.get('/', async (req, res) => {
         include: {
           creator: { select: { fullName: true, avatarUrl: true } },
           _count: { select: { enrollments: true } },
+          ...(learner?.councilId
+            ? {
+                councilReviews: {
+                  where: { councilId: learner.councilId, status: 'APPROVED', points: { not: null } },
+                  select: { points: true },
+                  take: 1,
+                },
+              }
+            : {}),
         },
       }),
       db.course.count({ where }),
     ]);
 
-    res.json({ courses, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
+    if (learner?.councilId) {
+      const withEffectivePoints = courses.map((course: any) => {
+        const effectivePoints = Array.isArray(course.councilReviews) && course.councilReviews.length ? course.councilReviews[0].points : null;
+        delete course.councilReviews;
+        return { ...course, effectivePoints };
+      });
+      return res.json({ courses: withEffectivePoints, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
+    }
+
+    return res.json({ courses, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
   } catch {
     res.status(500).json({ error: 'Could not fetch courses' });
   }
@@ -99,6 +128,8 @@ router.get('/', async (req, res) => {
 // GET /api/courses/:id
 router.get('/:id', async (req, res) => {
   try {
+    const learner = await getRequestLearner(req);
+    const role = await getRequestRole(req);
     const course = await db.course.findUnique({
       where: { id: req.params.id },
       include: {
@@ -108,15 +139,35 @@ router.get('/:id', async (req, res) => {
           include: { sections: { orderBy: { order: 'asc' } }, quizzes: true },
         },
         reviews: { take: 10, orderBy: { createdAt: 'desc' } },
+        ...(learner?.councilId
+          ? {
+              councilReviews: {
+                where: { councilId: learner.councilId, status: 'APPROVED', points: { not: null } },
+                select: { points: true },
+                take: 1,
+              },
+            }
+          : {}),
       },
     });
     if (!course) return res.status(404).json({ error: 'Course not found' });
-    const learner = await getRequestLearner(req);
+    if (course.status !== 'PUBLISHED') {
+      const isStaff = role === 'ADMIN' || role === 'CONTENT_MANAGER';
+      if (!isStaff) {
+        return res.status(404).json({ error: 'Course not found' });
+      }
+    }
     if (course.status === 'PUBLISHED' && learner) {
       const allowed = await assertLearnerCanAccessCourse(learner.id, course.id);
       if (!allowed) return res.status(403).json({ error: 'This course is not assigned to your council or professional title.' });
     }
-    res.json(course);
+    if (learner?.councilId) {
+      const c: any = course;
+      const effectivePoints = Array.isArray(c.councilReviews) && c.councilReviews.length ? c.councilReviews[0].points : null;
+      delete c.councilReviews;
+      return res.json({ ...c, effectivePoints });
+    }
+    return res.json(course);
   } catch {
     res.status(500).json({ error: 'Could not fetch course' });
   }
@@ -198,14 +249,102 @@ router.post(
       if (!course.isPublicToAll && !course.targetCouncilIds.length && !course.targetTitles.length && !course.targetCadres.length) {
         return res.status(400).json({ error: 'Choose who should view this course, or confirm All users before submitting.' });
       }
+      if (!course.targetCouncilIds.length) {
+        return res
+          .status(400)
+          .json({ error: 'Select at least one council for review so the council can assign CPD points before learners see the course.' });
+      }
+
+      // Ensure council review rows exist and reset any prior rejection.
+      await db.councilCourseReview.updateMany({
+        where: { courseId: course.id, councilId: { in: course.targetCouncilIds } },
+        data: {
+          status: 'PENDING_REVIEW',
+          points: null,
+          rejectionReason: null,
+          reviewedAt: null,
+          reviewedByUserId: null,
+        },
+      });
+      await db.councilCourseReview.createMany({
+        skipDuplicates: true,
+        data: course.targetCouncilIds.map((councilId) => ({
+          courseId: course.id,
+          councilId,
+          status: 'PENDING_REVIEW',
+        })),
+      });
 
       const updated = await db.course.update({
         where: { id: req.params.id },
-        data: { status: 'UNDER_REVIEW' },
+        data: { status: 'UNDER_REVIEW', cpdPoints: 0 },
       });
-      res.json(updated);
+      res.json({ course: updated, councilTargets: course.targetCouncilIds.length });
     } catch {
       res.status(500).json({ error: 'Could not submit course for review' });
+    }
+  },
+);
+
+// POST /api/courses/:id/resubmit-council — Creator re-queues council review(s) after a rejection
+router.post(
+  '/:id/resubmit-council',
+  requireAuth,
+  requireRole('CONTENT_MANAGER'),
+  async (req: AuthRequest, res) => {
+    try {
+      const course = await db.course.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, creatorId: true, targetCouncilIds: true, status: true },
+      });
+      if (!course) return res.status(404).json({ error: 'Course not found' });
+      if (course.creatorId !== req.user!.id) return res.status(403).json({ error: 'Not your course' });
+      if (!course.targetCouncilIds.length) {
+        return res.status(400).json({ error: 'This course has no target councils set.' });
+      }
+
+      // Reset/recreate council review rows (councils will re-approve and assign points).
+      await db.councilCourseReview.updateMany({
+        where: { courseId: course.id, councilId: { in: course.targetCouncilIds } },
+        data: {
+          status: 'PENDING_REVIEW',
+          points: null,
+          rejectionReason: null,
+          reviewedAt: null,
+          reviewedByUserId: null,
+        },
+      });
+      await db.councilCourseReview.createMany({
+        skipDuplicates: true,
+        data: course.targetCouncilIds.map((councilId) => ({
+          courseId: course.id,
+          councilId,
+          status: 'PENDING_REVIEW',
+        })),
+      });
+
+      await db.course.update({
+        where: { id: course.id },
+        data: { status: 'UNDER_REVIEW' },
+      });
+
+      await db.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'CREATOR_RESUBMITTED_TO_COUNCIL',
+          entityType: 'Course',
+          entityId: course.id,
+          meta: {
+            targetCouncilIds: course.targetCouncilIds,
+            previousStatus: course.status,
+            newStatus: 'UNDER_REVIEW',
+          },
+        },
+      });
+
+      return res.json({ ok: true, councilTargets: course.targetCouncilIds.length });
+    } catch {
+      return res.status(500).json({ error: 'Could not resubmit course to councils' });
     }
   },
 );
@@ -219,6 +358,20 @@ router.post('/:id/approve', requireAuth, requireRole('ADMIN'), async (req: AuthR
       where: { id: req.params.id },
       data: { status: newStatus, aiReviewNotes: reviewerNotes ?? undefined },
     });
+    let publishWarning: string | null = null;
+    if (action === 'APPROVE') {
+      const approvedReviewCount = await db.councilCourseReview.count({
+        where: {
+          courseId: req.params.id,
+          status: 'APPROVED',
+          points: { not: null },
+        },
+      });
+      if (approvedReviewCount === 0) {
+        publishWarning =
+          'Course published, but no council has approved it yet. Learners will not see this course until at least one council approves it and assigns CPD points.';
+      }
+    }
     await db.auditLog.create({
       data: {
         userId: req.user!.id,
@@ -228,7 +381,7 @@ router.post('/:id/approve', requireAuth, requireRole('ADMIN'), async (req: AuthR
         meta: { action, reason, reviewerNotes, newStatus },
       },
     });
-    res.json({ course: updated, action, reason });
+    res.json({ course: updated, action, reason, warning: publishWarning ?? undefined });
   } catch (err: any) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
     res.status(500).json({ error: 'Could not process approval' });

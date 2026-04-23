@@ -107,9 +107,36 @@ interface SyncRecordRow {
   course?: { title: string } | null;
 }
 
+type CouncilCourseReviewStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+
+interface CouncilCourseReviewRow {
+  id: string;
+  courseId: string;
+  councilId: string;
+  status: CouncilCourseReviewStatus;
+  points?: number | null;
+  rejectionReason?: string | null;
+  reviewedAt?: string | null;
+  updatedAt: string;
+  course: {
+    id: string;
+    title: string;
+    subtitle?: string | null;
+    category: string;
+    difficulty: string;
+    language: string;
+    estimatedMinutes: number;
+    thumbnailUrl?: string | null;
+    tags: string[];
+    status: string;
+    creator: { id: string; fullName: string; email: string };
+  };
+  reviewedBy?: { id: string; fullName: string; email: string } | null;
+}
+
 type TitleOption = { value: string; label: string };
 
-type SectionKey = 'dashboard' | 'search' | 'reports' | 'sync' | 'settings';
+type SectionKey = 'dashboard' | 'search' | 'courses' | 'reports' | 'sync' | 'settings';
 
 function pad2(value: number) {
   return String(value).padStart(2, '0');
@@ -147,6 +174,7 @@ function buildSections(basePath: '/ncz' | '/council') {
   return [
     { key: 'dashboard' as const, label: 'Dashboard', path: `${basePath}` },
     { key: 'search' as const, label: 'Learner Search', path: `${basePath}/search` },
+    { key: 'courses' as const, label: 'Course Reviews', path: `${basePath}/courses` },
     { key: 'reports' as const, label: 'Reports', path: `${basePath}/reports` },
     { key: 'sync' as const, label: 'Sync Status', path: `${basePath}/sync` },
     { key: 'settings' as const, label: 'Council Settings', path: `${basePath}/settings` },
@@ -629,6 +657,8 @@ export default function NczDashboard() {
           </div>
         </div>
       )}
+
+      {section === 'courses' && <CouncilCourseReviewsPanel />}
 
       {section === 'sync' && <SyncStatusPanel basePath={basePath} />}
 
@@ -1262,6 +1292,260 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
             />
           )
         : null}
+    </div>
+  );
+}
+
+function CouncilCourseReviewsPanel() {
+  const [tab, setTab] = useState<CouncilCourseReviewStatus>('PENDING_REVIEW');
+  const [actionCourse, setActionCourse] = useState<CouncilCourseReviewRow | null>(null);
+  const [points, setPoints] = useState('3');
+  const [rejectReason, setRejectReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const listQuery = useQuery<{ reviews: CouncilCourseReviewRow[] }>({
+    queryKey: ['council-course-reviews', tab],
+    queryFn: () => api.get(`/api/ncz/courses/reviews?status=${encodeURIComponent(tab)}&limit=100`),
+    refetchInterval: tab === 'PENDING_REVIEW' ? 20000 : false,
+  });
+
+  useEffect(() => {
+    if (!actionCourse) return;
+    setPoints(String(actionCourse.points ?? 3));
+    setRejectReason(actionCourse.rejectionReason ?? '');
+  }, [actionCourse]);
+
+  async function approve(courseId: string) {
+    const value = Number(points);
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error('Please enter a valid points value (0 or above).');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.post(`/api/ncz/courses/${courseId}/reviews/approve`, { points: value });
+      toast.success('Course approved and points assigned.');
+      setActionCourse(null);
+      await listQuery.refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not approve course.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function reject(courseId: string) {
+    const reason = rejectReason.trim();
+    if (reason.length < 3) {
+      toast.error('Please enter a short rejection reason.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.post(`/api/ncz/courses/${courseId}/reviews/reject`, { reason });
+      toast.success('Course rejected.');
+      setActionCourse(null);
+      await listQuery.refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not reject course.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function updatePoints(courseId: string) {
+    const value = Number(points);
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error('Please enter a valid points value (0 or above).');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.patch(`/api/ncz/courses/${courseId}/reviews/points`, { points: value });
+      toast.success('Points updated.');
+      setActionCourse(null);
+      await listQuery.refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update points.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const items = listQuery.data?.reviews ?? [];
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Course Reviews</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Approve courses for your council and assign CPD points. Learners will only see courses after approval + points (Sprint 5 will enforce this).
+          </p>
+        </div>
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+          {([
+            { key: 'PENDING_REVIEW' as const, label: 'Waiting for points' },
+            { key: 'APPROVED' as const, label: 'Approved' },
+            { key: 'REJECTED' as const, label: 'Rejected' },
+          ] satisfies Array<{ key: CouncilCourseReviewStatus; label: string }>).map((t) => (
+            <button
+              type="button"
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={clsx(
+                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-700 hover:text-slate-900 hover:bg-white/60',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {listQuery.isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="h-20 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+          ))}
+        </div>
+      ) : listQuery.isError ? (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Could not load course reviews right now.
+        </div>
+      ) : !items.length ? (
+        <EmptyState
+          icon={<FileCheck2 size={28} />}
+          title="No courses in this queue"
+          description={tab === 'PENDING_REVIEW' ? 'When creators submit a course to your council, it will appear here.' : 'Nothing to show for this filter yet.'}
+        />
+      ) : (
+        <div className="space-y-3">
+          {items.map((r) => (
+            <div key={r.id} className="rounded-xl border border-slate-200 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{r.course.title}</p>
+                    <Badge
+                      variant={
+                        r.status === 'APPROVED' ? 'success' : r.status === 'REJECTED' ? 'error' : 'info'
+                      }
+                    >
+                      {r.status === 'PENDING_REVIEW' ? 'Pending' : r.status === 'APPROVED' ? 'Approved' : 'Rejected'}
+                    </Badge>
+                    <span className="text-xs text-slate-500">· Course: {r.course.status}</span>
+                  </div>
+                  {r.course.subtitle ? <p className="text-xs text-slate-500 mt-1">{r.course.subtitle}</p> : null}
+                  <p className="text-xs text-slate-500 mt-2">
+                    Creator: <span className="font-medium text-slate-700">{r.course.creator.fullName}</span> · {r.course.estimatedMinutes} min
+                  </p>
+                  {r.status === 'REJECTED' && r.rejectionReason ? (
+                    <p className="mt-2 text-xs text-red-700">Reason: {r.rejectionReason}</p>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActionCourse(r)}
+                    className="inline-flex items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    {r.status === 'PENDING_REVIEW' ? 'Review' : 'Edit'}
+                  </button>
+                </div>
+              </div>
+              {r.status === 'APPROVED' ? (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-green-50 border border-green-100 px-3 py-2">
+                  <span className="text-xs text-green-800 font-semibold">Points: {r.points ?? 0}</span>
+                  <span className="text-[11px] text-green-700">
+                    {r.reviewedAt ? `Reviewed ${formatDateTime(r.reviewedAt)}` : 'Reviewed'}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {actionCourse ? (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4" onClick={() => !submitting && setActionCourse(null)}>
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-5 border-b border-slate-200 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="text-base font-semibold text-slate-900 truncate">{actionCourse.course.title}</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  {actionCourse.status === 'PENDING_REVIEW' ? 'Assign points and approve, or reject with a reason.' : 'Update points or rejection reason.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActionCourse(null)}
+                disabled={submitting}
+                className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">CPD points</label>
+                  <input
+                    value={points}
+                    onChange={(e) => setPoints(e.target.value)}
+                    inputMode="numeric"
+                    className="mt-2 w-full h-11 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                  <p className="mt-2 text-xs text-slate-500">Set to 0 if this course should not earn points.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Rejection reason</label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    rows={3}
+                    className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    placeholder="Only required if rejecting"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => actionCourse && reject(actionCourse.courseId)}
+                disabled={submitting}
+                className="h-11 inline-flex items-center justify-center rounded-xl border border-red-200 bg-red-50 px-5 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+              >
+                Reject
+              </button>
+              {actionCourse.status === 'APPROVED' ? (
+                <button
+                  type="button"
+                  onClick={() => actionCourse && updatePoints(actionCourse.courseId)}
+                  disabled={submitting}
+                  className="h-11 inline-flex items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-5 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  Update points
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => actionCourse && approve(actionCourse.courseId)}
+                  disabled={submitting}
+                  className="h-11 inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Approve + assign points
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

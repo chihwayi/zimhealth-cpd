@@ -16,6 +16,7 @@ type CourseSummary = {
   thumbnailUrl?: string | null;
   estimatedMinutes: number;
   cpdPoints: number;
+  effectivePoints?: number | null;
   averageRating?: number | null;
   reviewCount?: number | null;
   creatorName?: string | null;
@@ -41,7 +42,9 @@ const SORT_LABELS: Record<SortOption, string> = {
 
 function sortCourses(courses: CourseSummary[], sort: SortOption): CourseSummary[] {
   return [...courses].sort((a, b) => {
-    if (sort === 'points_desc') return b.cpdPoints - a.cpdPoints;
+    const ap = a.effectivePoints ?? a.cpdPoints;
+    const bp = b.effectivePoints ?? b.cpdPoints;
+    if (sort === 'points_desc') return bp - ap;
     if (sort === 'rating_desc') return (b.averageRating ?? 0) - (a.averageRating ?? 0);
     if (sort === 'duration_asc') return a.estimatedMinutes - b.estimatedMinutes;
     return 0; // newest: server order preserved
@@ -314,6 +317,7 @@ export default function CoursesPage() {
 
 // Compact list-mode row
 function ListCourseRow({ course }: { course: CourseSummary }) {
+  const points = course.effectivePoints ?? course.cpdPoints;
   return (
     <a
       href={`/courses/${course.id}`}
@@ -335,7 +339,9 @@ function ListCourseRow({ course }: { course: CourseSummary }) {
         </p>
       </div>
       <div className="text-right flex-shrink-0">
-        <div className="text-sm font-semibold text-primary-700">{course.cpdPoints} pts</div>
+        <div className="text-sm font-semibold text-primary-700" title="Council-assigned CPD points (approved by your council)">
+          <span className="tabular-nums">{points}</span> <span className="text-xs text-slate-400 font-semibold">Council CPD</span>
+        </div>
         <div className="text-xs text-slate-400 mt-0.5">{course.difficulty?.toLowerCase()}</div>
       </div>
     </a>

@@ -50,8 +50,23 @@ export async function creditPoints(
   if (typeof pointsOverride === 'number') {
     pointsEarned = pointsOverride;
   } else if (courseId) {
-    const course = await db.course.findUnique({ where: { id: courseId }, select: { cpdPoints: true } });
-    pointsEarned = course?.cpdPoints ?? 0;
+    const learner = await db.user.findUnique({ where: { id: learnerId }, select: { councilId: true } });
+    if (learner?.councilId) {
+      const review = await db.councilCourseReview.findUnique({
+        where: { courseId_councilId: { courseId, councilId: learner.councilId } },
+        select: { status: true, points: true },
+      });
+      // Council-owned points take precedence when the council has approved and assigned points.
+      if (review?.status === 'APPROVED' && typeof review.points === 'number') {
+        pointsEarned = review.points;
+      } else {
+        const course = await db.course.findUnique({ where: { id: courseId }, select: { cpdPoints: true } });
+        pointsEarned = course?.cpdPoints ?? 0;
+      }
+    } else {
+      const course = await db.course.findUnique({ where: { id: courseId }, select: { cpdPoints: true } });
+      pointsEarned = course?.cpdPoints ?? 0;
+    }
   } else {
     pointsEarned = (await import('./cpd-rules.js')).ACTIVITY_POINTS[activityType] ?? 1;
   }

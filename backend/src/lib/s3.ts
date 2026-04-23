@@ -10,9 +10,12 @@ export const s3 = new S3Client({
     accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
   },
-  // For Cloudflare R2, uncomment and set endpoint:
-  // endpoint: process.env.S3_ENDPOINT,
-  // forcePathStyle: true,
+  ...(process.env.S3_ENDPOINT
+    ? {
+        endpoint: process.env.S3_ENDPOINT,
+        forcePathStyle: true,
+      }
+    : {}),
 });
 
 export const BUCKET = process.env.S3_BUCKET_NAME;

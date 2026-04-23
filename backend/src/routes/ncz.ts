@@ -29,6 +29,19 @@ const UpdateOwnCouncilSchema = z.object({
   renewalDay: z.number().int().min(1).max(31).optional(),
 });
 
+const CouncilCourseReviewListSchema = z.object({
+  status: z.enum(['PENDING_REVIEW', 'APPROVED', 'REJECTED']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+const ApproveCouncilCourseSchema = z.object({
+  points: z.number().int().min(0).max(100),
+});
+
+const RejectCouncilCourseSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+
 // PATCH /api/ncz/settings (also available under /api/council/settings via alias mounting)
 // Council officers can update THEIR council CPD requirements.
 router.patch(
@@ -70,6 +83,195 @@ router.patch(
     } catch (err: any) {
       if (err?.name === 'ZodError') return res.status(400).json({ error: err.errors });
       return res.status(500).json({ error: 'Could not update council settings' });
+    }
+  },
+);
+
+// ─── Council course approvals + points (Council-owned) ───────────────────────
+// These endpoints are mounted at /api/ncz/* and also /api/council/* via alias.
+
+router.get(
+  '/courses/reviews',
+  requireAuth,
+  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  async (req: AuthRequest, res) => {
+    try {
+      if (req.user?.role === 'ADMIN') {
+        return res.status(400).json({ error: 'Admins should use a council-specific review view (not implemented yet).' });
+      }
+
+      const councilId = await getOfficerCouncilId(req);
+      if (!councilId || councilId === '__NO_COUNCIL__') {
+        return res.status(400).json({ error: 'Council officer is not assigned to a council.' });
+      }
+
+      const { status, limit } = CouncilCourseReviewListSchema.parse(req.query);
+      const take = limit ?? 50;
+
+      const rows = await db.councilCourseReview.findMany({
+        where: {
+          councilId,
+          ...(status ? { status } : {}),
+        },
+        orderBy: [{ updatedAt: 'desc' }],
+        take,
+        include: {
+          course: {
+            select: {
+              id: true,
+              title: true,
+              subtitle: true,
+              category: true,
+              difficulty: true,
+              language: true,
+              estimatedMinutes: true,
+              thumbnailUrl: true,
+              tags: true,
+              status: true,
+              creator: { select: { id: true, fullName: true, email: true } },
+            },
+          },
+          reviewedBy: { select: { id: true, fullName: true, email: true } },
+        },
+      });
+
+      return res.json({ reviews: rows });
+    } catch (err: any) {
+      if (err?.name === 'ZodError') return res.status(400).json({ error: err.errors });
+      return res.status(500).json({ error: 'Could not fetch course reviews' });
+    }
+  },
+);
+
+router.post(
+  '/courses/:courseId/reviews/approve',
+  requireAuth,
+  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER'),
+  async (req: AuthRequest, res) => {
+    try {
+      const councilId = await getOfficerCouncilId(req);
+      if (!councilId || councilId === '__NO_COUNCIL__') {
+        return res.status(400).json({ error: 'Council officer is not assigned to a council.' });
+      }
+
+      const { points } = ApproveCouncilCourseSchema.parse(req.body);
+      const updated = await db.councilCourseReview.update({
+        where: { courseId_councilId: { courseId: req.params.courseId, councilId } },
+        data: {
+          status: 'APPROVED',
+          points,
+          rejectionReason: null,
+          reviewedAt: new Date(),
+          reviewedByUserId: req.user!.id,
+        },
+        include: {
+          course: { select: { id: true, title: true, status: true } },
+        },
+      });
+
+      await db.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'COUNCIL_COURSE_APPROVED',
+          entityType: 'Course',
+          entityId: req.params.courseId,
+          meta: { councilId, points, reviewId: updated.id },
+        },
+      });
+
+      return res.json({ review: updated });
+    } catch (err: any) {
+      if (err?.name === 'ZodError') return res.status(400).json({ error: err.errors });
+      if (err?.code === 'P2025') return res.status(404).json({ error: 'No pending review found for this council/course.' });
+      return res.status(500).json({ error: 'Could not approve course for council' });
+    }
+  },
+);
+
+router.post(
+  '/courses/:courseId/reviews/reject',
+  requireAuth,
+  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER'),
+  async (req: AuthRequest, res) => {
+    try {
+      const councilId = await getOfficerCouncilId(req);
+      if (!councilId || councilId === '__NO_COUNCIL__') {
+        return res.status(400).json({ error: 'Council officer is not assigned to a council.' });
+      }
+
+      const { reason } = RejectCouncilCourseSchema.parse(req.body);
+      const updated = await db.councilCourseReview.update({
+        where: { courseId_councilId: { courseId: req.params.courseId, councilId } },
+        data: {
+          status: 'REJECTED',
+          points: null,
+          rejectionReason: reason,
+          reviewedAt: new Date(),
+          reviewedByUserId: req.user!.id,
+        },
+        include: {
+          course: { select: { id: true, title: true, status: true } },
+        },
+      });
+
+      await db.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'COUNCIL_COURSE_REJECTED',
+          entityType: 'Course',
+          entityId: req.params.courseId,
+          meta: { councilId, reason, reviewId: updated.id },
+        },
+      });
+
+      return res.json({ review: updated });
+    } catch (err: any) {
+      if (err?.name === 'ZodError') return res.status(400).json({ error: err.errors });
+      if (err?.code === 'P2025') return res.status(404).json({ error: 'No pending review found for this council/course.' });
+      return res.status(500).json({ error: 'Could not reject course for council' });
+    }
+  },
+);
+
+router.patch(
+  '/courses/:courseId/reviews/points',
+  requireAuth,
+  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER'),
+  async (req: AuthRequest, res) => {
+    try {
+      const councilId = await getOfficerCouncilId(req);
+      if (!councilId || councilId === '__NO_COUNCIL__') {
+        return res.status(400).json({ error: 'Council officer is not assigned to a council.' });
+      }
+
+      const { points } = ApproveCouncilCourseSchema.parse(req.body);
+      const updated = await db.councilCourseReview.update({
+        where: { courseId_councilId: { courseId: req.params.courseId, councilId } },
+        data: {
+          points,
+          reviewedAt: new Date(),
+          reviewedByUserId: req.user!.id,
+        },
+        include: {
+          course: { select: { id: true, title: true, status: true } },
+        },
+      });
+
+      await db.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'COUNCIL_COURSE_POINTS_UPDATED',
+          entityType: 'Course',
+          entityId: req.params.courseId,
+          meta: { councilId, points, reviewId: updated.id },
+        },
+      });
+
+      return res.json({ review: updated });
+    } catch (err: any) {
+      if (err?.name === 'ZodError') return res.status(400).json({ error: err.errors });
+      if (err?.code === 'P2025') return res.status(404).json({ error: 'No review found for this council/course.' });
+      return res.status(500).json({ error: 'Could not update council points' });
     }
   },
 );
@@ -200,7 +402,7 @@ router.get(
       db.cPDRecord.findMany({
         where: { learnerId: req.params.id },
         orderBy: { completedAt: 'desc' },
-        include: { course: { select: { title: true, cpdPoints: true } } },
+        include: { course: { select: { id: true, title: true, cpdPoints: true } } },
       }),
       db.certificate.findMany({
         where: { learnerId: req.params.id },
@@ -215,7 +417,30 @@ router.get(
       return res.status(403).json({ error: 'This learner belongs to another council.' });
     }
 
-    return res.json({ learner, records, certificates });
+    // Attach council-effective course points for display consistency.
+    const courseIds = records.map((r) => r.course?.id).filter(Boolean) as string[];
+    const pointsByCourseId =
+      councilId && courseIds.length
+        ? Object.fromEntries(
+            (
+              await db.councilCourseReview.findMany({
+                where: { councilId: learner.councilId ?? councilId, courseId: { in: courseIds }, status: 'APPROVED', points: { not: null } },
+                select: { courseId: true, points: true },
+              })
+            ).map((row) => [row.courseId, row.points]),
+          )
+        : {};
+
+    const recordsWithPoints = records.map((r: any) => {
+      const effectivePoints =
+        r.course?.id && pointsByCourseId[r.course.id] != null ? pointsByCourseId[r.course.id] : (r.course?.cpdPoints ?? null);
+      return {
+        ...r,
+        course: r.course ? { title: r.course.title, effectivePoints } : null,
+      };
+    });
+
+    return res.json({ learner, records: recordsWithPoints, certificates });
     } catch {
       return res.status(500).json({ error: 'Could not fetch learner history' });
     }

@@ -42,7 +42,6 @@ const courseSchema = z.object({
   difficulty: z.nativeEnum(Difficulty),
   language: z.nativeEnum(Language),
   isPublicToAll: z.boolean().default(false),
-  cpdPoints: z.number().int().min(1).max(50),
   estimatedMinutes: z.number().int().min(5),
   targetCadres: z.array(z.string()).default([]),
   targetCouncilIds: z.array(z.string()).default([]),
@@ -117,7 +116,6 @@ const DEFAULT_VALUES: CourseFormData = {
   difficulty: Difficulty.FOUNDATION,
   language: Language.ENGLISH,
   isPublicToAll: false,
-  cpdPoints: 1,
   estimatedMinutes: 30,
   targetCadres: [],
   targetCouncilIds: [],
@@ -153,7 +151,18 @@ function sectionIcon(type: ContentType) {
 function mediaUploadAccept(sectionType: ContentType): string {
   if (sectionType === ContentType.VIDEO) return 'video/*';
   if (sectionType === ContentType.AUDIO) return 'audio/*';
-  return 'video/*,audio/*,application/pdf,.pdf,.zip,.html';
+  return [
+    'application/pdf',
+    '.pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.docx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.pptx',
+    'application/zip',
+    '.zip',
+    'text/html',
+    '.html',
+  ].join(',');
 }
 
 export default function CourseBuilder() {
@@ -219,7 +228,6 @@ export default function CourseBuilder() {
       difficulty: course.difficulty,
       language: course.language,
       isPublicToAll: course.isPublicToAll ?? false,
-      cpdPoints: course.cpdPoints,
       estimatedMinutes: course.estimatedMinutes,
       targetCadres: course.targetCadres,
       targetCouncilIds: course.targetCouncilIds ?? [],
@@ -359,7 +367,7 @@ export default function CourseBuilder() {
       setAiGuidelineText('');
       setAiSourceUrl('');
       setAiFile(null);
-      void queryClient.invalidateQueries({ queryKey: ['course', id] });
+      void queryClient.invalidateQueries({ queryKey: ['course-builder', id] });
       if (data.warnings?.length) {
         toast.info(data.warnings[0]);
       }
@@ -573,10 +581,27 @@ export default function CourseBuilder() {
         setMediaProcessingMessage('Video processing complete. Save the section to persist the ready media URL.');
         toast.success('Video processed and attached. Save the section to persist it.');
       } else {
-        const url = json.url ?? json.originalUrl;
-        if (!url) throw new Error('Upload response missing URL');
-        setSectionDraft((current) => (current ? { ...current, mediaUrl: url } : current));
-        toast.success('Uploaded. Save the section to persist the media URL.');
+        // DOCX/PPTX uploads are converted to PDF server-side, so wait for the
+        // processed PDF URL instead of storing the original office document.
+        const isOfficeMime =
+          file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+          file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+        if (isOfficeMime && json.assetId) {
+          setMediaProcessingMessage('Document uploaded. Converting to PDF... this may take a moment.');
+          toast.info('Converting document to PDF. Please wait.');
+          const finalStatus = await pollForProcessedDocument(json.assetId);
+          const readyUrl = finalStatus.processedCdnUrl ?? finalStatus.cdnUrl;
+          if (!readyUrl) throw new Error('Converted PDF URL missing after processing');
+          setSectionDraft((current) => (current ? { ...current, mediaUrl: readyUrl } : current));
+          setMediaProcessingMessage('PDF ready. Save the section to persist it.');
+          toast.success('Document converted to PDF. Save the section.');
+        } else {
+          const url = json.url ?? json.originalUrl;
+          if (!url) throw new Error('Upload response missing URL');
+          setSectionDraft((current) => (current ? { ...current, mediaUrl: url } : current));
+          toast.success('Uploaded. Save the section to persist the media URL.');
+        }
       }
     } catch (err: unknown) {
       setMediaProcessingMessage(null);
@@ -600,6 +625,22 @@ export default function CourseBuilder() {
     }
 
     throw new Error('Video processing is taking longer than expected. You can check the Media Library for the latest status.');
+  }
+
+  async function pollForProcessedDocument(assetId: string): Promise<MediaStatusResponse> {
+    const maxAttempts = 40;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const status = await api.get<MediaStatusResponse>(`/api/media/status/${assetId}`);
+      if (status.status === 'PROCESSED') return status;
+      if (status.status === 'FAILED') {
+        throw new Error(status.processingError ?? 'Document conversion failed');
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 5000));
+    }
+
+    throw new Error('PDF conversion is taking longer than expected. Check the Media Library for status.');
   }
 
   const handleThumbnailUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -1350,15 +1391,11 @@ export default function CourseBuilder() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">CPD Points</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={50}
-                    {...register('cpdPoints', { valueAsNumber: true })}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                  />
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="text-sm font-semibold text-slate-900">CPD points</div>
+                  <div className="mt-1 text-xs text-slate-600 leading-snug">
+                    Councils assign CPD points after review. Select the target council(s), then submit for council approval.
+                  </div>
                 </div>
 
                 <div>

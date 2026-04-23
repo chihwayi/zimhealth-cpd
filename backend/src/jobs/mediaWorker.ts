@@ -1,5 +1,6 @@
 import Bull from 'bull';
 import ffmpeg from 'fluent-ffmpeg';
+import { execFile } from 'child_process';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -25,6 +26,13 @@ export const mediaQueue = new Bull('media-processing', {
 });
 
 interface VideoJob {
+  s3Key: string;
+  assetId: string;
+  ownerId: string;
+  originalName: string;
+}
+
+interface OfficeJob {
   s3Key: string;
   assetId: string;
   ownerId: string;
@@ -288,6 +296,88 @@ mediaQueue.process('transcode-video', getMediaConcurrency(), async (job) => {
     }).catch(() => undefined);
 
     logger.error('Media job failed', {
+      assetId,
+      jobId: job.id,
+      elapsedMs: Date.now() - startedAt,
+      err: err.message,
+    });
+    throw err;
+  } finally {
+    await cleanupTempDir(tempDir).catch((cleanupError) => {
+      logger.warn('Could not clean media temp directory', { assetId, error: (cleanupError as Error).message });
+    });
+  }
+});
+
+function execFilePromise(cmd: string, args: string[], options: { cwd?: string } = {}) {
+  return new Promise<void>((resolve, reject) => {
+    execFile(cmd, args, { ...options }, (err, _stdout, stderr) => {
+      if (err) {
+        reject(new Error(`${err.message}${stderr ? `\n${stderr}` : ''}`));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+mediaQueue.process('convert-office-to-pdf', getMediaConcurrency(), async (job) => {
+  const startedAt = Date.now();
+  const { s3Key, assetId, originalName } = job.data as OfficeJob;
+  let tempDir: string | null = null;
+
+  await updateAssetStatus(assetId, 'PROCESSING', {
+    processingError: null,
+    processingStartedAt: new Date(),
+    processingAttempts: { increment: 1 },
+  });
+
+  logger.info('Starting office-to-pdf conversion', { assetId, jobId: job.id, s3Key });
+
+  try {
+    const asset = await db.mediaAsset.findUnique({ where: { id: assetId } });
+    if (!asset) throw new Error('Media asset not found');
+
+    tempDir = await ensureTempDir(assetId);
+    const inputExt = path.extname(originalName) || '.bin';
+    const inputPath = path.join(tempDir, `source${inputExt}`);
+    const inputBuffer = await downloadFromS3(s3Key);
+    await fs.writeFile(inputPath, inputBuffer);
+
+    const soffice = process.env.LIBREOFFICE_PATH ?? 'soffice';
+    await execFilePromise(soffice, ['--headless', '--nologo', '--nolockcheck', '--convert-to', 'pdf', '--outdir', tempDir, inputPath]);
+
+    const baseName = path.parse(inputPath).name;
+    const outputPath = path.join(tempDir, `${baseName}.pdf`);
+    const pdf = await fs.readFile(outputPath);
+
+    const pdfFileName = `${path.parse(originalName).name}.pdf`;
+    const processedS3Key = generateS3Key('documents/processed', pdfFileName);
+    const processedCdnUrl = await uploadToS3(processedS3Key, pdf, 'application/pdf');
+
+    await updateAssetStatus(assetId, 'PROCESSED', {
+      processedS3Key,
+      processedCdnUrl,
+      processedAt: new Date(),
+      processingError: null,
+      variants: {
+        source: { mimeType: asset.mimeType, originalName },
+        outputs: [{ label: 'pdf', s3Key: processedS3Key, cdnUrl: processedCdnUrl }],
+      },
+    });
+
+    logger.info('Office conversion complete', {
+      assetId,
+      jobId: job.id,
+      elapsedMs: Date.now() - startedAt,
+      processedS3Key,
+    });
+
+    return { assetId, processedCdnUrl };
+  } catch (error) {
+    const err = error as Error;
+    await updateAssetStatus(assetId, 'FAILED', { processingError: err.message }).catch(() => undefined);
+    logger.error('Office conversion failed', {
       assetId,
       jobId: job.id,
       elapsedMs: Date.now() - startedAt,
