@@ -9,7 +9,15 @@ import {
   hashPassword,
   verifyPassword,
 } from '../services/auth.service';
-import { RegisterSchema, LoginSchema, RefreshSchema, UpdateProfileSchema, ForgotPasswordSchema, ResetPasswordSchema } from './auth.schema';
+import {
+  RegisterSchema,
+  RegisterCreatorSchema,
+  LoginSchema,
+  RefreshSchema,
+  UpdateProfileSchema,
+  ForgotPasswordSchema,
+  ResetPasswordSchema,
+} from './auth.schema';
 import { requireAuth } from '../middleware/auth.middleware';
 import jwt from 'jsonwebtoken';
 import { randomBytes, createHash } from 'crypto';
@@ -78,6 +86,48 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// POST /api/auth/register-creator
+// Creators self-register, but require Admin approval before accessing creator tools.
+router.post('/register-creator', async (req, res) => {
+  try {
+    const data = RegisterCreatorSchema.parse(req.body);
+
+    const existing = await db.user.findUnique({ where: { email: data.email } });
+    if (existing) return res.status(409).json({ error: 'Email already registered' });
+
+    let councilId: string | undefined = undefined;
+    if (data.councilId) {
+      const council = await db.council.findFirst({ where: { id: data.councilId, isActive: true }, select: { id: true } });
+      if (!council) return res.status(400).json({ error: 'Select a valid council.' });
+      councilId = council.id;
+    }
+
+    const passwordHash = await hashPassword(data.password);
+    const user = await db.user.create({
+      data: {
+        email: data.email,
+        passwordHash,
+        fullName: data.fullName,
+        role: 'CONTENT_MANAGER',
+        councilId,
+        professionalTitle: data.professionalTitle ?? 'Course Creator',
+        isApproved: false,
+      },
+    });
+
+    return res.status(201).json({
+      ok: true,
+      message:
+        'Your creator account has been created and is pending Admin approval. You will be able to access creator tools once approved.',
+      user: { id: user.id, email: user.email, fullName: user.fullName, role: user.role, isApproved: user.isApproved },
+    });
+  } catch (err: any) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    if (err?.code === 'P2002') return res.status(409).json({ error: 'Email already registered' });
+    return res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
@@ -88,6 +138,13 @@ router.post('/login', async (req, res) => {
 
     const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+    if (user.role === 'CONTENT_MANAGER' && !user.isApproved) {
+      return res.status(403).json({
+        error:
+          'Your creator account is pending approval. Please contact the platform admin to verify your account before you can access creator tools.',
+      });
+    }
 
     const accessToken = signAccessToken(user);
     const refreshToken = await signRefreshToken(user.id);

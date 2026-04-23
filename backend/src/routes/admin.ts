@@ -227,13 +227,15 @@ router.patch('/config/system', requireAuth, requireRole('ADMIN'), async (req: Au
 
 router.get('/users', requireAuth, requireRole('ADMIN'), async (req, res) => {
   try {
-    const { search, role, page = '1', limit = '25' } = req.query as Record<string, string>;
+    const { search, role, approved, page = '1', limit = '25' } = req.query as Record<string, string>;
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
     const skip = (pageNumber - 1) * pageSize;
 
     const where: Record<string, unknown> = {};
     if (role) where.role = role;
+    if (approved === 'true') where.isApproved = true;
+    if (approved === 'false') where.isApproved = false;
     if (search) {
       where.OR = [
         { fullName: { contains: search, mode: 'insensitive' } },

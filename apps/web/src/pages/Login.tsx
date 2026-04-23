@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle } from 'lucide-react';
@@ -18,6 +18,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
@@ -26,6 +27,11 @@ export default function Login() {
     typeof (location.state as { from?: { pathname?: string } } | null)?.from?.pathname === 'string'
       ? (location.state as { from: { pathname: string } }).from.pathname
       : '/';
+
+  useEffect(() => {
+    const n = (location.state as { notice?: string } | null)?.notice;
+    if (typeof n === 'string' && n.trim()) setNotice(n.trim());
+  }, [location.state]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -86,6 +92,12 @@ export default function Login() {
           <h2 className="text-lg font-semibold text-slate-900 mb-6">Sign in to your account</h2>
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+            {notice && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800" role="status">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <p className="text-sm">{notice}</p>
+              </div>
+            )}
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">

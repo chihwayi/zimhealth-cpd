@@ -16,7 +16,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // force a clean re-login instead of leaving the app in a broken state.
   if (res.status === 404 && path === '/api/auth/me') {
     useAuthStore.getState().clearAuth();
-    window.location.href = '/login';
+    if (window.location.pathname !== '/login') window.location.replace('/login');
     throw new Error('Session invalid');
   }
 
@@ -42,7 +42,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     }
 
     useAuthStore.getState().clearAuth();
-    window.location.href = '/login';
+    if (window.location.pathname !== '/login') window.location.replace('/login');
     throw new Error('Session expired');
   }
 

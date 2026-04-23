@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, BadgeCheck, Building2, Eye, EyeOff, Sparkles, UserPlus } from 'lucide-react';
+import { AlertCircle, BadgeCheck, Building2, Eye, EyeOff, Sparkles, UserPlus, Wand2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 
@@ -22,6 +22,7 @@ export default function Register() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
 
+  const [accountType, setAccountType] = useState<'LEARNER' | 'CREATOR'>('LEARNER');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [councilId, setCouncilId] = useState('');
@@ -46,30 +47,47 @@ export default function Register() {
     setError('');
     setLoading(true);
     try {
-      const res = await api.post<{
-        user: {
-          id: string;
-          email: string;
-          fullName: string;
-          role: 'LEARNER' | 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER';
-          councilId?: string | null;
-          professionalTitle?: string | null;
-          registrationNumber?: string | null;
-          subscriptionTier?: string;
-        };
-        accessToken: string;
-        refreshToken: string;
-      }>('/api/auth/register', {
-        fullName: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-        councilId,
-        professionalTitle,
-        registrationNumber: registrationNumber.trim().toUpperCase(),
-      });
+      if (accountType === 'CREATOR') {
+        const res = await api.post<{ ok: true; message: string }>(
+          '/api/auth/register-creator',
+          {
+            fullName: fullName.trim(),
+            email: email.trim().toLowerCase(),
+            password,
+            councilId: councilId || undefined,
+            professionalTitle: professionalTitle.trim() ? professionalTitle.trim() : undefined,
+          },
+        );
+        navigate('/login', {
+          replace: true,
+          state: { notice: res.message },
+        });
+      } else {
+        const res = await api.post<{
+          user: {
+            id: string;
+            email: string;
+            fullName: string;
+            role: 'LEARNER' | 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER';
+            councilId?: string | null;
+            professionalTitle?: string | null;
+            registrationNumber?: string | null;
+            subscriptionTier?: string;
+          };
+          accessToken: string;
+          refreshToken: string;
+        }>('/api/auth/register', {
+          fullName: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          councilId,
+          professionalTitle,
+          registrationNumber: registrationNumber.trim().toUpperCase(),
+        });
 
-      setAuth(res.user as unknown as Parameters<typeof setAuth>[0], res.accessToken, res.refreshToken);
-      navigate('/dashboard', { replace: true });
+        setAuth(res.user as unknown as Parameters<typeof setAuth>[0], res.accessToken, res.refreshToken);
+        navigate('/dashboard', { replace: true });
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Registration failed.';
       setError(message);
@@ -127,15 +145,51 @@ export default function Register() {
             />
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-emerald-800">
               <BadgeCheck size={14} />
-              Professional identity
+              Account setup
             </div>
             <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950">Create your ZimHealth account</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Select your council and title once. We will use that to show only relevant CPD content after login.
+              Choose learner registration or create a course creator account (admin approval required).
             </p>
           </header>
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setAccountType('LEARNER')}
+                className={[
+                  'rounded-2xl border px-4 py-3 text-left transition-colors',
+                  accountType === 'LEARNER'
+                    ? 'border-slate-950 bg-slate-950 text-white'
+                    : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-900',
+                ].join(' ')}
+              >
+                <div className="text-sm font-black">Learner</div>
+                <div className={accountType === 'LEARNER' ? 'text-xs text-white/70 mt-1' : 'text-xs text-slate-500 mt-1'}>
+                  Register with council + title to get matched courses.
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountType('CREATOR')}
+                className={[
+                  'rounded-2xl border px-4 py-3 text-left transition-colors',
+                  accountType === 'CREATOR'
+                    ? 'border-slate-950 bg-slate-950 text-white'
+                    : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-900',
+                ].join(' ')}
+              >
+                <div className="flex items-center gap-2 text-sm font-black">
+                  <Wand2 size={16} />
+                  Course Creator
+                </div>
+                <div className={accountType === 'CREATOR' ? 'text-xs text-white/70 mt-1' : 'text-xs text-slate-500 mt-1'}>
+                  Create an account, then admin verifies & approves you.
+                </div>
+              </button>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Full name" htmlFor="fullName">
                 <input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} required minLength={2} placeholder="Grace Moyo" className="field-input" />
@@ -151,8 +205,12 @@ export default function Register() {
                   <Building2 size={18} />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-slate-950">Council and title</p>
-                  <p className="text-xs text-slate-500">This controls your dashboard, course library, and compliance reports.</p>
+                  <p className="text-sm font-bold text-slate-950">{accountType === 'CREATOR' ? 'Optional council context' : 'Council and title'}</p>
+                  <p className="text-xs text-slate-500">
+                    {accountType === 'CREATOR'
+                      ? 'Creators can optionally link to a council. Admin approval is required before publishing.'
+                      : 'This controls your dashboard, course library, and compliance reports.'}
+                  </p>
                 </div>
               </div>
 
@@ -177,39 +235,51 @@ export default function Register() {
                   </select>
                 </Field>
 
-                <Field label="Professional title" htmlFor="professionalTitle">
+                <Field label={accountType === 'CREATOR' ? 'Creator title (optional)' : 'Professional title'} htmlFor="professionalTitle">
                   <select
                     id="professionalTitle"
                     value={professionalTitle}
                     onChange={(e) => setProfessionalTitle(e.target.value)}
-                    required
-                    disabled={!selectedCouncil}
+                    required={accountType === 'LEARNER'}
+                    disabled={!selectedCouncil && accountType === 'LEARNER'}
                     className="field-input bg-white disabled:bg-slate-100 disabled:text-slate-400"
                   >
-                    <option value="">{selectedCouncil ? 'Select your title' : 'Choose council first'}</option>
-                    {titles.map((title) => (
-                      <option key={title} value={title}>{title}</option>
-                    ))}
+                    <option value="">
+                      {accountType === 'CREATOR'
+                        ? 'Course Creator'
+                        : selectedCouncil ? 'Select your title' : 'Choose council first'}
+                    </option>
+                    {accountType === 'CREATOR'
+                      ? ['Course Creator', 'Nurse Educator', 'Medical Educator', 'Pharmacy Educator'].map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))
+                      : titles.map((title) => (
+                          <option key={title} value={title}>{title}</option>
+                        ))}
                   </select>
                 </Field>
               </div>
 
-              <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-                <Field label="Registration number" htmlFor="registrationNumber">
-                  <input
-                    id="registrationNumber"
-                    value={registrationNumber}
-                    onChange={(e) => setRegistrationNumber(e.target.value)}
-                    required
-                    placeholder={selectedCouncil?.registrationPrefix ? `${selectedCouncil.registrationPrefix}-2026-000123` : 'Council registration number'}
-                    className="field-input uppercase"
-                  />
-                </Field>
-                <div className="rounded-2xl bg-white px-4 py-3 text-sm shadow-sm ring-1 ring-slate-200">
-                  <p className="text-xs text-slate-500">Annual target</p>
-                  <p className="font-black text-slate-950">{selectedCouncil ? `${selectedCouncil.requiredPoints} CPD pts` : 'Set by council'}</p>
+              {accountType === 'LEARNER' && (
+                <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <Field label="Registration number" htmlFor="registrationNumber">
+                    <input
+                      id="registrationNumber"
+                      value={registrationNumber}
+                      onChange={(e) => setRegistrationNumber(e.target.value)}
+                      required
+                      placeholder={selectedCouncil?.registrationPrefix ? `${selectedCouncil.registrationPrefix}-2026-000123` : 'Council registration number'}
+                      className="field-input uppercase"
+                    />
+                  </Field>
+                  <div className="rounded-2xl bg-white px-4 py-3 text-sm shadow-sm ring-1 ring-slate-200">
+                    <p className="text-xs text-slate-500">Annual target</p>
+                    <p className="font-black text-slate-950">{selectedCouncil ? `${selectedCouncil.requiredPoints} CPD pts` : 'Set by council'}</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <Field label="Password" htmlFor="password">

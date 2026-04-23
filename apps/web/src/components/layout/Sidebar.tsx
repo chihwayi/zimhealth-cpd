@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   BookOpen,
@@ -8,6 +8,7 @@ import {
   BarChart2,
   Settings,
   Building2,
+  BadgeCheck,
   Users,
   RefreshCw,
   ClipboardList,
@@ -48,6 +49,7 @@ const COUNCIL_NAV = [
 const ADMIN_NAV = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/admin/councils', icon: Building2, label: 'Councils' },
+  { to: '/admin/creator-approvals', icon: BadgeCheck, label: 'Creator Approvals' },
   { to: '/admin/users', icon: Users, label: 'Users' },
   { to: '/admin/courses', icon: BookOpen, label: 'Course Approvals' },
   { to: '/admin/guidelines', icon: Wand2, label: 'Guideline Lab' },
@@ -109,6 +111,7 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   if (!user) return null;
 
   const navItems = NAV_BY_ROLE[user.role] ?? LEARNER_NAV;
@@ -220,7 +223,8 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
           type="button"
           onClick={() => {
             clearAuth();
-            window.location.href = '/login';
+            // Let the router handle navigation to avoid double redirects/flash.
+            navigate('/login', { replace: true });
           }}
           className={clsx(
             'mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold',
