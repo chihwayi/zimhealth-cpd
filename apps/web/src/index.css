@@ -7,7 +7,8 @@
     @apply antialiased;
   }
   body {
-    @apply bg-slate-50 text-slate-900;
+    background: #071510;
+    color: #0b1f1a;
   }
   * {
     @apply border-slate-200;

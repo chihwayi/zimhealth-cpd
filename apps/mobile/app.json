@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "ZimHealth CPD",
+    "slug": "zimhealth-cpd",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "zimhealth",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#14b8a6",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "zw.co.zimhealthcpd.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#14b8a6"
+      },
+      "package": "zw.co.zimhealthcpd.app"
+    },
+    "plugins": ["expo-font", "expo-secure-store", "expo-sqlite"],
+    "extra": {
+      "apiUrl": "https://api.zimhealthcpd.co.zw"
+    }
+  }
+}

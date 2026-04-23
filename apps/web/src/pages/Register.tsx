@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, Award, BadgeCheck, Building2, Eye, EyeOff, Sparkles, UserPlus } from 'lucide-react';
+import { AlertCircle, BadgeCheck, Building2, Eye, EyeOff, Sparkles, UserPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 
@@ -79,8 +79,8 @@ export default function Register() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f4f7f1] relative flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.22),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(15,23,42,0.16),_transparent_36%)]" />
+    <main className="min-h-screen overflow-hidden bg-[#071510] text-[#0B1F1A] relative flex items-center justify-center p-4">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(78,203,160,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
       <div className="absolute left-8 top-12 hidden h-48 w-48 rounded-full border border-emerald-200/80 lg:block" />
       <div className="absolute bottom-8 right-12 hidden h-64 w-64 rounded-[4rem] bg-white/40 rotate-12 lg:block" />
 
@@ -88,9 +88,11 @@ export default function Register() {
         <section className="relative hidden min-h-[720px] flex-col justify-between overflow-hidden bg-slate-950 p-10 text-white lg:flex">
           <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(20,184,166,0.35),_transparent_45%),radial-gradient(circle_at_80%_20%,_rgba(251,191,36,0.24),_transparent_30%)]" />
           <div className="relative">
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-400 text-slate-950 shadow-xl">
-              <Award size={30} />
-            </div>
+            <img
+              src="/logo.png"
+              alt="ZimHealth CPD"
+              className="mb-8 w-full max-w-xs h-auto rounded-2xl bg-white text-slate-950 shadow-xl ring-1 ring-white/10 p-2"
+            />
             <h1 className="mt-8 max-w-md text-5xl font-black leading-[0.95] tracking-tight">
               One CPD home for every health council.
             </h1>
@@ -118,6 +120,11 @@ export default function Register() {
 
         <section className="p-6 sm:p-10">
           <header className="mb-8">
+            <img
+              src="/logo.png"
+              alt="ZimHealth CPD"
+              className="mx-auto mb-4 w-full max-w-xs h-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 p-2 lg:hidden"
+            />
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-emerald-800">
               <BadgeCheck size={14} />
               Professional identity

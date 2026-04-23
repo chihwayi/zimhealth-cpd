@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, AlertCircle, Award } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { api } from '../lib/api';
 
@@ -64,20 +64,25 @@ export default function Login() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-slate-50 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-[#071510] text-[#0B1F1A] relative flex items-center justify-center p-4 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(78,203,160,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
       <div className="w-full max-w-md">
         {/* Brand */}
         <header className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-500 shadow-lg mb-4">
-            <Award size={28} className="text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900">ZimHealth CPD</h1>
-          <p className="text-slate-500 mt-2 text-sm">
+          <img
+            src="/logo.png"
+            alt="ZimHealth CPD"
+            className="mx-auto mb-4 w-full max-w-xs h-auto rounded-2xl bg-white shadow-lg ring-1 ring-slate-200 p-2"
+          />
+          <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+            ZimHealth CPD
+          </h1>
+          <p className="text-white/70 mt-2 text-sm">
             Continuing Professional Development for Zimbabwe's health professionals
           </p>
         </header>
 
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-lg p-8">
+        <section className="bg-white/85 backdrop-blur rounded-2xl border border-white/15 shadow-2xl shadow-black/20 p-8">
           <h2 className="text-lg font-semibold text-slate-900 mb-6">Sign in to your account</h2>
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>

@@ -18,7 +18,8 @@ export function AppShell({ children }: Props) {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-dvh bg-gradient-to-br from-primary-50 via-white to-slate-50">
+    <div className="relative flex min-h-dvh bg-[#071510] text-[#0B1F1A] overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(78,203,160,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
       {/* Desktop sidebar */}
       <Sidebar className="hidden md:flex" />
 
@@ -54,7 +55,7 @@ export function AppShell({ children }: Props) {
         </div>
       )}
 
-      <main id="main-content" className="flex-1 overflow-y-auto pt-14 md:pt-0" tabIndex={-1}>
+      <main id="main-content" className="relative flex-1 overflow-y-auto pt-14 md:pt-0" tabIndex={-1}>
         <OfflineBanner />
         {children}
       </main>
