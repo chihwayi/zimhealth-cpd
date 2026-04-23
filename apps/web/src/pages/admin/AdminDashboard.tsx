@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import clsx from 'clsx';
 import {
   Users,
   BookOpen,
@@ -16,6 +17,11 @@ import {
   CreditCard,
   RefreshCw,
   ArrowRight,
+  Wand2,
+  FileUp,
+  Building2,
+  Save,
+  X,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -36,6 +42,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Badge } from '../../components/ui/Badge';
 import { toast } from '../../components/ui/Toast';
+import { useAuthStore } from '../../store/auth.store';
 
 interface AdminStats {
   totalLearners: number;
@@ -63,7 +70,7 @@ interface AdminUser {
   id: string;
   fullName: string;
   email: string;
-  role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'LEARNER';
+  role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER' | 'LEARNER';
   cadre?: string | null;
   subscriptionTier: 'FREE' | 'STANDARD' | 'INSTITUTION' | 'DIASPORA';
   subscriptionExpiresAt?: string | null;
@@ -119,6 +126,19 @@ interface SystemConfig {
   activityPoints: Record<string, number>;
   subscriptionPricing: Array<{ tier: string; priceUsd: number; label: string }>;
 }
+
+type CouncilAdminRow = {
+  id: string;
+  name: string;
+  acronym: string;
+  requiredPoints: number;
+  renewalMonth: number;
+  renewalDay: number;
+  allowedTitles: string[];
+  isActive: boolean;
+};
+
+type CouncilsAdminResponse = { councils: CouncilAdminRow[] };
 
 interface AiHealth {
   activeProvider: string | null;
@@ -181,10 +201,23 @@ interface NczSyncLog {
   syncedAt: string;
 }
 
+interface IngestGuidelineResponse {
+  courseId: string;
+  title: string;
+  status: string;
+  moduleCount: number;
+  sourceType?: string;
+  sourceLabel?: string;
+  extractedCharacters?: number;
+  warnings?: string[];
+  message: string;
+}
+
 const ADMIN_SECTIONS = [
   { key: 'dashboard', label: 'Dashboard', path: '/admin', icon: Users },
   { key: 'users', label: 'Users', path: '/admin/users', icon: Users },
   { key: 'courses', label: 'Course Approvals', path: '/admin/courses', icon: BookOpen },
+  { key: 'guidelines', label: 'Guideline Lab', path: '/admin/guidelines', icon: Wand2 },
   { key: 'analytics', label: 'Analytics', path: '/admin/analytics', icon: BarChart2 },
   { key: 'payments', label: 'Payments', path: '/admin/payments', icon: CreditCard },
   { key: 'ncz-sync', label: 'NCZ Sync', path: '/admin/ncz-sync', icon: RefreshCw },
@@ -193,7 +226,7 @@ const ADMIN_SECTIONS = [
   { key: 'settings', label: 'Settings', path: '/admin/settings', icon: Settings },
 ] as const;
 
-const ROLE_OPTIONS = ['ALL', 'ADMIN', 'CONTENT_MANAGER', 'NCZ_OFFICER', 'LEARNER'] as const;
+const ROLE_OPTIONS = ['ALL', 'ADMIN', 'CONTENT_MANAGER', 'NCZ_OFFICER', 'COUNCIL_OFFICER', 'LEARNER'] as const;
 const PIE_COLOURS = ['#e11d48', '#14b8a6', '#2563eb', '#f59e0b'];
 
 function formatDate(value: string): string {
@@ -273,6 +306,7 @@ export default function AdminDashboard() {
       {section === 'dashboard' && <OverviewSection />}
       {section === 'users' && <UsersSection />}
       {section === 'courses' && <ApprovalsSection standalone />}
+      {section === 'guidelines' && <GuidelineLabSection />}
       {section === 'analytics' && <AnalyticsSection />}
       {section === 'audit' && <AuditSection />}
       {section === 'release' && <ReleaseReadinessSection />}
@@ -699,6 +733,250 @@ function UsersSection() {
   );
 }
 
+function GuidelineLabSection() {
+  const token = useAuthStore((s) => s.accessToken);
+  const [sourceMode, setSourceMode] = useState<'text' | 'url' | 'file'>('file');
+  const [courseTitle, setCourseTitle] = useState('');
+  const [sourceName, setSourceName] = useState('MOHCC / NCZ official guideline');
+  const [targetCadre, setTargetCadre] = useState('Registered General Nurse');
+  const [category, setCategory] = useState<'CLINICAL' | 'MANAGEMENT' | 'ETHICS' | 'RESEARCH'>('CLINICAL');
+  const [text, setText] = useState('');
+  const [url, setUrl] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [result, setResult] = useState<IngestGuidelineResponse | null>(null);
+
+  const ingestMutation = useMutation({
+    mutationFn: async () => {
+      if (!token) throw new Error('You must be logged in as an admin.');
+
+      const form = new FormData();
+      form.append('courseTitle', courseTitle);
+      form.append('sourceName', sourceName);
+      form.append('targetCadre', targetCadre);
+      form.append('category', category);
+      if (sourceMode === 'text') form.append('text', text);
+      if (sourceMode === 'url') form.append('url', url);
+      if (sourceMode === 'file' && file) form.append('file', file);
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:4000'}/api/ai/ingest-guideline`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: unknown };
+        throw new Error(typeof body.error === 'string' ? body.error : `Guideline ingestion failed (${res.status})`);
+      }
+
+      return (await res.json()) as IngestGuidelineResponse;
+    },
+    onSuccess: (data) => {
+      setResult(data);
+      setText('');
+      setUrl('');
+      setFile(null);
+      toast.success('Draft course created from guideline.');
+      if (data.warnings?.length) {
+        toast.info(data.warnings[0]);
+      }
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not ingest guideline.'),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-5">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Guideline Lab</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Create draft courses from pasted text, public URLs, or uploaded PDF guidelines. Admin-created drafts still require human review before publishing.
+          </p>
+        </div>
+
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+          {([
+            { key: 'file', label: 'Upload PDF' },
+            { key: 'url', label: 'URL / PDF URL' },
+            { key: 'text', label: 'Paste text' },
+          ] as const).map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => setSourceMode(option.key)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                sourceMode === option.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 mb-1.5">Draft course title</label>
+            <input
+              value={courseTitle}
+              onChange={(e) => setCourseTitle(e.target.value)}
+              placeholder="e.g. Updated Paediatric Pneumonia Protocol"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 mb-1.5">Source label</label>
+            <input
+              value={sourceName}
+              onChange={(e) => setSourceName(e.target.value)}
+              placeholder="e.g. MOHCC 2026 Guideline"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 mb-1.5">Target cadre</label>
+            <select
+              value={targetCadre}
+              onChange={(e) => setTargetCadre(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+            >
+              <option>Registered General Nurse</option>
+              <option>Registered Midwife</option>
+              <option>Enrolled Nurse</option>
+              <option>Community Health Nurse</option>
+              <option>Clinical Nurse Specialist</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 mb-1.5">Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as 'CLINICAL' | 'MANAGEMENT' | 'ETHICS' | 'RESEARCH')}
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+            >
+              <option value="CLINICAL">Clinical</option>
+              <option value="MANAGEMENT">Management</option>
+              <option value="ETHICS">Ethics</option>
+              <option value="RESEARCH">Research</option>
+            </select>
+          </div>
+        </div>
+
+        {sourceMode === 'file' ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+            <label className="block text-sm font-semibold text-slate-900 mb-1.5">Upload guideline file</label>
+            <input
+              type="file"
+              accept="application/pdf,.pdf,text/plain,.txt,text/html,.html"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100 file:mr-3 file:rounded-lg file:border-0 file:bg-rose-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-rose-700"
+            />
+            <p className="mt-2 text-xs text-slate-500">
+              Best for official PDF guidelines. Uploads work best when the PDF contains selectable text instead of scanned images.
+            </p>
+          </div>
+        ) : null}
+
+        {sourceMode === 'url' ? (
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 mb-1.5">Guideline URL</label>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://... or direct PDF URL"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+            />
+            <p className="mt-2 text-xs text-slate-500">Supports HTML, plain text, and PDF URLs. Internal/private network URLs are rejected.</p>
+          </div>
+        ) : null}
+
+        {sourceMode === 'text' ? (
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 mb-1.5">Guideline text</label>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={8}
+              placeholder="Paste the official guideline text here..."
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100 resize-none"
+            />
+            <p className="mt-2 text-xs text-slate-500">{text.length} characters</p>
+          </div>
+        ) : null}
+
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          This creates a draft course only. An admin should still review structure, clinical accuracy, and quiz quality before approval or publication.
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => ingestMutation.mutate()}
+            disabled={
+              ingestMutation.isPending ||
+              courseTitle.trim().length < 3 ||
+              (sourceMode === 'text' ? text.trim().length < 100 : sourceMode === 'url' ? url.trim().length < 10 : !file)
+            }
+            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+          >
+            <FileUp size={16} />
+            {ingestMutation.isPending ? 'Generating draft…' : 'Create Draft Course'}
+          </button>
+        </div>
+      </div>
+
+      {result ? (
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">Draft created</h3>
+              <p className="text-sm text-slate-500 mt-1">{result.message}</p>
+            </div>
+            <Badge variant="warning">{result.status}</Badge>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Title</p>
+              <p className="mt-2 text-sm font-medium text-slate-900">{result.title}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Source type</p>
+              <p className="mt-2 text-sm font-medium text-slate-900">{result.sourceType ?? '—'}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Extracted text</p>
+              <p className="mt-2 text-sm font-medium text-slate-900 tabular-nums">
+                {result.extractedCharacters?.toLocaleString() ?? '—'} chars
+              </p>
+            </div>
+          </div>
+
+          {result.warnings?.length ? (
+            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {result.warnings[0]}
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap gap-3">
+            <Link
+              to={`/creator/courses/${result.courseId}/edit`}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Open draft in editor
+            </Link>
+            <Link
+              to="/admin/courses"
+              className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
+            >
+              Review approvals queue
+            </Link>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function AnalyticsSection() {
   const monthlyQuery = useQuery<AnalyticsPoint[]>({
     queryKey: ['admin-analytics-monthly'],
@@ -799,6 +1077,53 @@ function SettingsSection() {
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not update system configuration.'),
   });
 
+  const councilsQuery = useQuery<CouncilsAdminResponse>({
+    queryKey: ['admin-councils'],
+    queryFn: () => api.get('/api/councils/all'),
+  });
+
+  const [draftByCouncilId, setDraftByCouncilId] = useState<
+    Record<string, { requiredPoints: string; renewalMonth: string; renewalDay: string; isActive: boolean } | undefined>
+  >({});
+
+  useEffect(() => {
+    if (!councilsQuery.data?.councils?.length) return;
+    setDraftByCouncilId((current) => {
+      const next = { ...current };
+      for (const c of councilsQuery.data!.councils) {
+        if (next[c.id]) continue;
+        next[c.id] = {
+          requiredPoints: String(c.requiredPoints),
+          renewalMonth: String(c.renewalMonth),
+          renewalDay: String(c.renewalDay),
+          isActive: c.isActive,
+        };
+      }
+      return next;
+    });
+  }, [councilsQuery.data]);
+
+  const updateCouncilMutation = useMutation({
+    mutationFn: async (payload: { id: string; requiredPoints: number; renewalMonth: number; renewalDay: number; isActive: boolean }) =>
+      api.patch(`/api/councils/${payload.id}`, {
+        requiredPoints: payload.requiredPoints,
+        renewalMonth: payload.renewalMonth,
+        renewalDay: payload.renewalDay,
+        isActive: payload.isActive,
+      }),
+    onSuccess: () => {
+      toast.success('Council settings updated.');
+      qc.invalidateQueries({ queryKey: ['admin-councils'] });
+      // Learner and council portals read required points from council config.
+      qc.invalidateQueries({ queryKey: ['cpd-summary'] });
+      qc.invalidateQueries({ queryKey: ['ncz-compliance'] });
+      qc.invalidateQueries({ queryKey: ['ncz-learners'] });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not update council settings.'),
+  });
+
+  const councilRows = useMemo(() => councilsQuery.data?.councils ?? [], [councilsQuery.data]);
+
   if (configQuery.isLoading) {
     return (
       <div className="space-y-4">
@@ -819,6 +1144,191 @@ function SettingsSection() {
 
   return (
     <div className="space-y-6">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Council CPD Requirements</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Update annual CPD targets and renewal dates once — learner dashboards and council compliance views will reflect changes automatically.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600">
+            <Building2 size={14} />
+            Councils
+          </div>
+        </div>
+
+        {councilsQuery.isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="h-16 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+            ))}
+          </div>
+        ) : councilsQuery.isError ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            Could not load councils.
+          </div>
+        ) : councilRows.length === 0 ? (
+          <EmptyState
+            icon={<Building2 size={28} />}
+            title="No councils found"
+            description="Create a council in the database seed or add a council admin screen in a future sprint."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  {['Council', 'Required points', 'Renewal month', 'Renewal day', 'Status', ''].map((heading) => (
+                    <th
+                      key={heading}
+                      className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500"
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {councilRows.map((council) => {
+                  const draft = draftByCouncilId[council.id];
+                  const isSaving = updateCouncilMutation.isPending && updateCouncilMutation.variables?.id === council.id;
+                  return (
+                    <tr key={council.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-4">
+                        <div className="font-semibold text-slate-900">{council.acronym}</div>
+                        <div className="text-xs text-slate-500 mt-1">{council.name}</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <input
+                          inputMode="numeric"
+                          value={draft?.requiredPoints ?? String(council.requiredPoints)}
+                          onChange={(e) =>
+                            setDraftByCouncilId((prev) => ({
+                              ...prev,
+                              [council.id]: {
+                                requiredPoints: e.target.value,
+                                renewalMonth: prev[council.id]?.renewalMonth ?? String(council.renewalMonth),
+                                renewalDay: prev[council.id]?.renewalDay ?? String(council.renewalDay),
+                                isActive: prev[council.id]?.isActive ?? council.isActive,
+                              },
+                            }))
+                          }
+                          className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                        />
+                      </td>
+                      <td className="px-4 py-4">
+                        <input
+                          inputMode="numeric"
+                          value={draft?.renewalMonth ?? String(council.renewalMonth)}
+                          onChange={(e) =>
+                            setDraftByCouncilId((prev) => ({
+                              ...prev,
+                              [council.id]: {
+                                requiredPoints: prev[council.id]?.requiredPoints ?? String(council.requiredPoints),
+                                renewalMonth: e.target.value,
+                                renewalDay: prev[council.id]?.renewalDay ?? String(council.renewalDay),
+                                isActive: prev[council.id]?.isActive ?? council.isActive,
+                              },
+                            }))
+                          }
+                          className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                        />
+                      </td>
+                      <td className="px-4 py-4">
+                        <input
+                          inputMode="numeric"
+                          value={draft?.renewalDay ?? String(council.renewalDay)}
+                          onChange={(e) =>
+                            setDraftByCouncilId((prev) => ({
+                              ...prev,
+                              [council.id]: {
+                                requiredPoints: prev[council.id]?.requiredPoints ?? String(council.requiredPoints),
+                                renewalMonth: prev[council.id]?.renewalMonth ?? String(council.renewalMonth),
+                                renewalDay: e.target.value,
+                                isActive: prev[council.id]?.isActive ?? council.isActive,
+                              },
+                            }))
+                          }
+                          className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                        />
+                      </td>
+                      <td className="px-4 py-4">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDraftByCouncilId((prev) => ({
+                              ...prev,
+                              [council.id]: {
+                                requiredPoints: prev[council.id]?.requiredPoints ?? String(council.requiredPoints),
+                                renewalMonth: prev[council.id]?.renewalMonth ?? String(council.renewalMonth),
+                                renewalDay: prev[council.id]?.renewalDay ?? String(council.renewalDay),
+                                isActive: !(prev[council.id]?.isActive ?? council.isActive),
+                              },
+                            }))
+                          }
+                          className={clsx(
+                            'rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors',
+                            (draft?.isActive ?? council.isActive)
+                              ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                              : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200',
+                          )}
+                        >
+                          {(draft?.isActive ?? council.isActive) ? 'Active' : 'Inactive'}
+                        </button>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDraftByCouncilId((prev) => ({
+                                ...prev,
+                                [council.id]: {
+                                  requiredPoints: String(council.requiredPoints),
+                                  renewalMonth: String(council.renewalMonth),
+                                  renewalDay: String(council.renewalDay),
+                                  isActive: council.isActive,
+                                },
+                              }));
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            title="Reset row"
+                          >
+                            <X size={12} />
+                            Reset
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSaving || !draft}
+                            onClick={() => {
+                              const requiredPoints = Math.max(1, Math.min(500, parseInt(draft!.requiredPoints, 10) || council.requiredPoints));
+                              const renewalMonth = Math.max(1, Math.min(12, parseInt(draft!.renewalMonth, 10) || council.renewalMonth));
+                              const renewalDay = Math.max(1, Math.min(31, parseInt(draft!.renewalDay, 10) || council.renewalDay));
+                              updateCouncilMutation.mutate({
+                                id: council.id,
+                                requiredPoints,
+                                renewalMonth,
+                                renewalDay,
+                                isActive: draft!.isActive,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                          >
+                            <Save size={12} />
+                            {isSaving ? 'Saving…' : 'Save'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
         <div>
           <h2 className="text-base font-semibold text-slate-900">AI Provider</h2>

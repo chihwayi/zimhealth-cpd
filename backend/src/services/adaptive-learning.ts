@@ -1,7 +1,8 @@
-import { AIClient, SYSTEM_PROMPTS, type AIProviderConfig } from '@nursepro/ai-client';
+import { AIClient, SYSTEM_PROMPTS, type AIProviderConfig } from '@zimhealth/ai-client';
 import { db } from '../lib/db';
 import { redis } from '../lib/redis';
 import { getLearnerCPDSummary } from './cpd-engine';
+import { buildEligibleCourseWhere } from './course-eligibility';
 
 const CACHE_TTL = 60 * 60 * 12; // 12 hours
 
@@ -83,7 +84,7 @@ export async function getRecommendations(
   const [learner, summary, completedEnrollments, inProgressEnrollments, recentQuizAttempts] = await Promise.all([
     db.user.findUnique({
       where: { id: learnerId },
-      select: { cadre: true, institution: true, province: true },
+      select: { cadre: true, councilId: true, professionalTitle: true, institution: true, province: true },
     }),
     getLearnerCPDSummary(learnerId),
     db.enrollment.findMany({
@@ -119,8 +120,8 @@ export async function getRecommendations(
     .then((rows) => rows.map((r) => r.courseId));
 
   const availableCourses = await db.course.findMany({
-    where: { status: 'PUBLISHED', id: { notIn: enrolledIds } },
-    select: { id: true, title: true, category: true, tags: true, cpdPoints: true, targetCadres: true },
+    where: { ...buildEligibleCourseWhere(learner), id: { notIn: enrolledIds } },
+    select: { id: true, title: true, category: true, tags: true, cpdPoints: true, targetCadres: true, targetTitles: true },
     orderBy: { createdAt: 'desc' },
     take: 30,
   });
@@ -158,22 +159,24 @@ export async function getRecommendations(
 
   // ── Cold-start: profile-only prompt (no completion history) ──────────────
   const prompt = isProfileBased
-    ? `A nurse has just joined NursePro CPD. They have no completed courses yet.
+    ? `A health professional has just joined ZimHealth CPD. They have no completed courses yet.
 
 Learner profile:
 - Cadre: ${learner?.cadre ?? 'Registered Nurse'}
+- Professional title: ${learner?.professionalTitle ?? 'Not set'}
 - Institution: ${learner?.institution ?? 'Unknown'}
 - Province: ${learner?.province ?? 'Zimbabwe'}
 - CPD Points: 0/${summary.requiredPoints} required
 - Days to renewal: ${daysToRenewal}
 
 Available courses (recommend the most relevant 3 for this cadre):
-${availableCourses.map((c) => `- ${c.id}: "${c.title}" (${c.category}, ${c.cpdPoints} pts, for: ${(c.targetCadres as string[]).join(', ')})`).join('\n')}
+${availableCourses.map((c) => `- ${c.id}: "${c.title}" (${c.category}, ${c.cpdPoints} pts, for: ${[...((c.targetTitles as string[]) ?? []), ...((c.targetCadres as string[]) ?? [])].join(', ') || 'all eligible health workers'})`).join('\n')}
 
 Return JSON: { "recommendations": [ { "courseId": "...", "reason": "under 20 words why this suits their role" } ] }
 Order by relevance to their cadre. Max 3.`
     : `Learner profile:
 - Cadre: ${learner?.cadre ?? 'Nurse'}
+- Professional title: ${learner?.professionalTitle ?? 'Not set'}
 - Institution: ${learner?.institution ?? 'Unknown'}
 - Province: ${learner?.province ?? 'Unknown'}
 - CPD Points: ${summary.totalPoints}/${summary.requiredPoints} (${summary.percentComplete}% complete)

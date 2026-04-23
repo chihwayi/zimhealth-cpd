@@ -1,5 +1,8 @@
+const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL ?? 'support@example.com';
+
 export const TEMPLATES = {
-  MAIN_MENU: `Welcome to *NursePro CPD* 🏥
+  MAIN_MENU: `Welcome to *ZimHealth CPD* 🏥
 
 Reply with a number:
 1️⃣ Learn — today's lesson
@@ -11,14 +14,14 @@ Reply with a number:
 
 _Reply STOP to pause notifications_`,
 
-  NOT_REGISTERED: `You're not registered on NursePro CPD yet.
+  NOT_REGISTERED: `You're not registered on ZimHealth CPD yet.
 
 To register, visit:
-👉 ${process.env.WEB_URL ?? 'https://nursepro.co.zw'}/register
+👉 ${WEB_URL}/register
 
 Or reply *REG* to register via WhatsApp.`,
 
-  HELP: `*NursePro CPD Help*
+  HELP: `*ZimHealth CPD Help*
 
 Commands:
 • *menu* — main menu
@@ -26,8 +29,8 @@ Commands:
 • *cert* — download certificate
 • *stop* — pause notifications
 
-Support: support@nursepro.co.zw
-Web: ${process.env.WEB_URL ?? 'https://nursepro.co.zw'}`,
+Support: ${SUPPORT_EMAIL}
+Web: ${WEB_URL}`,
 
   POINTS: (points: number, required: number, deadline: string) =>
     `*Your CPD Points*\n\n✅ Earned: *${points}* pts\n📋 Required: *${required}* pts\n⏰ Deadline: ${deadline}\n\n${
@@ -42,4 +45,3 @@ Web: ${process.env.WEB_URL ?? 'https://nursepro.co.zw'}`,
   CERT_READY: (link: string) =>
     `🎓 Your CPD certificate is ready!\n\nDownload here:\n${link}\n\nValid for NCZ renewal submission.`,
 };
-

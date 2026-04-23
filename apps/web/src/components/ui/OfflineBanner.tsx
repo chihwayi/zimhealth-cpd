@@ -20,14 +20,14 @@ export function OfflineBanner() {
 
     void refresh();
     const onSynced = () => void refresh();
-    window.addEventListener('nursepro:progress-synced', onSynced);
-    window.addEventListener('nursepro:quiz-attempts-synced', onSynced);
+    window.addEventListener('zimhealth:progress-synced', onSynced);
+    window.addEventListener('zimhealth:quiz-attempts-synced', onSynced);
     window.addEventListener('online', onSynced);
     window.addEventListener('offline', onSynced);
     return () => {
       mounted = false;
-      window.removeEventListener('nursepro:progress-synced', onSynced);
-      window.removeEventListener('nursepro:quiz-attempts-synced', onSynced);
+      window.removeEventListener('zimhealth:progress-synced', onSynced);
+      window.removeEventListener('zimhealth:quiz-attempts-synced', onSynced);
       window.removeEventListener('online', onSynced);
       window.removeEventListener('offline', onSynced);
     };

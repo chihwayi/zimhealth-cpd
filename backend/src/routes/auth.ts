@@ -9,9 +9,11 @@ import {
   hashPassword,
   verifyPassword,
 } from '../services/auth.service';
-import { RegisterSchema, LoginSchema, RefreshSchema, UpdateProfileSchema } from './auth.schema';
+import { RegisterSchema, LoginSchema, RefreshSchema, UpdateProfileSchema, ForgotPasswordSchema, ResetPasswordSchema } from './auth.schema';
 import { requireAuth } from '../middleware/auth.middleware';
 import jwt from 'jsonwebtoken';
+import { randomBytes, createHash } from 'crypto';
+import nodemailer from 'nodemailer';
 
 const router: ExpressRouter = Router();
 
@@ -23,14 +25,26 @@ router.post('/register', async (req, res) => {
     const existing = await db.user.findUnique({ where: { email: data.email } });
     if (existing) return res.status(409).json({ error: 'Email already registered' });
 
+    const council = await db.council.findFirst({
+      where: { id: data.councilId, isActive: true },
+      select: { id: true, acronym: true, allowedTitles: true },
+    });
+    if (!council) return res.status(400).json({ error: 'Select a valid council.' });
+    if (!council.allowedTitles.includes(data.professionalTitle)) {
+      return res.status(400).json({ error: 'Select a valid professional title for this council.' });
+    }
+
     const passwordHash = await hashPassword(data.password);
     const user = await db.user.create({
       data: {
         email: data.email,
         passwordHash,
         fullName: data.fullName,
+        councilId: data.councilId,
+        professionalTitle: data.professionalTitle,
+        registrationNumber: data.registrationNumber,
         cadre: data.cadre as any,
-        nczRegistrationNumber: data.nczRegistrationNumber,
+        nczRegistrationNumber: council.acronym === 'NCZ' ? data.registrationNumber : data.nczRegistrationNumber,
         institution: data.institution,
         province: data.province,
         district: data.district,
@@ -42,12 +56,24 @@ router.post('/register', async (req, res) => {
     const refreshToken = await signRefreshToken(user.id);
 
     res.status(201).json({
-      user: { id: user.id, email: user.email, fullName: user.fullName, role: user.role },
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        councilId: user.councilId,
+        professionalTitle: user.professionalTitle,
+        registrationNumber: user.registrationNumber,
+        nczRegistrationNumber: user.nczRegistrationNumber,
+        cadre: user.cadre,
+        subscriptionTier: user.subscriptionTier,
+      },
       accessToken,
       refreshToken,
     });
   } catch (err: any) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    if (err?.code === 'P2002') return res.status(409).json({ error: 'Email, phone, or registration number is already registered.' });
     res.status(500).json({ error: 'Registration failed' });
   }
 });
@@ -72,6 +98,11 @@ router.post('/login', async (req, res) => {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        councilId: user.councilId,
+        professionalTitle: user.professionalTitle,
+        registrationNumber: user.registrationNumber,
+        nczRegistrationNumber: user.nczRegistrationNumber,
+        cadre: user.cadre,
         subscriptionTier: user.subscriptionTier,
       },
       accessToken,
@@ -113,11 +144,132 @@ router.post('/logout', async (req, res) => {
   }
 });
 
+async function sendPasswordResetEmail(toEmail: string, resetUrl: string): Promise<void> {
+  const smtpUrl = process.env.SMTP_URL;
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+
+  if (!smtpUrl && !(smtpHost && smtpPort && smtpUser && smtpPass)) {
+    console.log('[Auth] Password reset link (SMTP_URL not set):', resetUrl);
+    return;
+  }
+
+  const transporter = smtpUrl
+    ? nodemailer.createTransport(smtpUrl)
+    : nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+  const from =
+    process.env.MAIL_FROM ??
+    (process.env.FROM_EMAIL ? `ZimHealth CPD <${process.env.FROM_EMAIL}>` : undefined) ??
+    'ZimHealth CPD <no-reply@example.com>';
+  await transporter.sendMail({
+    from,
+    to: toEmail,
+    subject: 'Reset your ZimHealth password',
+    text: `You requested a password reset.\n\nOpen this link to set a new password:\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
+  });
+}
+
+// POST /api/auth/forgot-password
+// Always returns 200 to avoid account enumeration.
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = ForgotPasswordSchema.parse(req.body);
+    const user = await db.user.findUnique({ where: { email } });
+
+    if (user) {
+      const rawToken = randomBytes(32).toString('hex');
+      const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+      const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+
+      await db.user.update({
+        where: { id: user.id },
+        data: { resetPasswordTokenHash: tokenHash, resetPasswordExpiresAt: expiresAt },
+      });
+
+      const webBase = process.env.WEB_URL ?? 'http://localhost:3000';
+      const resetUrl = `${webBase}/reset-password?token=${encodeURIComponent(rawToken)}`;
+      await sendPasswordResetEmail(user.email, resetUrl);
+    }
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    return res.status(500).json({ error: 'Could not start password reset' });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = ResetPasswordSchema.parse(req.body);
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+
+    const user = await db.user.findFirst({
+      where: {
+        resetPasswordTokenHash: tokenHash,
+        resetPasswordExpiresAt: { gt: new Date() },
+      },
+    });
+    if (!user) return res.status(400).json({ error: 'Reset link is invalid or expired.' });
+
+    const passwordHash = await hashPassword(password);
+    await db.user.update({
+      where: { id: user.id },
+        data: {
+          passwordHash,
+        resetPasswordTokenHash: null,
+        resetPasswordExpiresAt: null,
+      },
+    });
+
+    // Revoke refresh token so previously logged-in sessions can’t continue.
+    await revokeRefreshToken(user.id).catch(() => null);
+
+    const accessToken = signAccessToken(user);
+    const refreshToken = await signRefreshToken(user.id);
+
+    return res.json({
+      ok: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        councilId: user.councilId,
+        professionalTitle: user.professionalTitle,
+        registrationNumber: user.registrationNumber,
+        nczRegistrationNumber: user.nczRegistrationNumber,
+        cadre: user.cadre,
+        subscriptionTier: user.subscriptionTier,
+      },
+      accessToken,
+      refreshToken,
+    });
+  } catch (err: any) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    return res.status(500).json({ error: 'Could not reset password' });
+  }
+});
+
 const ME_SELECT = {
   id: true,
   email: true,
   fullName: true,
   role: true,
+  councilId: true,
+  council: { select: { id: true, name: true, acronym: true, requiredPoints: true, renewalMonth: true, renewalDay: true, allowedTitles: true } },
+  professionalTitle: true,
+  registrationNumber: true,
   cadre: true,
   nczRegistrationNumber: true,
   institution: true,
@@ -160,7 +312,7 @@ router.patch('/me', requireAuth, async (req: any, res) => {
       res.json(updated);
     } catch (err: any) {
       if (err?.code === 'P2002') {
-        return res.status(409).json({ error: 'That phone number or NCZ registration number is already used on another account.' });
+        return res.status(409).json({ error: 'That phone number or registration number is already used on another account.' });
       }
       throw err;
     }
@@ -171,4 +323,3 @@ router.patch('/me', requireAuth, async (req: any, res) => {
 });
 
 export default router;
-

@@ -12,6 +12,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
+  // If the backend no longer recognises the user (common after DB reset/seed),
+  // force a clean re-login instead of leaving the app in a broken state.
+  if (res.status === 404 && path === '/api/auth/me') {
+    useAuthStore.getState().clearAuth();
+    window.location.href = '/login';
+    throw new Error('Session invalid');
+  }
+
   if (res.status === 401) {
     // Attempt token refresh
     const refreshToken = useAuthStore.getState().refreshToken;

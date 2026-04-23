@@ -167,7 +167,7 @@ router.post('/register', requireBotSecret, async (req, res) => {
 
     // Generate a placeholder email so the unique constraint is satisfied
     const safeSuffix = phone.replace(/\D/g, '');
-    const placeholderEmail = `wa_${safeSuffix}@nursepro.internal`;
+    const placeholderEmail = `wa_${safeSuffix}@zimhealth.internal`;
 
     const user = await db.user.create({
       data: {

@@ -3,7 +3,7 @@ import { creditPoints, getLearnerCPDSummary, hasEarnedPoints } from './cpd-engin
 import { db } from '../lib/db';
 
 // Uses the seeded Grace learner
-const GRACE_EMAIL = 'grace@nursepro.co.zw';
+const GRACE_EMAIL = 'grace@zimhealthcpd.co.zw';
 let graceId: string;
 
 beforeAll(async () => {

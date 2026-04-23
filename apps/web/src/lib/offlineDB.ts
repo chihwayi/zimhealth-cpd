@@ -60,7 +60,7 @@ export interface PendingQuizAttempt {
 
 // ─── DB setup ─────────────────────────────────────────────────────────────────
 
-const DB_NAME = 'nursepro-offline';
+const DB_NAME = 'zimhealth-offline';
 const DB_VERSION = 3;
 
 let _db: IDBPDatabase | null = null;

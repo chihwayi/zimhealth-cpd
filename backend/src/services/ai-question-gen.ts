@@ -1,4 +1,4 @@
-import { AIClient, SYSTEM_PROMPTS, type AIProviderConfig } from '@nursepro/ai-client';
+import { AIClient, SYSTEM_PROMPTS, type AIProviderConfig } from '@zimhealth/ai-client';
 import { z } from 'zod';
 
 const GeneratedQuestionSchema = z.object({

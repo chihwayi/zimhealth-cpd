@@ -18,6 +18,7 @@ import {
   Plus,
   Save,
   Send,
+  ShieldCheck,
   Upload,
   Video,
   Wand2,
@@ -30,10 +31,8 @@ import { useAuthStore } from '../../store/auth.store';
 import { toast } from '../../components/ui/Toast';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { CPDCategory, ContentType, Difficulty, Language } from '@nursepro/types';
+import { CPDCategory, ContentType, Difficulty, Language } from '@zimhealth/types';
 import clsx from 'clsx';
-
-const TARGET_CADRES = ['NURSE', 'MIDWIFE', 'PHARMACIST', 'CLINICAL_OFFICER', 'LAB_TECH'] as const;
 
 const courseSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),
@@ -42,9 +41,12 @@ const courseSchema = z.object({
   category: z.nativeEnum(CPDCategory),
   difficulty: z.nativeEnum(Difficulty),
   language: z.nativeEnum(Language),
+  isPublicToAll: z.boolean().default(false),
   cpdPoints: z.number().int().min(1).max(50),
   estimatedMinutes: z.number().int().min(5),
-  targetCadres: z.array(z.string()).min(1, 'Select at least one cadre'),
+  targetCadres: z.array(z.string()).default([]),
+  targetCouncilIds: z.array(z.string()).default([]),
+  targetTitles: z.array(z.string()).default([]),
   tags: z.array(z.string()).default([]),
   thumbnailUrl: z.string().url().optional().or(z.literal('')),
   specialtyArea: z.string().max(100).optional(),
@@ -82,11 +84,29 @@ type CourseResponse = CourseFormData & {
   modules: Module[];
 };
 
+type CouncilOption = {
+  id: string;
+  name: string;
+  acronym: string;
+  requiredPoints: number;
+  allowedTitles: string[];
+};
+
 type SectionDraft = {
   title: string;
   type: ContentType;
   content: string;
   mediaUrl: string;
+};
+
+type MediaStatusResponse = {
+  assetId: string;
+  status: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
+  processingStatus: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
+  cdnUrl: string;
+  processedCdnUrl?: string | null;
+  thumbnailCdnUrl?: string | null;
+  processingError?: string | null;
 };
 
 const DEFAULT_VALUES: CourseFormData = {
@@ -96,9 +116,12 @@ const DEFAULT_VALUES: CourseFormData = {
   category: CPDCategory.CLINICAL,
   difficulty: Difficulty.FOUNDATION,
   language: Language.ENGLISH,
+  isPublicToAll: false,
   cpdPoints: 1,
   estimatedMinutes: 30,
   targetCadres: [],
+  targetCouncilIds: [],
+  targetTitles: [],
   tags: [],
   thumbnailUrl: '',
   specialtyArea: '',
@@ -179,6 +202,10 @@ export default function CourseBuilder() {
     queryFn: () => api.get(`/api/courses/${id}/quizzes`),
     enabled: !!id && !isNew,
   });
+  const { data: councilsPayload } = useQuery<{ councils: CouncilOption[] }>({
+    queryKey: ['councils'],
+    queryFn: () => api.get('/api/councils'),
+  });
 
   const courseQuizOptions = courseQuizzesPayload?.quizzes ?? [];
 
@@ -191,9 +218,12 @@ export default function CourseBuilder() {
       category: course.category,
       difficulty: course.difficulty,
       language: course.language,
+      isPublicToAll: course.isPublicToAll ?? false,
       cpdPoints: course.cpdPoints,
       estimatedMinutes: course.estimatedMinutes,
       targetCadres: course.targetCadres,
+      targetCouncilIds: course.targetCouncilIds ?? [],
+      targetTitles: course.targetTitles ?? [],
       tags: course.tags ?? [],
       thumbnailUrl: course.thumbnailUrl ?? '',
       specialtyArea: course.specialtyArea ?? '',
@@ -272,7 +302,14 @@ export default function CourseBuilder() {
   });
 
   const submitForReviewMutation = useMutation({
-    mutationFn: () => api.post(`/api/courses/${id}/submit-review`),
+    mutationFn: async () => {
+      const values = courseSchema.parse(watchedValues);
+      if (!values.isPublicToAll && !values.targetCouncilIds.length && !values.targetTitles.length && !values.targetCadres.length) {
+        throw new Error('Choose the course audience first, or select All users.');
+      }
+      await updateCourseMutation.mutateAsync(values);
+      return api.post(`/api/courses/${id}/submit-review`);
+    },
     onSuccess: () => {
       toast.success('Course submitted for review');
       queryClient.invalidateQueries({ queryKey: ['creator-courses'] });
@@ -284,21 +321,48 @@ export default function CourseBuilder() {
 
   // ── AI content generation state ──
   const [showAiPanel, setShowAiPanel] = useState(false);
+  const [aiSourceMode, setAiSourceMode] = useState<'text' | 'url' | 'file'>('text');
   const [aiGuidelineText, setAiGuidelineText] = useState('');
+  const [aiSourceUrl, setAiSourceUrl] = useState('');
+  const [aiFile, setAiFile] = useState<File | null>(null);
   const [aiTargetCadre, setAiTargetCadre] = useState('Registered General Nurse');
   const [aiSourceName, setAiSourceName] = useState('EDLIZ / MOHCC guideline');
+  const [mediaProcessingMessage, setMediaProcessingMessage] = useState<string | null>(null);
 
   const aiGenerateMutation = useMutation({
-    mutationFn: () =>
-      api.post<{ message: string; moduleIds: string[]; preview: { moduleCount: number } }>(
-        `/api/courses/${id}/ai-generate-content`,
-        { guidelineText: aiGuidelineText, targetCadre: aiTargetCadre, sourceName: aiSourceName },
-      ),
+    mutationFn: async () => {
+      if (!token) throw new Error('You must be logged in to generate course content.');
+
+      const form = new FormData();
+      form.append('targetCadre', aiTargetCadre);
+      form.append('sourceName', aiSourceName);
+      if (aiSourceMode === 'text') form.append('guidelineText', aiGuidelineText);
+      if (aiSourceMode === 'url') form.append('sourceUrl', aiSourceUrl);
+      if (aiSourceMode === 'file' && aiFile) form.append('file', aiFile);
+
+      const res = await fetch(`${baseUrl}/api/courses/${id}/ai-generate-content`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: unknown };
+        throw new Error(typeof body.error === 'string' ? body.error : `AI generation failed (${res.status})`);
+      }
+
+      return (await res.json()) as { message: string; moduleIds: string[]; preview: { moduleCount: number }; warnings?: string[] };
+    },
     onSuccess: (data) => {
       toast.success(`AI generated ${data.preview.moduleCount} module(s). Check the curriculum panel.`);
       setShowAiPanel(false);
       setAiGuidelineText('');
+      setAiSourceUrl('');
+      setAiFile(null);
       void queryClient.invalidateQueries({ queryKey: ['course', id] });
+      if (data.warnings?.length) {
+        toast.info(data.warnings[0]);
+      }
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -351,6 +415,18 @@ export default function CourseBuilder() {
   ]);
 
   const modules = course?.modules ?? [];
+  const councils = councilsPayload?.councils ?? [];
+  const availableAudienceTitles = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          councils
+            .filter((council) => (watchedValues.targetCouncilIds ?? []).includes(council.id))
+            .flatMap((council) => council.allowedTitles),
+        ),
+      ).sort(),
+    [councils, watchedValues.targetCouncilIds],
+  );
 
   useEffect(() => {
     if (!modules.length) {
@@ -484,20 +560,47 @@ export default function CourseBuilder() {
           typeof body.error === 'string' ? body.error : `Upload failed (${res.status})`;
         throw new Error(msg);
       }
-      const json = (await res.json()) as { url?: string; originalUrl?: string };
-      const url =
-        sectionDraft.type === ContentType.VIDEO
-          ? json.originalUrl ?? json.url
-          : json.url ?? json.originalUrl;
-      if (!url) throw new Error('Upload response missing URL');
-      setSectionDraft((current) => (current ? { ...current, mediaUrl: url } : current));
-      toast.success('Uploaded. Save the section to persist the media URL.');
+      const json = (await res.json()) as { url?: string; originalUrl?: string; assetId?: string; status?: string };
+      if (sectionDraft.type === ContentType.VIDEO) {
+        if (!json.assetId) throw new Error('Upload response missing asset ID');
+        setMediaProcessingMessage('Video uploaded. Processing has started. We will attach the ready video as soon as it finishes.');
+        toast.info('Video uploaded. Processing started.');
+
+        const finalStatus = await pollForProcessedVideo(json.assetId);
+        const readyUrl = finalStatus.processedCdnUrl ?? finalStatus.cdnUrl;
+        if (!readyUrl) throw new Error('Processed video URL missing after completion');
+        setSectionDraft((current) => (current ? { ...current, mediaUrl: readyUrl } : current));
+        setMediaProcessingMessage('Video processing complete. Save the section to persist the ready media URL.');
+        toast.success('Video processed and attached. Save the section to persist it.');
+      } else {
+        const url = json.url ?? json.originalUrl;
+        if (!url) throw new Error('Upload response missing URL');
+        setSectionDraft((current) => (current ? { ...current, mediaUrl: url } : current));
+        toast.success('Uploaded. Save the section to persist the media URL.');
+      }
     } catch (err: unknown) {
+      setMediaProcessingMessage(null);
       toast.error(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setMediaUploading(false);
     }
   };
+
+  async function pollForProcessedVideo(assetId: string): Promise<MediaStatusResponse> {
+    const maxAttempts = 40;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const status = await api.get<MediaStatusResponse>(`/api/media/status/${assetId}`);
+      if (status.status === 'PROCESSED') return status;
+      if (status.status === 'FAILED') {
+        throw new Error(status.processingError ?? 'Video processing failed');
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 3000));
+    }
+
+    throw new Error('Video processing is taking longer than expected. You can check the Media Library for the latest status.');
+  }
 
   const handleThumbnailUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -668,7 +771,26 @@ export default function CourseBuilder() {
           {/* ── AI Generate panel ── */}
           {showAiPanel && course?.id && (
             <div className="border-b border-slate-100 bg-violet-50 p-4 space-y-3">
-              <p className="text-xs font-semibold text-violet-800">Generate from guideline text</p>
+              <p className="text-xs font-semibold text-violet-800">Generate from guideline text or source URL</p>
+              <div className="flex gap-1 bg-white/80 p-1 rounded-xl w-fit">
+                {([
+                  { key: 'text', label: 'Paste text' },
+                  { key: 'url', label: 'URL / PDF URL' },
+                  { key: 'file', label: 'Upload PDF' },
+                ] as const).map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setAiSourceMode(option.key)}
+                    className={clsx(
+                      'px-4 py-2 rounded-lg text-xs font-medium transition-all',
+                      aiSourceMode === option.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
               <div>
                 <label className="block text-xs text-slate-600 mb-1">Target cadre</label>
                 <select
@@ -693,23 +815,60 @@ export default function CourseBuilder() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-600 mb-1">
-                  Paste guideline / protocol text
-                </label>
-                <textarea
-                  value={aiGuidelineText}
-                  onChange={(e) => setAiGuidelineText(e.target.value)}
-                  rows={6}
-                  placeholder="Paste text from an EDLIZ section, MOHCC protocol, or any clinical guideline…"
-                  className="w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-violet-400 focus:outline-none resize-none"
-                />
-                <p className="text-xs text-slate-400 mt-1">{aiGuidelineText.length} chars (min 50)</p>
+                {aiSourceMode === 'text' ? (
+                  <>
+                    <label className="block text-xs text-slate-600 mb-1">
+                      Paste guideline / protocol text
+                    </label>
+                    <textarea
+                      value={aiGuidelineText}
+                      onChange={(e) => setAiGuidelineText(e.target.value)}
+                      rows={6}
+                      placeholder="Paste text from an EDLIZ section, MOHCC protocol, or any clinical guideline…"
+                      className="w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-violet-400 focus:outline-none resize-none"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">{aiGuidelineText.length} chars (min 50)</p>
+                  </>
+                ) : aiSourceMode === 'url' ? (
+                  <>
+                    <label className="block text-xs text-slate-600 mb-1">Guideline URL</label>
+                    <input
+                      value={aiSourceUrl}
+                      onChange={(e) => setAiSourceUrl(e.target.value)}
+                      placeholder="https://... or direct PDF URL"
+                      className="w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-violet-400 focus:outline-none"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">
+                      Supports HTML, plain text, and PDF URLs. Private-network URLs are blocked.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <label className="block text-xs text-slate-600 mb-1">Upload guideline file</label>
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf,text/plain,.txt,text/html,.html"
+                      onChange={(e) => setAiFile(e.target.files?.[0] ?? null)}
+                      className="w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-violet-400 focus:outline-none file:mr-3 file:rounded-lg file:border-0 file:bg-violet-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-violet-700"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">
+                      Upload a PDF, HTML, or text file. PDFs work best when they contain selectable text.
+                    </p>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => void aiGenerateMutation.mutate()}
-                  disabled={aiGuidelineText.trim().length < 50 || aiGenerateMutation.isPending}
+                  disabled={
+                    aiGenerateMutation.isPending ||
+                    (aiSourceMode === 'text'
+                      ? aiGuidelineText.trim().length < 50
+                      : aiSourceMode === 'url'
+                        ? aiSourceUrl.trim().length < 10
+                        : !aiFile)
+                  }
                   className="inline-flex items-center gap-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg px-3 py-2 hover:bg-violet-700 disabled:opacity-50"
                 >
                   {aiGenerateMutation.isPending ? (
@@ -730,6 +889,9 @@ export default function CourseBuilder() {
               {aiGenerateMutation.isError && (
                 <p className="text-xs text-red-600">{(aiGenerateMutation.error as Error).message}</p>
               )}
+              <div className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs text-slate-600">
+                AI-generated modules always create a draft. Review the extracted structure, clinical accuracy, and quiz quality before publishing.
+              </div>
             </div>
           )}
 
@@ -942,12 +1104,17 @@ export default function CourseBuilder() {
                           </button>
                           <span className="text-xs text-slate-500">
                             {sectionDraft.type === ContentType.VIDEO
-                              ? 'Videos are uploaded then transcoded when processing is enabled.'
+                              ? 'Videos are uploaded, processed in the background, and only attached once the ready asset is available.'
                               : sectionDraft.type === ContentType.AUDIO
                                 ? 'Upload audio (MP3, AAC, etc.) via the document pipeline.'
                                 : 'Upload PDFs, packages, or other lesson assets.'}
                           </span>
                         </div>
+                        {mediaProcessingMessage && sectionDraft.type === ContentType.VIDEO ? (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                            {mediaProcessingMessage}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
 
@@ -1247,35 +1414,141 @@ export default function CourseBuilder() {
                 <p className="mt-1 text-xs text-slate-400">Press Enter or comma to add each tag. Tags help learners discover this course.</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">Target Cadres <span className="text-red-400">*</span></label>
-                <div className="flex flex-wrap gap-2">
-                  {TARGET_CADRES.map((cadre) => {
-                    const active = watchedValues.targetCadres.includes(cadre);
-                    return (
-                      <button
-                        key={cadre}
-                        type="button"
-                        onClick={() => {
-                          const next = active
-                            ? watchedValues.targetCadres.filter((value) => value !== cadre)
-                            : [...watchedValues.targetCadres, cadre];
-                          setValue('targetCadres', next, { shouldDirty: true, shouldValidate: true });
-                        }}
-                        className={clsx(
-                          'rounded-full px-3 py-1.5 text-sm font-medium border transition-colors',
-                          active
-                            ? 'bg-primary-100 text-primary-700 border-primary-200'
-                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50',
-                        )}
-                      >
-                        {active ? <span className="mr-1">✓</span> : null}
-                        {formatLabel(cadre)}
-                      </button>
-                    );
-                  })}
+              <div className="overflow-hidden rounded-[1.75rem] border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-amber-50 shadow-sm">
+                <div className="border-b border-emerald-100 bg-white/70 p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-emerald-300">
+                      <ShieldCheck size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-slate-950">Course Audience</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">
+                        Choose exactly who should see this course. Learners outside this audience will not see it in their dashboard or course library.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                {errors.targetCadres ? <p className="mt-1 text-xs text-red-500">{errors.targetCadres.message}</p> : null}
+
+                <div className="space-y-5 p-5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !watchedValues.isPublicToAll;
+                      setValue('isPublicToAll', next, { shouldDirty: true, shouldValidate: true });
+                      if (next) {
+                        setValue('targetCouncilIds', [], { shouldDirty: true, shouldValidate: true });
+                        setValue('targetTitles', [], { shouldDirty: true, shouldValidate: true });
+                        setValue('targetCadres', [], { shouldDirty: true, shouldValidate: true });
+                      }
+                    }}
+                    className={clsx(
+                      'flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all',
+                      watchedValues.isPublicToAll
+                        ? 'border-emerald-400 bg-emerald-600 text-white shadow-lg shadow-emerald-100'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300',
+                    )}
+                  >
+                    <span>
+                      <span className="block text-sm font-black">All users on the platform</span>
+                      <span className={clsx('mt-0.5 block text-xs', watchedValues.isPublicToAll ? 'text-emerald-50' : 'text-slate-500')}>
+                        Use only for universal clinical or compliance content.
+                      </span>
+                    </span>
+                    <span className="text-lg font-black">{watchedValues.isPublicToAll ? '✓' : '+'}</span>
+                  </button>
+
+                  {!watchedValues.isPublicToAll && (
+                    <>
+                      <div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <label className="text-sm font-black text-slate-950">Councils</label>
+                          <span className="text-xs text-slate-500">{(watchedValues.targetCouncilIds ?? []).length} selected</span>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {councils.map((council) => {
+                            const active = (watchedValues.targetCouncilIds ?? []).includes(council.id);
+                            return (
+                              <button
+                                key={council.id}
+                                type="button"
+                                onClick={() => {
+                                  const current = watchedValues.targetCouncilIds ?? [];
+                                  const next = active ? current.filter((value) => value !== council.id) : [...current, council.id];
+                                  const validTitles = new Set(councils.filter((item) => next.includes(item.id)).flatMap((item) => item.allowedTitles));
+                                  setValue('targetCouncilIds', next, { shouldDirty: true, shouldValidate: true });
+                                  setValue('targetTitles', (watchedValues.targetTitles ?? []).filter((title) => validTitles.has(title)), {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  });
+                                }}
+                                className={clsx(
+                                  'rounded-2xl border p-4 text-left transition-all',
+                                  active
+                                    ? 'border-slate-950 bg-slate-950 text-white shadow-lg'
+                                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400',
+                                )}
+                              >
+                                <span className="block text-sm font-black">{council.acronym}</span>
+                                <span className={clsx('mt-1 block text-xs leading-5', active ? 'text-slate-300' : 'text-slate-500')}>{council.name}</span>
+                                <span className={clsx('mt-2 inline-flex rounded-full px-2 py-1 text-xs font-bold', active ? 'bg-white/10 text-emerald-200' : 'bg-emerald-50 text-emerald-700')}>
+                                  {council.requiredPoints} pts required
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <label className="text-sm font-black text-slate-950">Professional titles</label>
+                          <button
+                            type="button"
+                            disabled={!availableAudienceTitles.length}
+                            onClick={() => {
+                              const allSelected = availableAudienceTitles.every((title) => (watchedValues.targetTitles ?? []).includes(title));
+                              setValue('targetTitles', allSelected ? [] : availableAudienceTitles, { shouldDirty: true, shouldValidate: true });
+                            }}
+                            className="text-xs font-bold text-emerald-700 hover:underline disabled:text-slate-400 disabled:no-underline"
+                          >
+                            {availableAudienceTitles.every((title) => (watchedValues.targetTitles ?? []).includes(title)) ? 'Clear titles' : 'Select all titles'}
+                          </button>
+                        </div>
+                        {availableAudienceTitles.length ? (
+                          <div className="flex flex-wrap gap-2">
+                            {availableAudienceTitles.map((title) => {
+                              const active = (watchedValues.targetTitles ?? []).includes(title);
+                              return (
+                                <button
+                                  key={title}
+                                  type="button"
+                                  onClick={() => {
+                                    const current = watchedValues.targetTitles ?? [];
+                                    const next = active ? current.filter((value) => value !== title) : [...current, title];
+                                    setValue('targetTitles', next, { shouldDirty: true, shouldValidate: true });
+                                  }}
+                                  className={clsx(
+                                    'rounded-full border px-3 py-2 text-sm font-bold transition-colors',
+                                    active
+                                      ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                                  )}
+                                >
+                                  {active ? '✓ ' : ''}
+                                  {title}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+                            Select one or more councils to reveal their professional titles.
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </form>
           </div>

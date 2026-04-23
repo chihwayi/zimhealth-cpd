@@ -49,6 +49,10 @@ export async function processImage(
           width: size.width,
           height: size.height,
           isProcessed: true,
+          status: 'PROCESSED',
+          processedS3Key: key,
+          processedCdnUrl: url,
+          processedAt: new Date(),
         },
       });
     }
@@ -80,9 +84,12 @@ export async function uploadRawFile(
       mimeType,
       sizeBytes: BigInt(buffer.length),
       isProcessed: true,
+      status: 'PROCESSED',
+      processedS3Key: key,
+      processedCdnUrl: url,
+      processedAt: new Date(),
     },
   });
 
   return url;
 }
-

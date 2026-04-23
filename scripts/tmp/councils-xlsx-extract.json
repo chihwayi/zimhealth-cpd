@@ -1,0 +1,66 @@
+{
+  "workbook": "Zimbabwe Health Councils CPD Overview.xlsx",
+  "sheetNames": [
+    "Zimbabwe Health Councils CPD Ov"
+  ],
+  "sheets": {
+    "Zimbabwe Health Councils CPD Ov": {
+      "preview": [
+        [
+          "Council",
+          "Primary Professionals Regulated",
+          "Approx. Annual CPD Requirement",
+          "Key Renewal/Deadline Info"
+        ],
+        [
+          "Nurses Council (NCZ)",
+          "General Nurses, Midwives, Primary Care Nurses",
+          "12 Points",
+          "Due annually (usually Jan 31 for RGNs)."
+        ],
+        [
+          "Pharmacists Council (PCZ)",
+          "Pharmacists, Pharmacy Technicians",
+          "60 Points",
+          "High point system; includes categories for work-based & mentoring."
+        ],
+        [
+          "Medical & Dental (MDPCZ)",
+          "Doctors, Dentists, Dental Therapists",
+          "15 Points",
+          "Must include ethics credits; renewals due by Dec 31."
+        ],
+        [
+          "Med Lab & Clinical Scientists (MLCSCZ)",
+          "Lab Scientists, Technicians, Cytotechnologists",
+          "Required",
+          "Heavily integrated with the MyCpdZw digital portal."
+        ],
+        [
+          "Allied Health (AHPCZ)",
+          "Radiographers, Psychologists, Nutritionists",
+          "50 Points*",
+          "*Radiographers specifically require 50 points (tracking booklet used)."
+        ],
+        [
+          "Med Rehabilitation (MRPCZ)",
+          "Physiotherapists, OTs, Speech Therapists",
+          "Required",
+          "Renewals require a valid practice certificate and clinical supervision forms."
+        ],
+        [
+          "Environmental Health (EHPCZ)",
+          "Health Inspectors, Public Health Officers",
+          "Required",
+          "Focused on preventive health and food safety standards."
+        ],
+        [
+          "Natural Therapists (NTCZ)",
+          "Homeopaths, Naturopaths, Acupuncturists",
+          "Required",
+          "The newest council; mandates evidence of updated clinical competence."
+        ]
+      ]
+    }
+  }
+}

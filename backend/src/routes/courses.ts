@@ -3,6 +3,7 @@ import type { Router as ExpressRouter } from 'express';
 import { db } from '../lib/db';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
+import { upload } from '../middleware/upload.middleware';
 import {
   CreateCourseSchema,
   UpdateCourseSchema,
@@ -12,8 +13,11 @@ import {
 } from './courses.schema';
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { generateCourseFromGuideline } from '../services/ai-content-gen';
+import { resolveGuidelineText } from '../services/guideline-ingestion';
 import { getAIProvider } from '../lib/redis';
 import { canAccessPremiumCourse } from '../services/entitlements';
+import { verifyAccessToken } from '../services/auth.service';
+import { assertLearnerCanAccessCourse, buildEligibleCourseWhere } from '../services/course-eligibility';
 
 const router: ExpressRouter = Router();
 
@@ -27,6 +31,21 @@ async function getOwnedCourse(courseId: string, req: AuthRequest) {
   return { course };
 }
 
+async function getRequestLearner(req: any) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return null;
+  try {
+    const payload = verifyAccessToken(header.slice(7));
+    if (payload.role !== 'LEARNER') return null;
+    return db.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, councilId: true, professionalTitle: true, cadre: true },
+    });
+  } catch {
+    return null;
+  }
+}
+
 // ─── Course CRUD ─────────────────────────────────────────────────────────────
 
 // GET /api/courses — public browsing (published courses only, with filters)
@@ -38,7 +57,16 @@ router.get('/', async (req, res) => {
     >;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const where: any = { status: 'PUBLISHED' };
+    const learner = await getRequestLearner(req);
+    const where: any = learner
+      ? buildEligibleCourseWhere(learner)
+      : {
+          status: 'PUBLISHED',
+          OR: [
+            { isPublicToAll: true },
+            { AND: [{ targetCouncilIds: { isEmpty: true } }, { targetTitles: { isEmpty: true } }, { targetCadres: { isEmpty: true } }] },
+          ],
+        };
     if (category) where.category = category;
     if (difficulty) where.difficulty = difficulty;
     if (cadre) where.targetCadres = { has: cadre };
@@ -83,6 +111,11 @@ router.get('/:id', async (req, res) => {
       },
     });
     if (!course) return res.status(404).json({ error: 'Course not found' });
+    const learner = await getRequestLearner(req);
+    if (course.status === 'PUBLISHED' && learner) {
+      const allowed = await assertLearnerCanAccessCourse(learner.id, course.id);
+      if (!allowed) return res.status(403).json({ error: 'This course is not assigned to your council or professional title.' });
+    }
     res.json(course);
   } catch {
     res.status(500).json({ error: 'Could not fetch course' });
@@ -162,6 +195,9 @@ router.post(
       if (course.creatorId !== req.user!.id) return res.status(403).json({ error: 'Not your course' });
       if (course.status !== 'DRAFT')
         return res.status(400).json({ error: 'Course must be in DRAFT status to submit for review' });
+      if (!course.isPublicToAll && !course.targetCouncilIds.length && !course.targetTitles.length && !course.targetCadres.length) {
+        return res.status(400).json({ error: 'Choose who should view this course, or confirm All users before submitting.' });
+      }
 
       const updated = await db.course.update({
         where: { id: req.params.id },
@@ -281,24 +317,33 @@ router.post(
   '/:id/ai-generate-content',
   requireAuth,
   requireRole('CONTENT_MANAGER', 'ADMIN'),
+  upload.single('file'),
   async (req: AuthRequest, res) => {
-    const { guidelineText, targetCadre } = req.body as {
+    const { guidelineText, targetCadre, sourceUrl } = req.body as {
       guidelineText?: string;
       targetCadre?: string;
       sourceName?: string;
+      sourceUrl?: string;
     };
-
-    if (!guidelineText || guidelineText.trim().length < 50) {
-      return res.status(400).json({ error: 'guidelineText must be at least 50 characters' });
-    }
 
     const owned = await getOwnedCourse(req.params.id, req);
     if (owned.error) return res.status(owned.error.status).json(owned.error.body);
 
     try {
+      const resolved = await resolveGuidelineText({
+        text: guidelineText,
+        url: sourceUrl,
+        fileBuffer: req.file?.buffer,
+        fileName: req.file?.originalname,
+        mimeType: req.file?.mimetype,
+      });
+      if (resolved.guidelineText.trim().length < 50) {
+        return res.status(400).json({ error: 'Guideline text must be at least 50 characters after extraction' });
+      }
+
       const provider = await getAIProvider().catch(() => null);
       const generated = await generateCourseFromGuideline(
-        guidelineText,
+        resolved.guidelineText,
         owned.course!.title,
         targetCadre ?? 'Registered General Nurse',
       );
@@ -372,7 +417,9 @@ router.post(
         data: {
           aiGeneratedAt: new Date(),
           aiGeneratedProvider: provider ?? 'auto',
-          aiSourceName: (req.body as any)?.sourceName ? String((req.body as any).sourceName).slice(0, 200) : 'Guideline text',
+          aiSourceName: (req.body as any)?.sourceName
+            ? String((req.body as any).sourceName).slice(0, 200)
+            : resolved.sourceLabel.slice(0, 200),
         },
       });
 
@@ -382,13 +429,23 @@ router.post(
           action: 'CREATOR_AI_GENERATED_COURSE_CONTENT',
           entityType: 'Course',
           entityId: req.params.id,
-          meta: { targetCadre, provider: provider ?? 'auto', sourceName: (req.body as any)?.sourceName ?? 'Guideline text' },
+          meta: {
+            targetCadre,
+            provider: provider ?? 'auto',
+            sourceName: (req.body as any)?.sourceName ?? resolved.sourceLabel,
+            sourceType: resolved.sourceType,
+            extractedCharacters: resolved.extractedCharacters,
+            warnings: resolved.warnings,
+          },
         },
       });
 
       res.status(201).json({
         message: `Generated ${result.length} module(s) with sections and quizzes`,
         moduleIds: result,
+        sourceType: resolved.sourceType,
+        extractedCharacters: resolved.extractedCharacters,
+        warnings: resolved.warnings,
         preview: {
           title: generated.title,
           subtitle: generated.subtitle,
@@ -405,7 +462,7 @@ router.post(
       if (err?.name === 'ZodError') {
         return res.status(422).json({ error: 'AI returned malformed content structure', details: err.errors });
       }
-      res.status(500).json({ error: 'Content generation failed' });
+      res.status(400).json({ error: err?.message ?? 'Content generation failed' });
     }
   },
 );
@@ -419,6 +476,10 @@ router.post('/:id/enroll', requireAuth, requireRole('LEARNER'), async (req: Auth
     });
     if (!course || course.status !== 'PUBLISHED') {
       return res.status(404).json({ error: 'Course not found' });
+    }
+    const allowed = await assertLearnerCanAccessCourse(req.user!.id, course.id);
+    if (!allowed) {
+      return res.status(403).json({ error: 'This course is not assigned to your council or professional title.' });
     }
 
     const hasPremiumAccess = await canAccessPremiumCourse(req.user!.id, course.id);

@@ -22,6 +22,8 @@ export interface CPDSummary {
   requiredPoints: number;
   percentComplete: number;
   recordCount: number;
+  renewalMonth?: number;
+  renewalDay?: number;
 }
 
 /**
@@ -115,7 +117,7 @@ export async function getLearnerCPDSummary(learnerId: string, cycleYear?: number
 
   const learner = await db.user.findUnique({
     where: { id: learnerId },
-    select: { cadre: true },
+    select: { cadre: true, council: { select: { requiredPoints: true, renewalMonth: true, renewalDay: true } } },
   });
 
   const records = await db.cPDRecord.findMany({
@@ -123,7 +125,7 @@ export async function getLearnerCPDSummary(learnerId: string, cycleYear?: number
   });
 
   const totalPoints = records.reduce((sum, r) => sum + r.pointsEarned, 0);
-  const requiredPoints = getRequiredPoints(learner?.cadre);
+  const requiredPoints = learner?.council?.requiredPoints ?? getRequiredPoints(learner?.cadre);
   const percentComplete = Math.min(100, Math.round((totalPoints / requiredPoints) * 100));
 
   return {
@@ -133,6 +135,8 @@ export async function getLearnerCPDSummary(learnerId: string, cycleYear?: number
     requiredPoints,
     percentComplete,
     recordCount: records.length,
+    renewalMonth: learner?.council?.renewalMonth ?? undefined,
+    renewalDay: learner?.council?.renewalDay ?? undefined,
   };
 }
 
@@ -149,4 +153,3 @@ export async function hasEarnedPoints(
   });
   return !!record;
 }
-

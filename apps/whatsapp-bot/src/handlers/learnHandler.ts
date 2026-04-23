@@ -1,11 +1,12 @@
 import type { IncomingMessage } from '../botRouter';
 import type { BotSession, BotCourseOption, BotModuleOption, BotSection, BotQuizQuestion } from '../sessionManager';
 import { saveSession } from '../sessionManager';
-import { sendMessage, sendMediaMessage } from '../twilio';
+import { sendMessage, sendMediaMessage } from '../whatsapp/transport';
 import { htmlToWhatsApp, truncateForWhatsApp } from '../utils/htmlToText';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const BOT_SECRET = process.env.BOT_SECRET ?? '';
+const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
 const botHeaders = {
   'Content-Type': 'application/json',
@@ -125,7 +126,7 @@ export async function handleLearn(msg: IncomingMessage, session: BotSession): Pr
     if (!data || data.courses.length === 0) {
       await sendMessage(
         msg.from,
-        `📚 *No enrolled courses found.*\n\nVisit nursepro.co.zw to browse and enrol in courses.\n\nReply *menu* to go back.`,
+        `📚 *No enrolled courses found.*\n\nVisit ${WEB_URL} to browse and enrol in courses.\n\nReply *menu* to go back.`,
       );
       session.state = 'MENU';
       await saveSession(session);

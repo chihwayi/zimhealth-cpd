@@ -1,11 +1,12 @@
 import type { IncomingMessage } from '../botRouter';
 import type { BotSession } from '../sessionManager';
 import { saveSession } from '../sessionManager';
-import { sendMessage } from '../twilio';
+import { sendMessage } from '../whatsapp/transport';
 import { TEMPLATES } from '../templates';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const BOT_SECRET = process.env.BOT_SECRET ?? '';
+const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
 const botHeaders = {
   'Content-Type': 'application/json',
@@ -26,7 +27,7 @@ const CADRE_OPTIONS = [
 
 function cadrePicker(): string {
   const lines = CADRE_OPTIONS.map((c, i) => `${i + 1}️⃣ ${c.label}`).join('\n');
-  return `What is your nursing cadre?\n\n${lines}\n\n_Reply with a number (1–${CADRE_OPTIONS.length})._`;
+  return `What is your professional cadre?\n\n${lines}\n\n_Reply with a number (1–${CADRE_OPTIONS.length})._`;
 }
 
 // ─── Main registration handler ─────────────────────────────────────────────────
@@ -52,7 +53,7 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
     await saveSession(session);
     await sendMessage(
       msg.from,
-      `👋 *Welcome to NursePro CPD!*\n\nLet's create your account in a few quick steps.\n\nFirst, what is your *full name*? (e.g. Mary Chikwanda)\n\n_Reply *cancel* at any time to exit._`,
+      `👋 *Welcome to ZimHealth CPD!*\n\nLet's create your account in a few quick steps.\n\nFirst, what is your *full name*? (e.g. Mary Chikwanda)\n\n_Reply *cancel* at any time to exit._`,
     );
     return;
   }
@@ -70,7 +71,7 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
     return;
   }
 
-  // ── CADRE step: pick nursing cadre ──
+  // ── CADRE step: pick professional cadre ──
   if (rs.step === 'CADRE') {
     const idx = parseInt(text, 10) - 1;
     if (isNaN(idx) || idx < 0 || idx >= CADRE_OPTIONS.length) {
@@ -156,13 +157,13 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
 
       const greeting = data.existing
         ? `Welcome back, *${data.fullName}*! Your account is already set up.`
-        : `🎉 Account created, *${data.fullName}*! Welcome to NursePro CPD.`;
+        : `🎉 Account created, *${data.fullName}*! Welcome to ZimHealth CPD.`;
 
       await sendMessage(msg.from, `${greeting}\n\n${TEMPLATES.MAIN_MENU}`);
     } catch {
       await sendMessage(
         msg.from,
-        `⚠️ Registration failed. Please try again or visit ${process.env.WEB_URL ?? 'https://nursepro.co.zw'}/register\n\nReply *cancel* to go back to the menu.`,
+        `⚠️ Registration failed. Please try again or visit ${WEB_URL}/register\n\nReply *cancel* to go back to the menu.`,
       );
     }
     return;

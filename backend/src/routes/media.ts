@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Router as ExpressRouter } from 'express';
+import { Prisma } from '@prisma/client';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
 import { upload } from '../middleware/upload.middleware';
@@ -55,17 +56,35 @@ router.post(
           mimeType: req.file.mimetype,
           sizeBytes: BigInt(req.file.size),
           isProcessed: false,
+          status: 'UPLOADED',
         },
       });
 
-      await mediaQueue.add('transcode-video', {
-        s3Key: key,
-        assetId: asset.id,
-        ownerId: req.user!.id,
-        originalName: req.file.originalname,
-      });
+      await mediaQueue.add(
+        'transcode-video',
+        {
+          s3Key: key,
+          assetId: asset.id,
+          ownerId: req.user!.id,
+          originalName: req.file.originalname,
+        },
+        {
+          attempts: Number(process.env.MEDIA_PROCESSING_MAX_ATTEMPTS ?? 3),
+          backoff: {
+            type: 'exponential',
+            delay: Number(process.env.MEDIA_PROCESSING_RETRY_DELAY_MS ?? 5_000),
+          },
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
 
-      res.json({ assetId: asset.id, originalUrl: url, status: 'processing' });
+      res.json({
+        assetId: asset.id,
+        originalUrl: url,
+        status: asset.status,
+        processingStatus: asset.status,
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message ?? 'Video upload failed' });
     }
@@ -97,11 +116,27 @@ router.post(
 );
 
 // GET /api/media/status/:assetId — check processing status
-router.get('/status/:assetId', requireAuth, async (req, res) => {
+router.get('/status/:assetId', requireAuth, async (req: AuthRequest, res) => {
   try {
     const asset = await db.mediaAsset.findUnique({ where: { id: req.params.assetId } });
     if (!asset) return res.status(404).json({ error: 'Asset not found' });
-    res.json({ assetId: asset.id, isProcessed: asset.isProcessed, cdnUrl: asset.cdnUrl });
+    if (req.user!.role !== 'ADMIN' && asset.ownerId !== req.user!.id) {
+      return res.status(403).json({ error: 'Not authorised' });
+    }
+    res.json({
+      assetId: asset.id,
+      isProcessed: asset.isProcessed,
+      status: asset.status,
+      processingStatus: asset.status,
+      cdnUrl: asset.cdnUrl,
+      processedCdnUrl: asset.processedCdnUrl,
+      thumbnailCdnUrl: asset.thumbnailCdnUrl,
+      width: asset.width,
+      height: asset.height,
+      durationSecs: asset.durationSecs,
+      processingError: asset.processingError,
+      processedAt: asset.processedAt,
+    });
   } catch {
     res.status(500).json({ error: 'Could not fetch asset status' });
   }
@@ -123,8 +158,15 @@ router.get('/assets', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), asyn
         cdnUrl: true,
         s3Key: true,
         isProcessed: true,
+        status: true,
         width: true,
         height: true,
+        durationSecs: true,
+        processedCdnUrl: true,
+        thumbnailCdnUrl: true,
+        processingError: true,
+        processedAt: true,
+        processingAttempts: true,
         createdAt: true,
       },
     });
@@ -144,10 +186,66 @@ router.delete('/assets/:assetId', requireAuth, requireRole('CONTENT_MANAGER', 'A
     }
 
     await deleteFromS3(asset.s3Key).catch(() => undefined);
+    if (asset.processedS3Key) await deleteFromS3(asset.processedS3Key).catch(() => undefined);
+    if (asset.thumbnailS3Key) await deleteFromS3(asset.thumbnailS3Key).catch(() => undefined);
     await db.mediaAsset.delete({ where: { id: asset.id } });
     res.status(204).send();
   } catch (err: any) {
     res.status(500).json({ error: err.message ?? 'Could not delete asset' });
+  }
+});
+
+router.post('/assets/:assetId/retry', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    const asset = await db.mediaAsset.findUnique({ where: { id: req.params.assetId } });
+    if (!asset) return res.status(404).json({ error: 'Asset not found' });
+    if (req.user!.role !== 'ADMIN' && asset.ownerId !== req.user!.id) {
+      return res.status(403).json({ error: 'Not authorised' });
+    }
+    if (!asset.mimeType.startsWith('video/')) {
+      return res.status(400).json({ error: 'Only video assets can be retried' });
+    }
+
+    await db.mediaAsset.update({
+      where: { id: asset.id },
+      data: {
+        status: 'UPLOADED',
+        isProcessed: false,
+        processingError: null,
+        processedAt: null,
+        processedS3Key: null,
+        processedCdnUrl: null,
+        thumbnailS3Key: null,
+        thumbnailCdnUrl: null,
+        width: null,
+        height: null,
+        durationSecs: null,
+        variants: Prisma.DbNull,
+      },
+    });
+
+    await mediaQueue.add(
+      'transcode-video',
+      {
+        s3Key: asset.s3Key,
+        assetId: asset.id,
+        ownerId: asset.ownerId,
+        originalName: asset.fileName,
+      },
+      {
+        attempts: Number(process.env.MEDIA_PROCESSING_MAX_ATTEMPTS ?? 3),
+        backoff: {
+          type: 'exponential',
+          delay: Number(process.env.MEDIA_PROCESSING_RETRY_DELAY_MS ?? 5_000),
+        },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    );
+
+    res.json({ assetId: asset.id, status: 'UPLOADED', message: 'Retry queued' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message ?? 'Could not retry media processing' });
   }
 });
 

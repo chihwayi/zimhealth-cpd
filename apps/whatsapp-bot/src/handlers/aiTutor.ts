@@ -1,14 +1,15 @@
 import type { IncomingMessage } from '../botRouter';
 import type { BotSession } from '../sessionManager';
 import { saveSession } from '../sessionManager';
-import { sendMessage } from '../twilio';
+import { sendMessage } from '../whatsapp/transport';
 import { aiClient } from '../ai';
 import { getAIProviderOverride, getCached, setCached } from '../cache';
-import { SYSTEM_PROMPTS } from '@nursepro/ai-client';
+import { SYSTEM_PROMPTS } from '@zimhealth/ai-client';
 import { TEMPLATES } from '../templates';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const BOT_SECRET = process.env.BOT_SECRET ?? '';
+const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
 // Safety: block non-clinical questions
 const OFF_TOPIC_KEYWORDS = [
@@ -87,7 +88,7 @@ export async function handleAiTutor(msg: IncomingMessage, session: BotSession): 
     if (config.aiFeaturesEnabled === false) {
       await sendMessage(
         msg.from,
-        '⚠️ AI tutor is temporarily unavailable right now. Please try again later or use the NursePro web platform for clinical resources.',
+        '⚠️ AI tutor is temporarily unavailable right now. Please try again later or use the ZimHealth web platform for clinical resources.',
       );
       return;
     }
@@ -159,7 +160,7 @@ export async function handleAiTutor(msg: IncomingMessage, session: BotSession): 
 
   // Off-topic guard
   if (isOffTopic(question)) {
-    await sendMessage(msg.from, '🏥 I can only answer healthcare and clinical questions.\n\nPlease ask a medical or nursing-related question.');
+    await sendMessage(msg.from, '🏥 I can only answer healthcare and clinical questions.\n\nPlease ask a medical or clinical practice question.');
     return;
   }
 
@@ -249,10 +250,10 @@ export async function handleAiTutor(msg: IncomingMessage, session: BotSession): 
         }
       }
       await postTutorEvent(phone, { event: 'FAILURE', success: false, theme, meta: { error: String(lastError ?? err?.message ?? 'unknown') } });
-      await sendMessage(msg.from, '⚠️ AI tutor is temporarily unavailable. Please try again in a moment or visit nursepro.co.zw for clinical resources.');
+      await sendMessage(msg.from, `⚠️ AI tutor is temporarily unavailable. Please try again in a moment or visit ${WEB_URL} for clinical resources.`);
     } catch {
       await postTutorEvent(phone, { event: 'FAILURE', success: false, theme, meta: { error: String(err?.message ?? 'unknown') } });
-      await sendMessage(msg.from, '⚠️ AI tutor is temporarily unavailable. Please try again in a moment or visit nursepro.co.zw for clinical resources.');
+      await sendMessage(msg.from, `⚠️ AI tutor is temporarily unavailable. Please try again in a moment or visit ${WEB_URL} for clinical resources.`);
     }
   }
 }

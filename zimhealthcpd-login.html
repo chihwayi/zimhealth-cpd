@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZimHealth CPD — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --teal:    #1D9E75;
+    --deep:    #0A5C44;
+    --dark:    #0B1F1A;
+    --darker:  #071510;
+    --pulse:   #4ECBA0;
+    --tint:    #E2F5EE;
+    --tint2:   #C8EDE0;
+    --muted:   #6B9E8A;
+    --text:    #0B1F1A;
+    --sub:     #4A6B60;
+    --border:  #C8DDD7;
+    --bg:      #F2F8F5;
+    --card:    #FFFFFF;
+    --warn-bg: #FEF3E2;
+    --warn-br: #F5C97A;
+    --warn-tx: #7A4E0D;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── LAYOUT ── */
+  .shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 480px 1fr;
+  }
+
+  /* ── LEFT PANEL ── */
+  .left {
+    background: var(--darker);
+    display: flex;
+    flex-direction: column;
+    padding: 52px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Decorative geometric rings */
+  .ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(77,203,160,0.08);
+    pointer-events: none;
+  }
+  .ring-1 { width: 500px; height: 500px; bottom: -180px; left: -180px; }
+  .ring-2 { width: 360px; height: 360px; bottom: -100px; left: -100px; border-color: rgba(77,203,160,0.06); }
+  .ring-3 { width: 220px; height: 220px; bottom: -20px;  left: -20px;  border-color: rgba(77,203,160,0.1); }
+  .ring-4 { width: 160px; height: 160px; top: -60px; right: -60px; }
+  .ring-5 { width: 90px;  height: 90px;  top: -20px; right: -20px; border-color: rgba(77,203,160,0.1); }
+
+  /* Logo */
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+  }
+  .logo-icon {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+  }
+  .logo-words { line-height: 1; }
+  .logo-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    color: #fff;
+    letter-spacing: -0.3px;
+  }
+  .logo-name em { color: var(--pulse); font-style: normal; }
+  .logo-cpd {
+    display: block;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 5px;
+    color: var(--muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+
+  /* Tagline */
+  .left-tagline {
+    margin-top: 56px;
+    flex: 1;
+  }
+  .left-tagline h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 32px;
+    font-weight: 400;
+    color: #fff;
+    line-height: 1.25;
+    max-width: 320px;
+    margin-bottom: 16px;
+  }
+  .left-tagline h2 em {
+    color: var(--pulse);
+    font-style: normal;
+  }
+  .left-tagline p {
+    font-size: 14px;
+    color: rgba(255,255,255,0.45);
+    line-height: 1.7;
+    max-width: 300px;
+  }
+
+  /* Council list */
+  .councils {
+    margin-top: 48px;
+  }
+  .councils-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+    margin-bottom: 14px;
+  }
+  .council-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .council-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    padding: 9px 14px;
+    border-radius: 8px;
+    border: 0.5px solid rgba(77,203,160,0.15);
+    background: rgba(77,203,160,0.04);
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .council-item:hover {
+    background: rgba(77,203,160,0.08);
+    border-color: rgba(77,203,160,0.25);
+    color: rgba(255,255,255,0.8);
+  }
+  .c-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--teal);
+    flex-shrink: 0;
+  }
+
+  /* Footer */
+  .left-foot {
+    margin-top: 40px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.18);
+  }
+
+  /* ── RIGHT PANEL ── */
+  .right {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 40px;
+    background: var(--bg);
+  }
+
+  .form-box {
+    width: 100%;
+    max-width: 440px;
+  }
+
+  /* Portal tabs */
+  .portal-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    background: var(--tint);
+    border-radius: 10px;
+    padding: 4px;
+    gap: 3px;
+    margin-bottom: 36px;
+    border: 0.5px solid var(--tint2);
+  }
+  .ptab {
+    padding: 8px 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--sub);
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    font-family: 'DM Sans', sans-serif;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .ptab:hover { background: rgba(29,158,117,0.1); color: var(--deep); }
+  .ptab.active { background: var(--teal); color: #fff; }
+
+  /* Form header */
+  .fhead { margin-bottom: 28px; }
+  .fhead h3 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px;
+    font-weight: 400;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .fhead p { font-size: 13px; color: var(--sub); line-height: 1.5; }
+
+  /* Fields */
+  .field { margin-bottom: 18px; }
+  .flabel {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--sub);
+    margin-bottom: 7px;
+    letter-spacing: 0.01em;
+  }
+  .finput, .fselect {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    appearance: none;
+  }
+  .finput:focus, .fselect:focus {
+    border-color: var(--teal);
+    box-shadow: 0 0 0 3px rgba(29,158,117,0.12);
+  }
+  .finput::placeholder { color: #9DB8B0; }
+  .fselect {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231D9E75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    cursor: pointer;
+  }
+  .frow2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Forgot */
+  .forgot-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -10px;
+    margin-bottom: 20px;
+  }
+  .forgot-link {
+    font-size: 12px;
+    color: var(--teal);
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .forgot-link:hover { text-decoration: underline; }
+
+  /* Primary button */
+  .btn-primary {
+    width: 100%;
+    padding: 13px;
+    border-radius: 9px;
+    border: none;
+    background: var(--teal);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    letter-spacing: 0.1px;
+    transition: background 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-primary:hover { background: var(--deep); }
+  .btn-primary:active { transform: scale(0.99); }
+  .btn-admin { background: var(--dark); }
+  .btn-admin:hover { background: var(--darker); }
+
+  /* Divider */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .divline { flex: 1; height: 1px; background: var(--border); }
+
+  /* WhatsApp row */
+  .wa-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .wa-row:hover { border-color: #25D366; background: #F0FFF6; }
+  .wa-text { font-size: 13px; color: var(--sub); }
+  .wa-text strong { color: var(--text); font-weight: 600; }
+
+  /* Register prompt */
+  .reg-prompt {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--sub);
+  }
+  .reg-prompt a { color: var(--teal); font-weight: 600; text-decoration: none; cursor: pointer; }
+  .reg-prompt a:hover { text-decoration: underline; }
+
+  /* Security notice */
+  .security-notice {
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-radius: 9px;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-br);
+  }
+  .security-notice p {
+    font-size: 12px;
+    color: var(--warn-tx);
+    line-height: 1.6;
+  }
+
+  /* 2FA input */
+  .otp-input {
+    letter-spacing: 8px;
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* Version */
+  .ver {
+    text-align: center;
+    font-size: 11px;
+    color: #9DB8B0;
+    margin-top: 28px;
+  }
+
+  /* Animations */
+  @keyframes fadein {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .form-panel { animation: fadein 0.2s ease; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    .left { display: none; }
+    .right { padding: 32px 20px; min-height: 100vh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ═══════════════════════════════════════════
+       LEFT PANEL
+  ═══════════════════════════════════════════ -->
+  <div class="left">
+    <div class="ring ring-1"></div>
+    <div class="ring ring-2"></div>
+    <div class="ring ring-3"></div>
+    <div class="ring ring-4"></div>
+    <div class="ring ring-5"></div>
+
+    <!-- Logo -->
+    <a class="logo" href="#">
+      <svg class="logo-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="18" y="4"  width="12" height="40" rx="4" fill="#1D9E75"/>
+        <rect x="4"  y="18" width="40" height="12" rx="4" fill="#1D9E75"/>
+        <polyline points="2,24 9,24 13,11 20,37 26,16 33,24 46,24"
+                  fill="none" stroke="#4ECBA0" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="logo-words">
+        <span class="logo-name">Zim<em>Health</em></span>
+        <span class="logo-cpd">CPD</span>
+      </div>
+    </a>
+
+    <!-- Tagline -->
+    <div class="left-tagline">
+      <h2>Professional development for Zimbabwe's <em>health workforce</em></h2>
+      <p>Earn CPD points, renew your licence, and grow your clinical skills — online, offline, and via WhatsApp.</p>
+    </div>
+
+    <!-- Council list -->
+    <div class="councils">
+      <div class="councils-label">Supported regulatory councils</div>
+      <div class="council-list">
+        <div class="council-item"><div class="c-dot"></div>Nurses Council of Zimbabwe</div>
+        <div class="council-item"><div class="c-dot"></div>Medical &amp; Dental Practitioners Council</div>
+        <div class="council-item"><div class="c-dot"></div>Pharmacists Council of Zimbabwe</div>
+        <div class="council-item"><div class="c-dot"></div>Allied Health Practitioners Council</div>
+        <div class="council-item"><div class="c-dot"></div>Medical Laboratory &amp; Clinical Scientists Council</div>
+        <div class="council-item"><div class="c-dot"></div>Environmental Health Practitioners Council</div>
+      </div>
+    </div>
+
+    <div class="left-foot">© 2026 ZimHealth CPD &nbsp;·&nbsp; zimhealthcpd.co.zw</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       RIGHT PANEL
+  ═══════════════════════════════════════════ -->
+  <div class="right">
+    <div class="form-box">
+
+      <!-- Portal selector -->
+      <div class="portal-tabs">
+        <button class="ptab active" onclick="showPortal('learner', this)">Learner</button>
+        <button class="ptab" onclick="showPortal('creator', this)">Creator</button>
+        <button class="ptab" onclick="showPortal('council', this)">Council</button>
+        <button class="ptab" onclick="showPortal('admin', this)">Admin</button>
+      </div>
+
+      <!-- ── LEARNER FORM ── -->
+      <div id="p-learner" class="form-panel">
+        <div class="fhead">
+          <h3>Welcome back</h3>
+          <p>Sign in with your council registration number</p>
+        </div>
+
+        <div class="field">
+          <label class="flabel">Council registration number</label>
+          <input class="finput" type="text" placeholder="e.g. NCZ-2024-00123">
+        </div>
+        <div class="field">
+          <label class="flabel">Password</label>
+          <input class="finput" type="password" placeholder="Enter your password">
+        </div>
+        <div class="forgot-row"><a class="forgot-link">Forgot password?</a></div>
+
+        <button class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Sign in to Learner Portal
+        </button>
+
+        <div class="divider"><div class="divline"></div>or<div class="divline"></div></div>
+
+        <div class="wa-row">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.953 9.953 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#25D366"/>
+            <path d="M8.5 9.5c.2.7.8 2 2 3.2 1.2 1.2 2.5 1.8 3.2 2l.8-1c.2-.3.6-.4.9-.2l2 1c.3.2.4.6.2.9l-.7 1.2c-.3.4-.8.6-1.3.5C13 16.7 9.3 14.7 7.3 12c-.9-1.2-1.4-2.8-1.3-3.4.1-.5.3-1 .7-1.3l1.2-.7c.3-.2.7 0 .9.3l1 2c.1.3 0 .7-.3.9l-.8.7z" fill="white"/>
+          </svg>
+          <div class="wa-text"><strong>Continue via WhatsApp</strong> — no app download needed</div>
+        </div>
+
+        <div class="reg-prompt">New to ZimHealth CPD? <a>Create a free account</a></div>
+      </div>
+
+      <!-- ── CREATOR FORM ── -->
+      <div id="p-creator" class="form-panel" style="display:none;">
+        <div class="fhead">
+          <h3>Creator portal</h3>
+          <p>Build and manage CPD courses for Zimbabwe's health workforce</p>
+        </div>
+
+        <div class="field">
+          <label class="flabel">Email address</label>
+          <input class="finput" type="email" placeholder="you@institution.co.zw">
+        </div>
+        <div class="field">
+          <label class="flabel">Password</label>
+          <input class="finput" type="password" placeholder="Enter your password">
+        </div>
+        <div class="forgot-row"><a class="forgot-link">Forgot password?</a></div>
+
+        <button class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Sign in to Creator Portal
+        </button>
+
+        <div class="reg-prompt" style="margin-top:20px;">
+          Want to become a course creator? <a>Apply for access</a>
+        </div>
+      </div>
+
+      <!-- ── COUNCIL FORM ── -->
+      <div id="p-council" class="form-panel" style="display:none;">
+        <div class="fhead">
+          <h3>Council portal</h3>
+          <p>Access CPD compliance data for your registered professionals</p>
+        </div>
+
+        <div class="field">
+          <label class="flabel">Your regulatory council</label>
+          <select class="fselect">
+            <option value="" disabled selected>Select your council</option>
+            <option>Nurses Council of Zimbabwe</option>
+            <option>Medical &amp; Dental Practitioners Council</option>
+            <option>Pharmacists Council of Zimbabwe</option>
+            <option>Allied Health Practitioners Council</option>
+            <option>Medical Laboratory &amp; Clinical Scientists Council</option>
+            <option>Environmental Health Practitioners Council</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="flabel">Council officer email</label>
+          <input class="finput" type="email" placeholder="officer@council.co.zw">
+        </div>
+        <div class="field">
+          <label class="flabel">Password</label>
+          <input class="finput" type="password" placeholder="Enter your password">
+        </div>
+
+        <button class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Access Council Dashboard
+        </button>
+
+        <div class="reg-prompt" style="margin-top:20px;">
+          Need council access? <a>Contact ZimHealth CPD administration</a>
+        </div>
+      </div>
+
+      <!-- ── ADMIN FORM ── -->
+      <div id="p-admin" class="form-panel" style="display:none;">
+        <div class="fhead">
+          <h3>System administration</h3>
+          <p>Restricted access — authorised personnel only</p>
+        </div>
+
+        <div class="field">
+          <label class="flabel">Administrator email</label>
+          <input class="finput" type="email" placeholder="admin@zimhealthcpd.co.zw">
+        </div>
+        <div class="field">
+          <label class="flabel">Password</label>
+          <input class="finput" type="password" placeholder="Enter your password">
+        </div>
+        <div class="field">
+          <label class="flabel">Two-factor authentication code</label>
+          <input class="finput otp-input" type="text" maxlength="6" placeholder="— — — — — —">
+        </div>
+
+        <button class="btn-primary btn-admin">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L3 7l9 5 9-5-9-5zM3 17l9 5 9-5M3 12l9 5 9-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Secure sign in
+        </button>
+
+        <div class="security-notice">
+          <p>All admin sessions are fully logged and audited. Unauthorised access attempts are recorded and reported to the system owner.</p>
+        </div>
+      </div>
+
+      <div class="ver">ZimHealth CPD v1.0 &nbsp;·&nbsp; Harare, Zimbabwe</div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  function showPortal(id, btn) {
+    ['learner','creator','council','admin'].forEach(p => {
+      document.getElementById('p-' + p).style.display = p === id ? 'block' : 'none';
+    });
+    document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+  }
+</script>
+</body>
+</html>

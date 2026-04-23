@@ -64,7 +64,12 @@ router.get('/recommendations', requireAuth, requireRole('LEARNER'), async (req: 
       isProfileBased: recs.isProfileBased,
       premiumWebAccess: ent.premiumWebAccess,
     });
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[Recommendations] Error:', message);
+    if (message === 'Learner not found') {
+      return res.status(401).json({ error: 'Session invalid' });
+    }
     return res.status(500).json({ error: 'Could not fetch recommendations' });
   }
 });
@@ -74,7 +79,12 @@ router.post('/recommendations/refresh', requireAuth, requireRole('LEARNER'), asy
   try {
     await invalidateRecommendations(req.user!.id);
     return res.json({ ok: true });
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[Recommendations] Refresh error:', message);
+    if (message === 'Learner not found') {
+      return res.status(401).json({ error: 'Session invalid' });
+    }
     return res.status(500).json({ error: 'Could not refresh' });
   }
 });

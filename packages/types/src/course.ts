@@ -47,7 +47,10 @@ export interface Course {
   thumbnailUrl?: string;
   promoVideoUrl?: string;
   category: CPDCategory;
+  isPublicToAll: boolean;
   targetCadres: string[];
+  targetCouncilIds: string[];
+  targetTitles: string[];
   specialtyArea?: string;
   difficulty: Difficulty;
   language: Language;

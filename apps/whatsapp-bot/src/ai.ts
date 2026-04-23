@@ -1,4 +1,4 @@
-import { AIClient, type AIProviderConfig, type AIProvider } from '@nursepro/ai-client';
+import { AIClient, type AIProviderConfig, type AIProvider } from '@zimhealth/ai-client';
 
 function buildConfig(): AIProviderConfig {
   const config: AIProviderConfig = {};

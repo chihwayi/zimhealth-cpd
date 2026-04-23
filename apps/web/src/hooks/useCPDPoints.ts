@@ -7,6 +7,8 @@ interface CPDSummary {
   percentComplete: number;
   cycleYear: number;
   recordCount: number;
+  renewalMonth?: number;
+  renewalDay?: number;
 }
 
 export function useCPDPoints(year?: number) {

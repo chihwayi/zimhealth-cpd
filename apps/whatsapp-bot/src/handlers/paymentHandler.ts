@@ -1,8 +1,8 @@
 import type { IncomingMessage } from '../botRouter';
 import type { BotSession } from '../sessionManager';
-import { sendMessage } from '../twilio';
+import { sendMessage } from '../whatsapp/transport';
 
-const WEB_URL = process.env.WEB_URL ?? 'https://nursepro.co.zw';
+const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const BOT_SECRET = process.env.BOT_SECRET ?? '';
 
@@ -17,7 +17,7 @@ export async function handlePayment(msg: IncomingMessage, _session: BotSession):
 
   await sendMessage(
     msg.from,
-    `*NursePro CPD Plans*\n\n` +
+    `*ZimHealth CPD Plans*\n\n` +
       `🆓 *Free* — WhatsApp only, up to 12 pts/year\n` +
       `⭐ *Standard* — $5/year, unlock web library + certificates + AI Tutor\n` +
       `🌍 *Diaspora* — $15/year, full library\n\n` +
@@ -25,4 +25,3 @@ export async function handlePayment(msg: IncomingMessage, _session: BotSession):
       `Type *menu* anytime to go back.`,
   );
 }
-

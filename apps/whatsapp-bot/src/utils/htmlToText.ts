@@ -70,5 +70,5 @@ export function truncateForWhatsApp(text: string, maxChars = 1600): string {
   if (text.length <= maxChars) return text;
   const cutoff = text.lastIndexOf('.', maxChars - 80);
   const at = cutoff > maxChars / 2 ? cutoff + 1 : maxChars - 80;
-  return text.slice(0, at).trim() + '\n\n_…continued on NursePro web app_';
+  return text.slice(0, at).trim() + '\n\n_…continued on ZimHealth web app_';
 }

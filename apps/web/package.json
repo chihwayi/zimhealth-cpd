@@ -1,5 +1,5 @@
 {
-  "name": "@nursepro/web",
+  "name": "@zimhealth/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -14,7 +14,7 @@
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
     "@sentry/react": "^8.33.0",
-    "@nursepro/types": "workspace:*",
+    "@zimhealth/types": "workspace:*",
     "@tanstack/react-query": "^5.50.0",
     "@tiptap/react": "^2.5.0",
     "@tiptap/starter-kit": "^2.5.0",

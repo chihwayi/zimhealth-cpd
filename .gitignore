@@ -42,3 +42,6 @@ backend/src/db/migrations/**/migration_lock.toml
 apps/mobile/.expo/
 apps/mobile/android/
 apps/mobile/ios/
+
+# Server
+server

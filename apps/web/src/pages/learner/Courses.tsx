@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react';
+import { LayoutGrid, List, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { CourseCard } from '../../components/course/CourseCard';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -48,20 +48,11 @@ function sortCourses(courses: CourseSummary[], sort: SortOption): CourseSummary[
   });
 }
 
-const CADRE_LABELS: Record<string, string> = {
-  NURSE: 'Nurse',
-  MIDWIFE: 'Midwife',
-  PHARMACIST: 'Pharmacist',
-  CLINICAL_OFFICER: 'Clinical Officer',
-  LAB_TECH: 'Lab Tech',
-};
-
 export default function CoursesPage() {
   const user = useAuthStore((state) => state.user);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [difficulty, setDifficulty] = useState('');
-  const [cadre, setCadre] = useState('');
   const [page, setPage] = useState(1);
   const [view, setView] = useState<ViewMode>('grid');
   const [sort, setSort] = useState<SortOption>('newest');
@@ -71,11 +62,10 @@ export default function CoursesPage() {
     if (search) params.set('search', search);
     if (category) params.set('category', category);
     if (difficulty) params.set('difficulty', difficulty);
-    if (cadre) params.set('cadre', cadre);
     params.set('page', String(page));
     params.set('limit', '12');
     return params.toString();
-  }, [search, category, difficulty, cadre, page]);
+  }, [search, category, difficulty, page]);
 
   const { data, isLoading, error } = useQuery<CoursesResponse>({
     queryKey: ['courses', queryString],
@@ -91,13 +81,12 @@ export default function CoursesPage() {
     [data?.courses, sort, user?.role, user?.subscriptionTier],
   );
 
-  const activeFiltersCount = [search, category, difficulty, cadre].filter(Boolean).length;
+  const activeFiltersCount = [search, category, difficulty].filter(Boolean).length;
 
   function clearFilters() {
     setSearch('');
     setCategory('');
     setDifficulty('');
-    setCadre('');
     setPage(1);
   }
 
@@ -109,7 +98,7 @@ export default function CoursesPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
               <SlidersHorizontal size={15} />
-              Filters
+              Refine eligible courses
             </div>
             {activeFiltersCount > 0 && (
               <button
@@ -170,26 +159,14 @@ export default function CoursesPage() {
             </select>
           </div>
 
-          <div>
-            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
-              Cadre
-            </label>
-            <div className="mt-2 space-y-1.5">
-              {Object.entries(CADRE_LABELS).map(([value, label]) => (
-                <button
-                  key={value}
-                  onClick={() => { setPage(1); setCadre(cadre === value ? '' : value); }}
-                  className={clsx(
-                    'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
-                    cadre === value
-                      ? 'bg-primary-100 text-primary-700 font-medium'
-                      : 'text-slate-600 hover:bg-slate-50',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <div className="flex items-center gap-2 text-sm font-bold text-emerald-900">
+              <ShieldCheck size={15} />
+              Matched to your profile
             </div>
+            <p className="mt-1 text-xs leading-5 text-emerald-800">
+              Showing courses allowed for {user?.professionalTitle ?? 'your professional title'} under your council.
+            </p>
           </div>
         </aside>
 
@@ -198,7 +175,7 @@ export default function CoursesPage() {
           {/* Toolbar */}
           <div className="flex items-center justify-between mb-5 gap-4">
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Browse Courses</h1>
+              <h1 className="text-xl font-bold text-slate-900">Your Eligible Courses</h1>
               <p className="text-sm text-slate-500 mt-0.5">
                 {isLoading ? 'Loading…' : data ? `${data.total} course${data.total === 1 ? '' : 's'} found` : ''}
               </p>
@@ -270,14 +247,6 @@ export default function CoursesPage() {
                   </button>
                 </span>
               )}
-              {cadre && (
-                <span className="flex items-center gap-1.5 bg-primary-50 text-primary-700 text-xs font-medium px-3 py-1 rounded-full">
-                  {CADRE_LABELS[cadre] ?? cadre}
-                  <button onClick={() => { setCadre(''); setPage(1); }} aria-label="Remove cadre filter">
-                    <X size={11} />
-                  </button>
-                </span>
-              )}
             </div>
           )}
 
@@ -293,7 +262,7 @@ export default function CoursesPage() {
             <EmptyState
               icon={<BookOpen size={28} />}
               title="No courses found"
-              description="Try adjusting your filters or search term."
+              description="No eligible courses match your search. Clear filters, or ask your council/admin to publish content for your title."
               action={
                 <button onClick={clearFilters} className="text-sm text-primary-600 hover:underline">
                   Clear all filters

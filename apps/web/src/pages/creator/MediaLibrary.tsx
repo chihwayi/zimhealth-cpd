@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../../store/auth.store';
 import { api } from '../../lib/api';
-import { UploadCloud, FileImage, FileVideo, FileText, Trash2, RefreshCw } from 'lucide-react';
+import { UploadCloud, FileImage, FileVideo, FileText, Trash2, RefreshCw, AlertCircle, RotateCcw } from 'lucide-react';
 import { toast } from '../../components/ui/Toast';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 type Asset = {
   id: string;
@@ -12,8 +13,15 @@ type Asset = {
   cdnUrl: string;
   s3Key: string;
   isProcessed: boolean;
+  status: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
   width?: number | null;
   height?: number | null;
+  durationSecs?: number | null;
+  processedCdnUrl?: string | null;
+  thumbnailCdnUrl?: string | null;
+  processingError?: string | null;
+  processedAt?: string | null;
+  processingAttempts?: number;
   createdAt: string;
 };
 
@@ -37,9 +45,27 @@ function kindFromMime(mime: string) {
   return 'file';
 }
 
+function formatDuration(value?: number | null) {
+  if (!value || value <= 0) return '–';
+  const minutes = Math.floor(value / 60);
+  const seconds = value % 60;
+  if (minutes === 0) return `${seconds}s`;
+  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+}
+
+function statusClasses(status: Asset['status']) {
+  if (status === 'PROCESSED') return 'bg-emerald-50 text-emerald-700';
+  if (status === 'FAILED') return 'bg-red-50 text-red-700';
+  if (status === 'PROCESSING') return 'bg-amber-50 text-amber-700';
+  return 'bg-slate-100 text-slate-700';
+}
+
+function statusLabel(status: Asset['status']) {
+  return status.toLowerCase().replace('_', ' ');
+}
+
 export default function MediaLibrary() {
   const token = useAuthStore((s) => s.accessToken);
-  const user = useAuthStore((s) => s.user);
   const baseUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000') as string;
 
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -49,6 +75,7 @@ export default function MediaLibrary() {
   const [file, setFile] = useState<File | null>(null);
   const [type, setType] = useState<'image' | 'video' | 'document'>('image');
   const [folder, setFolder] = useState<'thumbnails' | 'banners' | 'profiles'>('thumbnails');
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   async function loadAssets() {
     setLoading(true);
@@ -65,6 +92,17 @@ export default function MediaLibrary() {
   useEffect(() => {
     void loadAssets();
   }, []);
+
+  useEffect(() => {
+    const hasPendingAssets = assets.some((asset) => asset.status === 'UPLOADED' || asset.status === 'PROCESSING');
+    if (!hasPendingAssets) return;
+
+    const interval = window.setInterval(() => {
+      void loadAssets();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [assets]);
 
   const filtered = useMemo(() => {
     if (filter === 'ALL') return assets;
@@ -111,13 +149,26 @@ export default function MediaLibrary() {
     }
   }
 
+  async function retryAsset(id: string) {
+    setRetryingId(id);
+    try {
+      await api.post(`/api/media/assets/${id}/retry`);
+      toast.success('Retry queued.');
+      await loadAssets();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not retry media processing.');
+    } finally {
+      setRetryingId(null);
+    }
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Media Library</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Upload and manage assets for course sections. {user?.role === 'ADMIN' ? 'Admin can view all via API scope.' : null}
+            Upload and manage assets for course sections. Videos remain in processing until the worker finishes and a ready asset is generated.
           </p>
         </div>
         <button
@@ -215,48 +266,88 @@ export default function MediaLibrary() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-10 text-center text-sm text-slate-500">No assets yet.</div>
+          <div className="p-6">
+            <EmptyState
+              icon={<UploadCloud size={28} />}
+              title="No assets yet"
+              description="Upload images, videos, PDFs, or audio to start building course content."
+            />
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {filtered.map((a) => {
               const kind = kindFromMime(a.mimeType);
               const Icon = kind === 'image' ? FileImage : kind === 'video' ? FileVideo : FileText;
               return (
-                <div key={a.id} className="px-5 py-4 flex items-start gap-3">
-                  <div className="mt-0.5 text-slate-500">
-                    <Icon size={18} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <div className="font-medium text-slate-900 truncate max-w-[32rem]">{a.fileName}</div>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                          a.isProcessed ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                        }`}
-                      >
-                        {a.isProcessed ? 'ready' : 'processing'}
-                      </span>
-                      <span className="text-[11px] text-slate-500">{formatBytes(a.sizeBytes)}</span>
-                      {a.width && a.height ? (
-                        <span className="text-[11px] text-slate-500">
-                          {a.width}×{a.height}
+                <div key={a.id} className="px-5 py-4 flex flex-col gap-3 md:flex-row md:items-start">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="mt-0.5 text-slate-500">
+                      <Icon size={18} />
+                    </div>
+                    {a.thumbnailCdnUrl ? (
+                      <img
+                        src={a.thumbnailCdnUrl}
+                        alt=""
+                        className="h-16 w-28 rounded-xl border border-slate-200 object-cover bg-slate-100"
+                      />
+                    ) : null}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <div className="font-medium text-slate-900 truncate max-w-[32rem]">{a.fileName}</div>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClasses(a.status)}`}>
+                          {statusLabel(a.status)}
                         </span>
+                        <span className="text-[11px] text-slate-500">{formatBytes(a.sizeBytes)}</span>
+                        {a.width && a.height ? (
+                          <span className="text-[11px] text-slate-500">
+                            {a.width}×{a.height}
+                          </span>
+                        ) : null}
+                        {a.durationSecs ? <span className="text-[11px] text-slate-500">{formatDuration(a.durationSecs)}</span> : null}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1 truncate">
+                        <a className="hover:underline" href={a.processedCdnUrl ?? a.cdnUrl} target="_blank" rel="noreferrer">
+                          {a.processedCdnUrl ?? a.cdnUrl}
+                        </a>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                        <span>Uploaded {new Date(a.createdAt).toLocaleString()}</span>
+                        {a.processedAt ? <span>Ready {new Date(a.processedAt).toLocaleString()}</span> : null}
+                        {typeof a.processingAttempts === 'number' && a.processingAttempts > 0 ? (
+                          <span>{a.processingAttempts} attempt{a.processingAttempts === 1 ? '' : 's'}</span>
+                        ) : null}
+                      </div>
+                      {a.status === 'FAILED' && a.processingError ? (
+                        <div role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                            <div>{a.processingError}</div>
+                          </div>
+                        </div>
                       ) : null}
                     </div>
-                    <div className="text-xs text-slate-500 mt-1 truncate">
-                      <a className="hover:underline" href={a.cdnUrl} target="_blank" rel="noreferrer">
-                        {a.cdnUrl}
-                      </a>
-                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeAsset(a.id)}
-                    className="inline-flex items-center justify-center rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-700"
-                    aria-label="Delete asset"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex items-center gap-2 md:ml-4">
+                    {a.status === 'FAILED' && kind === 'video' ? (
+                      <button
+                        type="button"
+                        onClick={() => retryAsset(a.id)}
+                        disabled={retryingId === a.id}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        <RotateCcw size={14} />
+                        {retryingId === a.id ? 'Retrying…' : 'Retry'}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => removeAsset(a.id)}
+                      className="inline-flex items-center justify-center rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-700"
+                      aria-label="Delete asset"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -266,4 +357,3 @@ export default function MediaLibrary() {
     </div>
   );
 }
-

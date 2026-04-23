@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'NursePro CPD',
-        short_name: 'NursePro',
+        name: 'ZimHealth CPD',
+        short_name: 'ZimHealth',
         description: 'Continuing Professional Development for Zimbabwe Healthcare Professionals',
         theme_color: '#14b8a6',
         background_color: '#f8fafc',
@@ -28,7 +28,7 @@ export default defineConfig({
         runtimeCaching: [
           {
             // Production API
-            urlPattern: /^https:\/\/api\.nursepro\.co\.zw\/.*/i,
+            urlPattern: /^https:\/\/api\.zimhealthcpd\.co\.zw\/.*/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
@@ -59,4 +59,3 @@ export default defineConfig({
   },
   server: { port: 3000 },
 });
-

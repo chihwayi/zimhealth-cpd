@@ -12,7 +12,7 @@ export function useOnlineStatus() {
       );
       if (synced > 0) {
         // Dispatch a custom event so components can react (e.g. invalidate TanStack queries)
-        window.dispatchEvent(new CustomEvent('nursepro:progress-synced', { detail: { count: synced } }));
+        window.dispatchEvent(new CustomEvent('zimhealth:progress-synced', { detail: { count: synced } }));
       }
 
       const quizSynced = await syncPendingQuizAttempts((entry) =>
@@ -22,7 +22,7 @@ export function useOnlineStatus() {
         }),
       );
       if (quizSynced > 0) {
-        window.dispatchEvent(new CustomEvent('nursepro:quiz-attempts-synced', { detail: { count: quizSynced } }));
+        window.dispatchEvent(new CustomEvent('zimhealth:quiz-attempts-synced', { detail: { count: quizSynced } }));
       }
     } catch {
       // Silent — will retry on next reconnect

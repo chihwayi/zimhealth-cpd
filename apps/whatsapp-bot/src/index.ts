@@ -10,7 +10,7 @@ app.use(express.json());
 app.use('/webhook', webhookRouter);
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'nursepro-whatsapp-bot' });
+  res.json({ status: 'ok', service: 'zimhealth-whatsapp-bot' });
 });
 
 app.listen(PORT, () => {

@@ -1,6 +1,6 @@
 import type { IncomingMessage } from '../botRouter';
 import type { BotSession } from '../sessionManager';
-import { sendMessage } from '../twilio';
+import { sendMessage } from '../whatsapp/transport';
 import { TEMPLATES } from '../templates';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';

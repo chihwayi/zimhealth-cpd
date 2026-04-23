@@ -10,7 +10,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://nursepro:nursepro_dev@localhost:5432/nursepro
+      DATABASE_URL: postgresql://zimhealth:zimhealth_dev@localhost:5432/zimhealth
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-test-secret-do-not-use-in-prod
       JWT_EXPIRES_IN: 7d
@@ -18,9 +18,9 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_USER: nursepro
-          POSTGRES_PASSWORD: nursepro_dev
-          POSTGRES_DB: nursepro
+          POSTGRES_USER: zimhealth
+          POSTGRES_PASSWORD: zimhealth_dev
+          POSTGRES_DB: zimhealth
         ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
@@ -38,8 +38,7 @@ jobs:
         with: { node-version: '20', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
       # Avoid `pnpm -C` portability issues in CI runners; use workspace filter instead.
-      - run: pnpm --filter @nursepro/backend exec prisma generate
+      - run: pnpm --filter @zimhealth/backend exec prisma generate
       - run: pnpm type-check
       - run: pnpm lint
       - run: pnpm test
-

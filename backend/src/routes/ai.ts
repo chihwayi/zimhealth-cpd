@@ -3,8 +3,11 @@ import type { Router as ExpressRouter } from 'express';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
 import type { AuthRequest } from '../middleware/auth.middleware';
+import { upload } from '../middleware/upload.middleware';
 import { generateCourseFromGuideline } from '../services/ai-content-gen';
+import { resolveGuidelineText } from '../services/guideline-ingestion';
 import { db } from '../lib/db';
+import { getAIProvider } from '../lib/redis';
 
 const router: ExpressRouter = Router();
 
@@ -16,54 +19,46 @@ router.post(
   '/ingest-guideline',
   requireAuth,
   requireRole('CONTENT_MANAGER', 'ADMIN'),
+  upload.single('file'),
   async (req: AuthRequest, res) => {
     const {
       text,
       url,
+      sourceName,
       courseTitle,
       targetCadre = 'Registered General Nurse',
       category = 'CLINICAL',
     } = req.body as {
       text?: string;
       url?: string;
+      sourceName?: string;
       courseTitle?: string;
       targetCadre?: string;
       category?: string;
     };
 
     // ── Resolve source text ──────────────────────────────────────────────────
-    let guidelineText = text?.trim() ?? '';
+    let guidelineText = '';
+    let sourceType: 'TEXT' | 'HTML' | 'PLAINTEXT' | 'PDF' = 'TEXT';
+    let sourceLabel = 'Pasted text';
+    let extractedCharacters = 0;
+    let warnings: string[] = [];
 
-    if (!guidelineText && url) {
-      try {
-        const fetched = await fetch(url, {
-          headers: { 'User-Agent': 'NursePro-CPD-Bot/1.0' },
-          signal: AbortSignal.timeout(15_000),
-        });
-        if (!fetched.ok) throw new Error(`HTTP ${fetched.status}`);
-
-        const contentType = fetched.headers.get('content-type') ?? '';
-        if (contentType.includes('text/html')) {
-          const html = await fetched.text();
-          // Strip tags to extract readable text — keep paragraphs and headings
-          guidelineText = html
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/&nbsp;/gi, ' ')
-            .replace(/&amp;/gi, '&')
-            .replace(/&lt;/gi, '<')
-            .replace(/&gt;/gi, '>')
-            .replace(/\s{2,}/g, ' ')
-            .trim();
-        } else if (contentType.includes('text/')) {
-          guidelineText = await fetched.text();
-        } else {
-          return res.status(400).json({ error: 'URL must return HTML or plain text. PDFs are not yet supported.' });
-        }
-      } catch (err: any) {
-        return res.status(400).json({ error: `Could not fetch URL: ${err?.message ?? 'unknown error'}` });
-      }
+    try {
+      const resolved = await resolveGuidelineText({
+        text,
+        url,
+        fileBuffer: req.file?.buffer,
+        fileName: req.file?.originalname,
+        mimeType: req.file?.mimetype,
+      });
+      guidelineText = resolved.guidelineText;
+      sourceType = resolved.sourceType;
+      sourceLabel = resolved.sourceLabel;
+      extractedCharacters = resolved.extractedCharacters;
+      warnings = resolved.warnings;
+    } catch (err: any) {
+      return res.status(400).json({ error: err?.message ?? 'Could not resolve guideline source' });
     }
 
     if (guidelineText.length < 100) {
@@ -76,6 +71,7 @@ router.post(
 
     // ── Generate course content from AI ──────────────────────────────────────
     try {
+      const provider = await getAIProvider().catch(() => null);
       const generated = await generateCourseFromGuideline(
         guidelineText,
         courseTitle.trim(),
@@ -96,6 +92,9 @@ router.post(
             estimatedMinutes: generated.estimatedMinutes,
             status: 'DRAFT',
             creatorId: req.user!.id,
+            aiSourceName: sourceName?.trim() ? sourceName.trim().slice(0, 200) : sourceLabel.slice(0, 200),
+            aiGeneratedAt: new Date(),
+            aiGeneratedProvider: provider ?? 'auto',
           },
         });
 
@@ -141,11 +140,32 @@ router.post(
         return course;
       });
 
+      await db.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'ADMIN_AI_INGESTED_GUIDELINE',
+          entityType: 'Course',
+          entityId: result.id,
+          meta: {
+            courseTitle: result.title,
+            sourceType,
+            sourceLabel: sourceName?.trim() ? sourceName.trim().slice(0, 200) : sourceLabel,
+            extractedCharacters,
+            warnings,
+            provider: provider ?? 'auto',
+          },
+        },
+      });
+
       res.status(201).json({
         courseId: result.id,
         title: result.title,
         status: 'DRAFT',
         moduleCount: generated.modules.length,
+        sourceType,
+        sourceLabel,
+        extractedCharacters,
+        warnings,
         message: `Course draft created with ${generated.modules.length} module(s). Review and publish when ready.`,
       });
     } catch (err: any) {

@@ -1,6 +1,6 @@
 import { getSession, saveSession } from './sessionManager';
 import type { BotSession } from './sessionManager';
-import { sendMessage } from './twilio';
+import { sendMessage } from './whatsapp/transport';
 import { TEMPLATES } from './templates';
 import { handleMenu } from './handlers/menuHandler';
 import { handleLearn } from './handlers/learnHandler';
@@ -53,7 +53,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<void> {
   }
 
   if (text === 'stop') {
-    await sendMessage(msg.from, "You've paused NursePro notifications. Reply *START* to resume.");
+    await sendMessage(msg.from, "You've paused ZimHealth notifications. Reply *START* to resume.");
     return;
   }
 
@@ -63,7 +63,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<void> {
   }
 
   if (text === 'cert') {
-    const webUrl = process.env.WEB_URL ?? 'https://nursepro.co.zw';
+    const webUrl = process.env.WEB_URL ?? 'http://localhost:3000';
     await sendMessage(msg.from, `Visit ${webUrl}/certificates to download your certificate.`);
     return;
   }
@@ -85,7 +85,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<void> {
     if (session.userId) {
       await sendMessage(
         msg.from,
-        `✅ You already have a NursePro account. Reply *menu* to access your learning.`,
+        `✅ You already have a ZimHealth account. Reply *menu* to access your learning.`,
       );
       return;
     }

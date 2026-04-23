@@ -323,11 +323,11 @@ export default function CoursePlayerPage() {
       void queryClient.invalidateQueries({ queryKey: ['cpd-summary'] });
       void queryClient.invalidateQueries({ queryKey: ['cpd-records'] });
     };
-    window.addEventListener('nursepro:progress-synced', handler);
-    window.addEventListener('nursepro:quiz-attempts-synced', quizHandler);
+    window.addEventListener('zimhealth:progress-synced', handler);
+    window.addEventListener('zimhealth:quiz-attempts-synced', quizHandler);
     return () => {
-      window.removeEventListener('nursepro:progress-synced', handler);
-      window.removeEventListener('nursepro:quiz-attempts-synced', quizHandler);
+      window.removeEventListener('zimhealth:progress-synced', handler);
+      window.removeEventListener('zimhealth:quiz-attempts-synced', quizHandler);
     };
   }, [isOnline, id, queryClient]);
 

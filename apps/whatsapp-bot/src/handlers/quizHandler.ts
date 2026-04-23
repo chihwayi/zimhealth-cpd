@@ -1,7 +1,7 @@
 import type { IncomingMessage } from '../botRouter';
 import type { BotSession } from '../sessionManager';
 import { saveSession } from '../sessionManager';
-import { sendMessage } from '../twilio';
+import { sendMessage } from '../whatsapp/transport';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const BOT_SECRET = process.env.BOT_SECRET ?? '';

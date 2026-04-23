@@ -168,8 +168,18 @@ router.post('/override', requireAuth, requireRole('ADMIN'), async (req: AuthRequ
 });
 
 // GET /api/points/learner/:id — Admin or NCZ Officer
-router.get('/learner/:id', requireAuth, requireRole('ADMIN', 'NCZ_OFFICER'), async (req, res) => {
+router.get('/learner/:id', requireAuth, requireRole('ADMIN', 'NCZ_OFFICER'), async (req: AuthRequest, res) => {
   try {
+    if (req.user!.role === 'NCZ_OFFICER') {
+      const [officer, learner] = await Promise.all([
+        db.user.findUnique({ where: { id: req.user!.id }, select: { councilId: true } }),
+        db.user.findUnique({ where: { id: req.params.id }, select: { councilId: true } }),
+      ]);
+      if (!learner) return res.status(404).json({ error: 'Learner not found' });
+      if (!officer?.councilId || learner.councilId !== officer.councilId) {
+        return res.status(403).json({ error: 'This learner belongs to another council.' });
+      }
+    }
     const year = req.query.year ? parseInt(req.query.year as string) : undefined;
     const summary = await getLearnerCPDSummary(req.params.id, year);
     const records = await db.cPDRecord.findMany({

@@ -85,7 +85,7 @@ export async function initiateStripe(learnerId: string, tier: PaidTier, email: s
         price_data: {
           currency: 'usd',
           unit_amount: Math.round(amount * 100),
-          product_data: { name: `NursePro CPD — ${tier} (1 year)` },
+          product_data: { name: `ZimHealth CPD — ${tier} (1 year)` },
         },
       },
     ],
@@ -142,7 +142,7 @@ export async function initiatePaynow(learnerId: string, tier: PaidTier, email: s
   const reference = `np_${learnerId}_${tier}_${Date.now()}`;
 
   const payment = paynow.createPayment(reference, email);
-  payment.add(`NursePro CPD — ${tier} (1 year)`, amount);
+  payment.add(`ZimHealth CPD — ${tier} (1 year)`, amount);
 
   const response = await paynow.send(payment);
   if (!response.success) throw new Error('Paynow initiation failed');

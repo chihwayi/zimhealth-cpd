@@ -1,34 +1,45 @@
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import request from 'supertest';
 import app from '../app';
 import { db } from '../lib/db';
 import { randomUUID } from 'crypto';
 
-const TEST_EMAIL = `test+${randomUUID()}@nursepro.co.zw`;
+const TEST_EMAIL = `test+${randomUUID()}@zimhealthcpd.co.zw`;
 const TEST_PASSWORD = 'Test@1234';
+let councilId = '';
+const registrationNumber = `NCZ-TEST-${randomUUID().slice(0, 8).toUpperCase()}`;
 
 describe('Auth API', () => {
+  beforeAll(async () => {
+    const council = await db.council.findUnique({ where: { acronym: 'NCZ' }, select: { id: true } });
+    if (!council) throw new Error('NCZ council seed missing');
+    councilId = council.id;
+  });
+
   afterAll(async () => {
     await db.user.deleteMany({ where: { email: TEST_EMAIL } });
   });
 
-  it('POST /api/auth/register — creates a new user', async () => {
-    const res = await request(app).post('/api/auth/register').send({
+  function registrationPayload() {
+    return {
       email: TEST_EMAIL,
       password: TEST_PASSWORD,
       fullName: 'Test User',
-    });
+      councilId,
+      professionalTitle: 'Registered General Nurse',
+      registrationNumber,
+    };
+  }
+
+  it('POST /api/auth/register — creates a new user', async () => {
+    const res = await request(app).post('/api/auth/register').send(registrationPayload());
     expect(res.status).toBe(201);
     expect(res.body.accessToken).toBeDefined();
     expect(res.body.user.email).toBe(TEST_EMAIL);
   });
 
   it('POST /api/auth/register — duplicate email returns 409', async () => {
-    const res = await request(app).post('/api/auth/register').send({
-      email: TEST_EMAIL,
-      password: TEST_PASSWORD,
-      fullName: 'Test User',
-    });
+    const res = await request(app).post('/api/auth/register').send(registrationPayload());
     expect(res.status).toBe(409);
   });
 
@@ -66,4 +77,3 @@ describe('Auth API', () => {
     expect(meRes.status).toBe(401);
   });
 });
-

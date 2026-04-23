@@ -31,7 +31,7 @@ export default function VerifyCertificatePage() {
             <div className="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center">
               <Award size={12} className="text-white" />
             </div>
-            <span className="text-sm font-semibold text-slate-800">NursePro CPD</span>
+            <span className="text-sm font-semibold text-slate-800">ZimHealth CPD</span>
           </div>
         </div>
 
@@ -46,7 +46,7 @@ export default function VerifyCertificatePage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">Certificate Verification</h1>
-                <p className="text-xs text-slate-500 mt-0.5">Official NursePro CPD record</p>
+                <p className="text-xs text-slate-500 mt-0.5">Official ZimHealth CPD record</p>
               </div>
             </div>
 
@@ -143,9 +143,9 @@ export default function VerifyCertificatePage() {
           {/* Footer */}
           <div className="bg-slate-50 border-t border-slate-100 px-8 py-4 flex items-center justify-between">
             <Link to="/login" className="text-xs text-slate-500 hover:text-primary-600 hover:underline">
-              ← Back to NursePro
+              ← Back to ZimHealth
             </Link>
-            <span className="text-xs text-slate-400">Powered by NursePro CPD · Zimbabwe</span>
+            <span className="text-xs text-slate-400">Powered by ZimHealth CPD · Zimbabwe</span>
           </div>
         </div>
       </div>

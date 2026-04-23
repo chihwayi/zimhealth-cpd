@@ -5,7 +5,7 @@ import { callOllama } from './providers/ollama';
 import type { AIMessage, AIRequestOptions, AIResponse, AIProvider, AIProviderConfig } from './types';
 
 /**
- * Multi-provider AI client for NursePro CPD.
+ * Multi-provider AI client for ZimHealth CPD.
  *
  * Supports: Anthropic (Claude), OpenAI (GPT), Google (Gemini), Ollama (local models).
  *

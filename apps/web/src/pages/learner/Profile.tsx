@@ -1,7 +1,7 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, User, Camera } from 'lucide-react';
+import { Loader2, Save, User, Camera, Building2, BadgeCheck } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/auth.store';
 import { toast } from '../../components/ui/Toast';
@@ -12,7 +12,11 @@ type MeUser = {
   email: string;
   fullName: string;
   role: string;
-  cadre: string | null;
+  councilId: string | null;
+  council?: { id: string; name: string; acronym: string; requiredPoints: number; allowedTitles?: string[] } | null;
+  professionalTitle: string | null;
+  registrationNumber: string | null;
+  cadre: string | null; // legacy
   nczRegistrationNumber: string | null;
   institution: string | null;
   province: string | null;
@@ -25,14 +29,13 @@ type MeUser = {
   createdAt: string;
 };
 
-const CADRE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'Not specified' },
-  { value: 'NURSE', label: 'Nurse' },
-  { value: 'MIDWIFE', label: 'Midwife' },
-  { value: 'PHARMACIST', label: 'Pharmacist' },
-  { value: 'CLINICAL_OFFICER', label: 'Clinical officer' },
-  { value: 'LAB_TECH', label: 'Laboratory technician' },
-];
+type CouncilOption = {
+  id: string;
+  name: string;
+  acronym: string;
+  requiredPoints: number;
+  allowedTitles: string[];
+};
 
 function formatTier(tier: string) {
   return tier
@@ -53,8 +56,9 @@ export default function ProfilePage() {
   const [institution, setInstitution] = useState('');
   const [province, setProvince] = useState('');
   const [district, setDistrict] = useState('');
-  const [cadre, setCadre] = useState('');
-  const [nczRegistrationNumber, setNczRegistrationNumber] = useState('');
+  const [councilId, setCouncilId] = useState('');
+  const [professionalTitle, setProfessionalTitle] = useState('');
+  const [registrationNumber, setRegistrationNumber] = useState('');
   const [specialtyArea, setSpecialtyArea] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
 
@@ -63,6 +67,18 @@ export default function ProfilePage() {
     queryFn: () => api.get<MeUser>('/api/auth/me'),
   });
 
+  const councilsQuery = useQuery<{ councils: CouncilOption[] }>({
+    queryKey: ['councils'],
+    queryFn: () => api.get('/api/councils'),
+  });
+
+  const councils = councilsQuery.data?.councils ?? [];
+  const selectedCouncil = useMemo(
+    () => councils.find((c) => c.id === councilId) ?? null,
+    [councilId, councils],
+  );
+  const titles = selectedCouncil?.allowedTitles ?? [];
+
   useEffect(() => {
     if (!me) return;
     setFullName(me.fullName);
@@ -70,8 +86,9 @@ export default function ProfilePage() {
     setInstitution(me.institution ?? '');
     setProvince(me.province ?? '');
     setDistrict(me.district ?? '');
-    setCadre(me.cadre ?? '');
-    setNczRegistrationNumber(me.nczRegistrationNumber ?? '');
+    setCouncilId(me.councilId ?? '');
+    setProfessionalTitle(me.professionalTitle ?? '');
+    setRegistrationNumber(me.registrationNumber ?? '');
     setSpecialtyArea(me.specialtyArea ?? '');
   }, [me]);
 
@@ -83,8 +100,12 @@ export default function ProfilePage() {
       updateUser({
         fullName: updated.fullName,
         avatarUrl: updated.avatarUrl ?? undefined,
+        councilId: updated.councilId,
+        council: updated.council ?? undefined,
+        professionalTitle: updated.professionalTitle,
+        registrationNumber: updated.registrationNumber,
         nczRegistrationNumber: updated.nczRegistrationNumber,
-        cadre: updated.cadre,
+        cadre: updated.cadre, // legacy
         phone: updated.phone ?? undefined,
         institution: updated.institution ?? undefined,
         province: updated.province ?? undefined,
@@ -133,8 +154,9 @@ export default function ProfilePage() {
       institution: institution.trim() || null,
       province: province.trim() || null,
       district: district.trim() || null,
-      cadre: cadre || null,
-      nczRegistrationNumber: nczRegistrationNumber.trim() || null,
+      councilId: councilId || null,
+      professionalTitle: professionalTitle || null,
+      registrationNumber: registrationNumber.trim().toUpperCase() || null,
       specialtyArea: specialtyArea.trim() || null,
     });
   }
@@ -154,14 +176,97 @@ export default function ProfilePage() {
         <div className="h-48 rounded-xl bg-white border border-slate-200 animate-pulse" />
       ) : me ? (
         <form onSubmit={handleSubmit} className="space-y-8">
-          {(!me.cadre || !me.institution || !me.province) && (
+          {(!me.councilId || !me.professionalTitle || !me.registrationNumber) && (
             <div className="bg-primary-50 border border-primary-100 rounded-xl p-4">
-              <p className="text-sm font-semibold text-primary-900">Complete your profile for better recommendations</p>
+              <p className="text-sm font-semibold text-primary-900">Complete your council identity</p>
               <p className="text-xs text-primary-800/80 mt-1 leading-relaxed">
-                Adding your cadre, institution, and province helps NursePro recommend courses that match your practice context and renewal needs.
+                Add your council, professional title, and registration number so we can match your course library and CPD target to the right council rules.
               </p>
             </div>
           )}
+
+          <div className="overflow-hidden rounded-[1.75rem] border border-emerald-200 bg-gradient-to-br from-white via-emerald-50/60 to-amber-50 shadow-sm">
+            <div className="border-b border-emerald-100 bg-white/70 p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-emerald-300">
+                  <BadgeCheck size={20} />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-slate-950">Council identity</h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    This profile controls which courses you can see, your renewal target, and compliance reporting.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-slate-800">Council</label>
+                  <div className="relative">
+                    <Building2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <select
+                      value={councilId}
+                      onChange={(e) => {
+                        setCouncilId(e.target.value);
+                        setProfessionalTitle('');
+                      }}
+                      className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-9 pr-4 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                    >
+                      <option value="">
+                        {councilsQuery.isLoading ? 'Loading councils…' : 'Select your council'}
+                      </option>
+                      {councils.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.acronym} — {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-slate-800">Professional title</label>
+                  <select
+                    value={professionalTitle}
+                    onChange={(e) => setProfessionalTitle(e.target.value)}
+                    disabled={!selectedCouncil}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <option value="">{selectedCouncil ? 'Select your title' : 'Choose council first'}</option>
+                    {titles.map((title) => (
+                      <option key={title} value={title}>
+                        {title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 sm:items-end">
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-slate-800">Registration number</label>
+                  <input
+                    value={registrationNumber}
+                    onChange={(e) => setRegistrationNumber(e.target.value)}
+                    placeholder="Your council registration number"
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100 uppercase"
+                  />
+                </div>
+                <div className="rounded-2xl bg-white px-4 py-3 text-sm shadow-sm ring-1 ring-slate-200">
+                  <p className="text-xs text-slate-500">Annual target</p>
+                  <p className="font-black text-slate-950">
+                    {selectedCouncil ? `${selectedCouncil.requiredPoints} CPD pts` : 'Set by council'}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-500 leading-relaxed">
+                If you change your council identity, your eligible courses and compliance target will update immediately.
+              </p>
+            </div>
+          </div>
+
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center gap-6">
               <div className="relative shrink-0">
@@ -236,20 +341,6 @@ export default function ProfilePage() {
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-1.5">Cadre</label>
-                <select
-                  value={cadre}
-                  onChange={(e) => setCadre(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                >
-                  {CADRE_OPTIONS.map((o) => (
-                    <option key={o.value || 'unset'} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
 
             <div>
@@ -263,15 +354,6 @@ export default function ProfilePage() {
               <p className="mt-1 text-xs text-slate-500">
                 Used to personalise your course recommendations. Leave blank for general suggestions.
               </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-900 mb-1.5">NCZ registration number</label>
-              <input
-                value={nczRegistrationNumber}
-                onChange={(e) => setNczRegistrationNumber(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-              />
             </div>
 
             <div>

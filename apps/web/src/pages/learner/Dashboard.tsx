@@ -65,6 +65,15 @@ const CATEGORY_COLOURS: Record<string, string> = {
   RESEARCH: 'bg-teal-100',
 };
 
+function getRenewalDateFromCouncil(cpd: { renewalMonth?: number; renewalDay?: number } | undefined, year: number): Date {
+  const month = typeof cpd?.renewalMonth === 'number' ? cpd.renewalMonth : 12;
+  const day = typeof cpd?.renewalDay === 'number' ? cpd.renewalDay : 31;
+  const safeMonth = Math.min(Math.max(month, 1), 12);
+  const safeDay = Math.min(Math.max(day, 1), 31);
+  // JS Date month index is 0-based.
+  return new Date(year, safeMonth - 1, safeDay);
+}
+
 export default function LearnerDashboard() {
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
@@ -95,11 +104,12 @@ export default function LearnerDashboard() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['recommendations'] }),
   });
 
-  const renewalDeadline = new Date(new Date().getFullYear(), 11, 31);
+  const currentYear = new Date().getFullYear();
+  const renewalDeadline = getRenewalDateFromCouncil(cpd, currentYear);
   const daysLeft = Math.ceil((renewalDeadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   const isUrgent = daysLeft <= 60;
   const isCpdComplete = (cpd?.percentComplete ?? 0) >= 100;
-  const profileMissing = !user?.cadre || !user?.institution || !user?.province;
+  const profileMissing = !user?.councilId || !user?.professionalTitle || !user?.registrationNumber;
 
   const hasCourses = (recommendations?.courses?.length ?? 0) > 0;
   const isProfileBased = recommendations?.isProfileBased;
@@ -159,7 +169,7 @@ export default function LearnerDashboard() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-slate-900">Improve your recommendations</p>
             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              Add your cadre, institution, and province to get more accurate course suggestions and better CPD planning.
+              Add your council, professional title, and registration number so we can keep your course library and CPD target accurate.
             </p>
           </div>
           <Link
@@ -212,7 +222,7 @@ export default function LearnerDashboard() {
         <StatCard
           title="Days to Renewal"
           value={daysLeft}
-          subtitle={`Dec 31, ${new Date().getFullYear()}`}
+          subtitle={renewalDeadline.toLocaleDateString('en-ZW', { day: 'numeric', month: 'short', year: 'numeric' })}
           icon={<Calendar size={20} />}
           accent={isUrgent ? 'red' : 'green'}
           trend={
@@ -364,7 +374,7 @@ export default function LearnerDashboard() {
               </p>
               <p className="text-xs text-slate-500 leading-relaxed">
                 {recommendations?.message ??
-                  'Complete your profile with your specialty area and cadre so we can surface the most relevant courses for your practice.'}
+                  'Complete your council, title, and registration profile so we can surface the most relevant courses for your practice.'}
               </p>
               <div className="flex items-center gap-3 mt-3">
                 <Link

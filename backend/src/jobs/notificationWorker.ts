@@ -1,7 +1,7 @@
 import Bull from 'bull';
 import { db } from '../lib/db';
 import { getLearnerCPDSummary } from '../services/cpd-engine';
-import { AIClient, SYSTEM_PROMPTS, type AIProviderConfig } from '@nursepro/ai-client';
+import { AIClient, SYSTEM_PROMPTS, type AIProviderConfig } from '@zimhealth/ai-client';
 import { logger } from '../lib/logger';
 
 export const notificationQueue = new Bull('notifications', {
@@ -62,7 +62,7 @@ notificationQueue.process('renewal-reminder', async () => {
       if (summary.percentComplete >= 100) continue;
 
       const pointsNeeded = Math.max(0, summary.requiredPoints - summary.totalPoints);
-      const prompt = `Write a WhatsApp reminder message for this nurse:
+      const prompt = `Write a WhatsApp reminder message for this health professional:
 Name: ${learner.fullName.split(' ')[0]}
 Days until CPD renewal deadline: ${daysLeft}
 CPD points still needed: ${pointsNeeded}

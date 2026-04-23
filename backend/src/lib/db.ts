@@ -4,7 +4,7 @@ import type { PrismaClient as PrismaClientType } from '@prisma/client';
 // Ensure it's non-empty for test runs before requiring `@prisma/client`.
 if (process.env.NODE_ENV === 'test' && (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '')) {
   // Matches `.github/workflows/ci.yml` postgres service credentials.
-  process.env.DATABASE_URL = 'postgresql://nursepro:nursepro_dev@localhost:5432/nursepro';
+  process.env.DATABASE_URL = 'postgresql://zimhealth:zimhealth_dev@localhost:5432/zimhealth';
 }
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires

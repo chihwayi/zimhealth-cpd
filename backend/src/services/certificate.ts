@@ -53,10 +53,10 @@ export async function generateCertificate(learnerId: string, cycleYear: number) 
   const qrPng = await QRCode.toBuffer(verifyUrl, { type: 'png', width: 256, margin: 1 });
 
   const doc = new PDFDocument({ size: 'A4', margin: 54 });
-  doc.info.Title = `NursePro CPD Certificate ${cycleYear}`;
+  doc.info.Title = `ZimHealth CPD Certificate ${cycleYear}`;
 
   // Header
-  doc.fontSize(20).fillColor('#0f172a').text('NursePro CPD', { align: 'center' });
+  doc.fontSize(20).fillColor('#0f172a').text('ZimHealth CPD', { align: 'center' });
   doc.moveDown(0.25);
   doc.fontSize(12).fillColor('#334155').text('Certificate of Completion', { align: 'center' });
 

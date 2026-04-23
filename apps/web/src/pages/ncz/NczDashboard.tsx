@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { StatCard } from '../../components/ui/StatCard';
 import { Badge } from '../../components/ui/Badge';
@@ -35,7 +35,9 @@ interface Learner {
   fullName: string;
   email: string;
   nczRegistrationNumber?: string | null;
-  cadre?: string | null;
+  registrationNumber?: string | null;
+  professionalTitle?: string | null;
+  cadre?: string | null; // legacy (kept for old NCZ data)
   institution?: string | null;
   province?: string | null;
   district?: string | null;
@@ -105,14 +107,28 @@ interface SyncRecordRow {
   course?: { title: string } | null;
 }
 
-const CADRE_OPTIONS = [
-  { value: '', label: 'All cadres' },
-  { value: 'NURSE', label: 'Nurse' },
-  { value: 'MIDWIFE', label: 'Midwife' },
-  { value: 'PHARMACIST', label: 'Pharmacist' },
-  { value: 'CLINICAL_OFFICER', label: 'Clinical Officer' },
-  { value: 'LAB_TECH', label: 'Lab Tech' },
-];
+type TitleOption = { value: string; label: string };
+
+type SectionKey = 'dashboard' | 'search' | 'reports' | 'sync';
+
+function buildSections(basePath: '/ncz' | '/council') {
+  return [
+    { key: 'dashboard' as const, label: 'Dashboard', path: `${basePath}` },
+    { key: 'search' as const, label: 'Learner Search', path: `${basePath}/search` },
+    { key: 'reports' as const, label: 'Reports', path: `${basePath}/reports` },
+    { key: 'sync' as const, label: 'Sync Status', path: `${basePath}/sync` },
+  ];
+}
+
+function getSection(pathname: string, sections: Array<{ key: SectionKey; path: string }>) {
+  const matches = (section: { key: SectionKey; path: string }) => {
+    if (section.path.endsWith('/ncz') || section.path.endsWith('/council')) return pathname === section.path;
+    return pathname === section.path || pathname.startsWith(`${section.path}/`);
+  };
+
+  const sorted = [...sections].sort((a, b) => b.path.length - a.path.length);
+  return sorted.find(matches)?.key ?? 'dashboard';
+}
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('en-ZW', {
@@ -139,12 +155,34 @@ function buildCsvUrl(): string {
 
 export default function NczDashboard() {
   const accessToken = useAuthStore((state) => state.accessToken);
+  const storeUser = useAuthStore((state) => state.user);
   const location = useLocation();
+  const navigate = useNavigate();
+  const basePath = location.pathname.startsWith('/council') ? '/council' : '/ncz';
+  const sections = useMemo(() => buildSections(basePath), [basePath]);
+  const section = getSection(location.pathname, sections);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [cadre, setCadre] = useState('');
+  const [professionalTitle, setProfessionalTitle] = useState('');
   const [page, setPage] = useState(1);
   const [selectedLearner, setSelectedLearner] = useState<Learner | null>(null);
+
+  const meQuery = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: () =>
+      api.get<{
+        council?: { id: string; name: string; acronym: string; requiredPoints: number; renewalMonth: number; renewalDay: number } | null;
+      }>('/api/auth/me'),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const councilName = meQuery.data?.council?.name ?? storeUser?.council?.name ?? 'Council';
+  const councilAcronym = meQuery.data?.council?.acronym ?? storeUser?.council?.acronym ?? 'Council';
+  const councilTitles = (storeUser?.council?.allowedTitles ?? []) as string[];
+  const titleOptions: TitleOption[] = useMemo(() => {
+    const titles = councilTitles.length ? councilTitles : [];
+    return [{ value: '', label: 'All titles' }, ...titles.map((t) => ({ value: t, label: t }))];
+  }, [councilTitles]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -158,10 +196,10 @@ export default function NczDashboard() {
   }, [location.search]);
 
   const learnersQuery = useQuery<LearnersResponse>({
-    queryKey: ['ncz-learners', search, cadre, page],
+    queryKey: ['ncz-learners', search, professionalTitle, page],
     queryFn: () =>
       api.get(
-        `/api/ncz/learners?search=${encodeURIComponent(search)}&cadre=${encodeURIComponent(cadre)}&page=${page}&limit=25`,
+        `/api/ncz/learners?search=${encodeURIComponent(search)}&professionalTitle=${encodeURIComponent(professionalTitle)}&page=${page}&limit=25`,
       ),
   });
 
@@ -183,7 +221,7 @@ export default function NczDashboard() {
   function clearFilters() {
     setSearchInput('');
     setSearch('');
-    setCadre('');
+    setProfessionalTitle('');
     setPage(1);
   }
 
@@ -208,7 +246,7 @@ export default function NczDashboard() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `ncz-compliance-${new Date().getFullYear()}.csv`;
+      link.download = `${String(councilAcronym).toLowerCase()}-compliance-${new Date().getFullYear()}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -224,9 +262,9 @@ export default function NczDashboard() {
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">NCZ Compliance Portal</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{councilAcronym} Compliance Portal</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Monitor learner compliance, inspect CPD history, and manage NCZ sync activity.
+            Monitor learner compliance, inspect CPD history, and manage sync activity for {councilName}.
           </p>
         </div>
         <button
@@ -238,199 +276,290 @@ export default function NczDashboard() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <StatCard
-          title="Registered Learners"
-          value={complianceQuery.data?.totalLearners ?? '–'}
-          subtitle="Active learner accounts"
-          icon={<Users size={20} />}
-          accent="blue"
-        />
-        <StatCard
-          title="Compliant"
-          value={complianceQuery.data?.compliantCount ?? '–'}
-          subtitle="Meeting annual CPD target"
-          icon={<CheckCircle size={20} />}
-          accent="green"
-        />
-        <StatCard
-          title="Non-Compliant"
-          value={complianceQuery.data?.nonCompliantCount ?? '–'}
-          subtitle="Require follow-up"
-          icon={<XCircle size={20} />}
-          accent="red"
-        />
-        <StatCard
-          title="Compliance Rate"
-          value={complianceQuery.data ? `${complianceQuery.data.complianceRate}%` : '–'}
-          subtitle={complianceQuery.data ? `Reporting year ${complianceQuery.data.year}` : 'Current reporting year'}
-          icon={<FileCheck2 size={20} />}
-          accent="blue"
-        />
+      <div className="sm:hidden">
+        <label className="block text-xs font-medium text-slate-600 mb-1.5">Section</label>
+        <select
+          value={section}
+          onChange={(e) => {
+            const next = sections.find((item) => item.key === e.target.value)?.path ?? basePath;
+            navigate(next);
+          }}
+          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+        >
+          {sections.map((item) => (
+            <option key={item.key} value={item.key}>
+              {item.label}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5 space-y-4">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">Learner Registry</h2>
-            <p className="text-sm text-slate-500 mt-1">{learnerCountLabel}</p>
-          </div>
-          <button
-            onClick={clearFilters}
-            className="text-sm font-medium text-blue-700 hover:text-blue-800 transition-colors"
+      <div className="hidden sm:flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+        {sections.map((item) => (
+          <Link
+            key={item.key}
+            to={item.path}
+            className={clsx(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+              section === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-700',
+            )}
           >
-            Clear filters
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[280px] flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') applySearch();
-              }}
-              placeholder="Search by learner name, NCZ number, or email"
-              className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-
-          <select
-            value={cadre}
-            onChange={(event) => {
-              setCadre(event.target.value);
-              setPage(1);
-            }}
-            className="min-w-[180px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          >
-            {CADRE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-
-          <button
-            onClick={applySearch}
-            className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-          >
-            <Search size={16} />
-            Search
-          </button>
-        </div>
+            {item.label}
+          </Link>
+        ))}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-base font-semibold text-slate-900">Compliance Register</h2>
+      {(section === 'dashboard' || section === 'reports') && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          <StatCard
+            title="Registered Learners"
+            value={complianceQuery.data?.totalLearners ?? '–'}
+            subtitle="Active learner accounts"
+            icon={<Users size={20} />}
+            accent="blue"
+          />
+          <StatCard
+            title="Compliant"
+            value={complianceQuery.data?.compliantCount ?? '–'}
+            subtitle="Meeting annual CPD target"
+            icon={<CheckCircle size={20} />}
+            accent="green"
+          />
+          <StatCard
+            title="Non-Compliant"
+            value={complianceQuery.data?.nonCompliantCount ?? '–'}
+            subtitle="Require follow-up"
+            icon={<XCircle size={20} />}
+            accent="red"
+          />
+          <StatCard
+            title="Compliance Rate"
+            value={complianceQuery.data ? `${complianceQuery.data.complianceRate}%` : '–'}
+            subtitle={complianceQuery.data ? `Reporting year ${complianceQuery.data.year}` : 'Current reporting year'}
+            icon={<FileCheck2 size={20} />}
+            accent="blue"
+          />
         </div>
+      )}
 
-        {learnersQuery.isLoading ? (
-          <div className="space-y-3 p-5">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="h-14 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
-            ))}
-          </div>
-        ) : learnersQuery.isError ? (
-          <div className="p-5">
-            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              Could not load learner records right now.
-            </div>
-          </div>
-        ) : !learnersQuery.data?.learners.length ? (
-          <div className="p-5">
-            <EmptyState
-              icon={<Users size={28} />}
-              title="No learners found"
-              description="Try adjusting your search terms or clearing the current filters."
-            />
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    {['Learner', 'NCZ Reg', 'Cadre', 'Institution', 'Province', 'Points', 'Status', ''].map((heading) => (
-                      <th
-                        key={heading}
-                        className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
-                      >
-                        {heading}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {learnersQuery.data.learners.map((learner) => (
-                    <tr key={learner.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-4">
-                        <div>
-                          <div className="font-semibold text-slate-900">{learner.fullName}</div>
-                          <div className="text-xs text-slate-500 mt-1">{learner.email}</div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4 font-mono text-xs text-slate-500">
-                        {learner.nczRegistrationNumber ?? '—'}
-                      </td>
-                      <td className="px-5 py-4 text-slate-600">{learner.cadre ?? '—'}</td>
-                      <td className="px-5 py-4 text-slate-600">{learner.institution ?? '—'}</td>
-                      <td className="px-5 py-4 text-slate-600">{learner.province ?? '—'}</td>
-                      <td className="px-5 py-4">
-                        <span className="font-semibold tabular-nums text-slate-900">{learner.currentYearPoints}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <Badge variant={learner.isCompliant ? 'success' : 'error'}>
-                          {learner.isCompliant ? 'Compliant' : 'Non-Compliant'}
-                        </Badge>
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <button
-                          onClick={() => setSelectedLearner(learner)}
-                          className="text-sm font-medium text-blue-700 hover:text-blue-800 transition-colors"
-                        >
-                          View history
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {section === 'dashboard' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Link
+            to={`${basePath}/search`}
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+          >
+            <h2 className="text-base font-semibold text-slate-900">Learner Search</h2>
+            <p className="mt-1 text-sm text-slate-500">Find learners, inspect history, and resolve NCZ numbers.</p>
+          </Link>
+          <Link
+            to={`${basePath}/reports`}
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+          >
+            <h2 className="text-base font-semibold text-slate-900">Reports</h2>
+            <p className="mt-1 text-sm text-slate-500">Review compliance metrics and export the current CSV report.</p>
+          </Link>
+          <Link
+            to={`${basePath}/sync`}
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+          >
+            <h2 className="text-base font-semibold text-slate-900">Sync Status</h2>
+            <p className="mt-1 text-sm text-slate-500">Monitor pending, blocked, failed, and synced NCZ records.</p>
+          </Link>
+        </div>
+      )}
+
+      {section === 'search' && (
+        <>
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5 space-y-4">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Learner Registry</h2>
+                <p className="text-sm text-slate-500 mt-1">{learnerCountLabel}</p>
+              </div>
+              <button
+                onClick={clearFilters}
+                className="text-sm font-medium text-blue-700 hover:text-blue-800 transition-colors"
+              >
+                Clear filters
+              </button>
             </div>
 
-            {learnersQuery.data.totalPages > 1 && (
-              <div className="flex items-center justify-between gap-4 border-t border-slate-100 px-5 py-4">
-                <p className="text-sm text-slate-500">
-                  Page {learnersQuery.data.page} of {learnersQuery.data.totalPages} · {learnersQuery.data.total} learners
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    disabled={page === 1}
-                    onClick={() => setPage((current) => Math.max(current - 1, 1))}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <ChevronLeft size={14} />
-                    Previous
-                  </button>
-                  <button
-                    disabled={page === learnersQuery.data.totalPages}
-                    onClick={() => setPage((current) => current + 1)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Next
-                    <ChevronRight size={14} />
-                  </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[280px] flex-1">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') applySearch();
+                  }}
+                  placeholder="Search by learner name, NCZ number, or email"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <select
+                value={professionalTitle}
+                onChange={(event) => {
+                  setProfessionalTitle(event.target.value);
+                  setPage(1);
+                }}
+                className="min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              >
+                {titleOptions.map((option) => (
+                  <option key={option.value || 'all'} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={applySearch}
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+              >
+                <Search size={16} />
+                Search
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-base font-semibold text-slate-900">Compliance Register</h2>
+            </div>
+
+            {learnersQuery.isLoading ? (
+              <div className="space-y-3 p-5">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="h-14 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
+                ))}
+              </div>
+            ) : learnersQuery.isError ? (
+              <div className="p-5">
+                <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  Could not load learner records right now.
                 </div>
               </div>
-            )}
-          </>
-        )}
-      </div>
+            ) : !learnersQuery.data?.learners.length ? (
+              <div className="p-5">
+                <EmptyState
+                  icon={<Users size={28} />}
+                  title="No learners found"
+                  description="Try adjusting your search terms or clearing the current filters."
+                />
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        {['Learner', 'Registration #', 'Title', 'Institution', 'Province', 'Points', 'Status', ''].map((heading) => (
+                          <th
+                            key={heading}
+                            className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {learnersQuery.data.learners.map((learner) => (
+                        <tr key={learner.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-5 py-4">
+                            <div>
+                              <div className="font-semibold text-slate-900">{learner.fullName}</div>
+                              <div className="text-xs text-slate-500 mt-1">{learner.email}</div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 font-mono text-xs text-slate-500">
+                            {learner.registrationNumber ?? learner.nczRegistrationNumber ?? '—'}
+                          </td>
+                          <td className="px-5 py-4 text-slate-600">{learner.professionalTitle ?? learner.cadre ?? '—'}</td>
+                          <td className="px-5 py-4 text-slate-600">{learner.institution ?? '—'}</td>
+                          <td className="px-5 py-4 text-slate-600">{learner.province ?? '—'}</td>
+                          <td className="px-5 py-4">
+                            <span className="font-semibold tabular-nums text-slate-900">{learner.currentYearPoints}</span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <Badge variant={learner.isCompliant ? 'success' : 'error'}>
+                              {learner.isCompliant ? 'Compliant' : 'Non-Compliant'}
+                            </Badge>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <button
+                              onClick={() => setSelectedLearner(learner)}
+                              className="text-sm font-medium text-blue-700 hover:text-blue-800 transition-colors"
+                            >
+                              View history
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-      <SyncStatusPanel />
+                {learnersQuery.data.totalPages > 1 && (
+                  <div className="flex items-center justify-between gap-4 border-t border-slate-100 px-5 py-4">
+                    <p className="text-sm text-slate-500">
+                      Page {learnersQuery.data.page} of {learnersQuery.data.totalPages} · {learnersQuery.data.total} learners
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={page === 1}
+                        onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <ChevronLeft size={14} />
+                        Previous
+                      </button>
+                      <button
+                        disabled={page === learnersQuery.data.totalPages}
+                        onClick={() => setPage((current) => current + 1)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Next
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {section === 'reports' && (
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Compliance Reports</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Export the current compliance register and use the summary cards above for reporting.
+              </p>
+            </div>
+            <button
+              onClick={handleExportCsv}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+              <Download size={16} />
+              Export CSV
+            </button>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-sm text-slate-700">
+              The CSV export includes learner name, NCZ registration number, cadre, institution, province,
+              current CPD points, compliance status, and reporting year.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {section === 'sync' && <SyncStatusPanel basePath={basePath} />}
 
       {selectedLearner ? (
         <LearnerHistoryPanel learner={selectedLearner} onClose={() => setSelectedLearner(null)} />
@@ -484,7 +613,7 @@ function LearnerHistoryPanel({
             <div>
               <h2 className="text-lg font-semibold text-slate-900">{learner.fullName}</h2>
               <p className="text-sm text-slate-500 mt-1">
-                {learner.nczRegistrationNumber ?? 'No NCZ registration number'} · {learner.cadre ?? 'Cadre not set'}
+                {(learner.registrationNumber ?? learner.nczRegistrationNumber ?? 'No registration number')} · {(learner.professionalTitle ?? learner.cadre ?? 'Title not set')}
               </p>
               <div className="mt-4 flex flex-col sm:flex-row sm:items-end gap-2">
                 <div className="w-full sm:w-80">
@@ -621,7 +750,7 @@ function LearnerHistoryPanel({
   );
 }
 
-function SyncStatusPanel() {
+function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
   const [triggering, setTriggering] = useState(false);
   const [tab, setTab] = useState<'LOGS' | 'BLOCKED' | 'FAILED'>('LOGS');
   const [retryingRecordId, setRetryingRecordId] = useState<string | null>(null);
@@ -822,7 +951,7 @@ function SyncStatusPanel() {
                     onClick={() => {
                       const q = r.learner.email ? r.learner.email : r.learner.fullName;
                       const params = new URLSearchParams({ search: q });
-                      window.location.href = `/ncz/search?${params.toString()}`;
+                      window.location.href = `${basePath}/search?${params.toString()}`;
                     }}
                     className="text-xs font-semibold text-amber-900 hover:underline flex-shrink-0"
                   >

@@ -1,7 +1,7 @@
 import type { IncomingMessage } from '../botRouter';
 import type { BotSession } from '../sessionManager';
 import { saveSession } from '../sessionManager';
-import { sendMessage } from '../twilio';
+import { sendMessage } from '../whatsapp/transport';
 import { TEMPLATES } from '../templates';
 import { handleLearn } from './learnHandler';
 import { handlePoints } from './pointsHandler';

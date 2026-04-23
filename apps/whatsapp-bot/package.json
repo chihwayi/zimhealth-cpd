@@ -1,5 +1,5 @@
 {
-  "name": "@nursepro/whatsapp-bot",
+  "name": "@zimhealth/whatsapp-bot",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
-    "@nursepro/ai-client": "workspace:*",
-    "@nursepro/types": "workspace:*",
+    "@zimhealth/ai-client": "workspace:*",
+    "@zimhealth/types": "workspace:*",
     "bull": "^4.12.0",
     "express": "^4.19.0",
     "ioredis": "^5.3.0",

@@ -1,163 +1,192 @@
-# NursePro CPD
+# ZimHealth CPD
 
 > **Learn. Earn. Advance.**  
-> A multi-channel Continuing Professional Development platform for Zimbabwean nurses and healthcare professionals.
+> A multi-channel Continuing Professional Development platform for Zimbabwean health professionals.
+
+ZimHealth CPD removes every barrier between health professionals and their annual CPD requirements. Three channels — web, mobile, and WhatsApp — ensure that a practitioner in a Harare hospital and a practitioner in a rural Matabeleland clinic can both earn renewal points, regardless of council, device, data budget, or internet reliability.
 
 ---
 
-## What is NursePro CPD?
+## Channels
 
-NursePro CPD delivers CPD content via three channels to ensure every nurse can earn required CPD points regardless of device, internet reliability, or data budget:
-
-| Channel | Who it's for |
-|---|---|
-| **Web App** (PWA) | All roles — learners, creators, NCZ officers, admins |
-| **WhatsApp Bot** | Learners with basic phones and limited data |
-| **Mobile App** (React Native) | Offline-first learning — works without internet |
+| Channel | Stack | Who |
+|---|---|---|
+| **Web App** (PWA) | React 18 + Vite + TailwindCSS | Learners, Creators, NCZ Officers, Admins |
+| **Mobile App** | React Native + Expo | Learners — offline-first, works without data |
+| **WhatsApp Bot** | Node.js + WhatsApp Cloud API (Meta) / 360dialog *(fallback)* | Learners — any phone, WhatsApp-only bundle |
 
 ---
 
-## Quick Start (Development)
+## Quick Start
 
-### Prerequisites
-- Node.js 20+
-- pnpm 9+
-- Docker + Docker Compose
+**Prerequisites:** Node.js 20+, pnpm 9+, Docker
 
-### 1. Clone and install
 ```bash
-git clone https://github.com/chihwayi/nurseprocpd.git
-cd nurseprocpd
+# 1. Install
+git clone https://github.com/chihwayi/zimhealth-cpd.git
+cd zimhealth-cpd
 pnpm install
-```
 
-### 2. Set up environment
-```bash
+# 2. Environment
 cp .env.example .env
-# Edit .env — fill in JWT_SECRET at minimum. AI keys optional for basic dev.
-```
+# Set JWT_SECRET at minimum. AI keys optional for basic dev.
 
-### 3. Start database and Redis
-```bash
+# 3. Database + Redis
 docker-compose up -d
+
+# 4. Migrate + seed
+cd backend && pnpm db:migrate && pnpm db:seed
+
+# 5. Start servers
+pnpm dev          # starts API (4000), web (3000), and bot (4100) in parallel
 ```
 
-### 4. Set up database
+---
+
+## Server Deploy (single command over SSH)
+
+This repo includes a one-shot deploy script (similar to a typical static-site `deploy.sh`, but for the full stack):
+
+- Local script: `deploy-server.sh`
+- Server-side scripts: `scripts/deploy.sh` and `scripts/start.sh`
+
+### First-time server setup (one-time)
+
+SSH into your server and create the project folder + `.env`:
+
 ```bash
-cd backend
-pnpm db:migrate    # Run Prisma migrations
-pnpm db:seed       # Seed dev data
+mkdir -p /opt/zimhealth-cpd && cd /opt/zimhealth-cpd
+cp .env.example .env
+nano .env
 ```
 
-### 5. Start development servers
+If you want to use Ollama on the server, set at minimum:
+
 ```bash
-# Terminal 1 — API
-cd backend && pnpm dev
-
-# Terminal 2 — Web app
-cd apps/web && pnpm dev
-
-# Terminal 3 (optional) — WhatsApp bot
-cd apps/whatsapp-bot && pnpm dev
+AI_PROVIDER_DEFAULT=ollama
+OLLAMA_HOST=localhost
+OLLAMA_PORT=11434
 ```
 
-Web app: http://localhost:3000  
-API: http://localhost:4000  
-Bot: http://localhost:4100
+### Deploy from your local machine
 
-### Dev login credentials (from seed)
+With SSH key:
+
+```bash
+SERVER="root@YOUR_SERVER_IP" SSH_PORT=22 SSH_KEY="$HOME/.ssh/id_ed25519" REMOTE_PATH="/opt/zimhealth-cpd" ./deploy-server.sh
+```
+
+With password (`sshpass`):
+
+```bash
+SERVER="root@YOUR_SERVER_IP" SSH_PORT=22 SSHPASS="YOUR_PASSWORD" REMOTE_PATH="/opt/zimhealth-cpd" ./deploy-server.sh
+```
+
+**Dev login credentials:**
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | admin@nursepro.co.zw | Admin@1234 |
-| Content Manager | creator@nursepro.co.zw | Creator@1234 |
+| Admin | admin@zimhealthcpd.co.zw | Admin@1234 |
+| Content Manager | creator@zimhealthcpd.co.zw | Creator@1234 |
 | NCZ Officer | officer@ncz.co.zw | Ncz@12345 |
-| Learner | grace@nursepro.co.zw | Learner@1234 |
+| Learner | grace@zimhealthcpd.co.zw | Learner@1234 |
+
+**Mobile (separate terminal):**
+```bash
+cd apps/mobile && pnpm install && npx expo start
+```
 
 ---
 
-## AI Provider Configuration
+## WhatsApp Bot (Meta Cloud API + 360dialog fallback)
 
-NursePro CPD supports 4 AI providers. Set at least one API key in `.env`:
+The WhatsApp bot supports multiple transports. Set `WHATSAPP_PROVIDER` in `.env`:
 
-| Provider | Env Var | Default Model |
+- **Primary (recommended)**: `WHATSAPP_PROVIDER=meta`
+- **Fallback**: `WHATSAPP_PROVIDER=360dialog`
+- **Legacy/dev**: `WHATSAPP_PROVIDER=twilio`
+
+### Required env vars
+
+**Meta Cloud API**
+
+- `META_WA_TOKEN`: permanent access token
+- `META_WA_PHONE_NUMBER_ID`: WhatsApp phone number ID
+- `WHATSAPP_VERIFY_TOKEN`: webhook verification token (used by `GET /webhook`)
+
+**360dialog**
+
+- `D360_API_KEY`
+- `D360_BASE_URL` *(default: `https://waba.360dialog.io`)*
+
+**Twilio (optional)**
+
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_WHATSAPP_NUMBER`
+
+### Webhook
+
+Bot webhook endpoint is always:
+
+- `POST ${BOT_URL}/webhook` (incoming messages)
+- `GET ${BOT_URL}/webhook` (Meta verification challenge)
+
+---
+
+## AI Providers
+
+Set at least one key in `.env`:
+
+| Provider | Env var | Model |
 |---|---|---|
-| **Anthropic Claude** (default) | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` |
-| **OpenAI / ChatGPT** | `OPENAI_API_KEY` | `gpt-4o-mini` |
-| **Google Gemini** | `GEMINI_API_KEY` | `gemini-1.5-pro` |
-| **Ollama** (local/offline) | `OLLAMA_BASE_URL` | `llama3` |
+| Anthropic Claude *(default)* | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` |
+| OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` |
+| Google Gemini | `GEMINI_API_KEY` | `gemini-1.5-pro` |
+| Ollama *(local)* | `OLLAMA_BASE_URL` | `llama3` |
 
-Switch the active provider:
-```bash
-AI_PROVIDER_DEFAULT=anthropic   # or: openai, gemini, ollama
-```
-
-The Admin portal also allows switching providers at runtime without redeployment.
+Switch provider: `AI_PROVIDER_DEFAULT=anthropic` (or `openai`, `gemini`, `ollama`)
 
 ---
 
 ## Project Structure
 
 ```
-nurseprocpd/
+zimhealth-cpd/
 ├── apps/
-│   ├── web/              ← React 18 + Vite PWA (TailwindCSS)
-│   ├── mobile/           ← React Native + Expo (offline-first)
-│   └── whatsapp-bot/     ← WhatsApp bot (Node.js + Twilio)
-├── backend/              ← Express API + Prisma + PostgreSQL
+│   ├── web/              React PWA — all 4 role portals
+│   ├── mobile/           Expo app — learner offline-first
+│   └── whatsapp-bot/     Twilio bot — WhatsApp learning
+├── backend/              Express API + Prisma + PostgreSQL
 ├── packages/
-│   ├── types/            ← Shared TypeScript types
-│   ├── ai-client/        ← Multi-provider AI client
-│   └── ui/               ← Shared React components
+│   ├── ai-client/        Multi-provider AI abstraction
+│   ├── types/            Shared TypeScript types
+│   └── ui/               Shared React components
 └── docs/
-    ├── NursePro_CPD_Platform_Spec.md
-    ├── design/DESIGN_SYSTEM.md
-    └── sprints/          ← 24 detailed sprint documents
+    ├── SYSTEM.md         Platform overview, architecture, data model
+    └── UI_UX_STANDARDS.md  Design system — web and mobile
 ```
 
 ---
 
 ## Tech Stack
 
-- **Frontend:** React 18, Vite, TailwindCSS, TanStack Query, Zustand
-- **Backend:** Node.js 20, Express, Prisma ORM, PostgreSQL 15, Redis 7
-- **AI:** Anthropic Claude, OpenAI, Google Gemini, Ollama (multi-provider)
-- **WhatsApp:** Twilio WhatsApp Business API
+- **API:** Node.js 20, Express 4, Prisma 6, PostgreSQL 15, Redis 7, Zod
+- **Web:** React 18, Vite, TailwindCSS 3, TanStack Query v5, Zustand v5
+- **Mobile:** React Native 0.76, Expo 52, NativeWind v4
+- **AI:** Anthropic Claude, OpenAI, Google Gemini, Ollama
 - **Payments:** Paynow Zimbabwe (EcoCash), Stripe
-- **Storage:** AWS S3 / Cloudflare R2 + Cloudflare CDN
-- **Mobile:** React Native + Expo (offline SQLite sync)
-- **Tooling:** pnpm workspaces + Turborepo, Vitest, Playwright
+- **WhatsApp:** Meta WhatsApp Cloud API *(primary)*, 360dialog *(fallback)*
+- **Tooling:** pnpm workspaces, Turborepo, Vitest, TypeScript 5
 
 ---
 
-## Sprint Plan
+## Documentation
 
-See `docs/sprints/` for the full 24-sprint build plan. Each sprint is a self-contained document with exact tasks, file paths, and validation checklists.
-
-| Sprint | Topic |
-|---|---|
-| S01–S02 | Monorepo foundation + Database |
-| S03–S06 | Auth, CPD engine, Courses API, Media |
-| S07–S12 | Web app shell, Learner dashboard, Quiz, Payments, Certs |
-| S13–S15 | WhatsApp bot + AI tutor |
-| S16–S18 | Creator portal |
-| S19–S20 | NCZ portal + Sync adapter |
-| S21–S23 | Admin portal + AI recommendations |
-| S24 | Security hardening + Launch |
+- [`docs/SYSTEM.md`](docs/SYSTEM.md) — full platform overview, user roles, data model, architecture
+- [`docs/UI_UX_STANDARDS.md`](docs/UI_UX_STANDARDS.md) — design system for web and mobile
+- [`apps/mobile/MOBILE_SPRINTS.md`](apps/mobile/MOBILE_SPRINTS.md) — mobile build plan for AI agents
 
 ---
 
-## Design System
-
-See `docs/design/DESIGN_SYSTEM.md` for the complete design specification:
-- Teal primary colour palette
-- Typography scale (Inter font)
-- Component library (Buttons, Cards, Forms, Tables, Charts)
-- Page-level designs for all 4 portals
-- Accessibility standards (WCAG 2.1 AA)
-
----
-
-## License
-
-Private — NursePro CPD. All rights reserved.
+*Private — ZimHealth CPD. All rights reserved.*
