@@ -362,11 +362,15 @@ model CPDRecord {
   nczSyncedAt      DateTime?
   isManualOverride Boolean      @default(false)
   overrideNote     String?
+  nczSyncMetadata  Json?
+  nczIdempotencyKey String?
+  nczNextRetryAt   DateTime?
 
   @@index([learnerId, cycleYear])
   @@index([learnerId, quizId, cycleYear])
   @@index([learnerId, sourceAttemptKey, cycleYear])
   @@index([syncedToNcz])
+  @@index([nczIdempotencyKey])
 }
 
 model Certificate {

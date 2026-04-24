@@ -3,11 +3,12 @@ import type { Router as ExpressRouter } from 'express';
 import { db } from '../lib/db';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
-import { retryNczRecord, runNczSync } from '../services/ncz-sync';
+import { retryNczRecord, runCouncilSync, getSyncMode } from '../services/ncz-sync';
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { z } from 'zod';
 
 const router: ExpressRouter = Router();
+
 async function getOfficerCouncilId(req: AuthRequest): Promise<string | null> {
   if (req.user?.role === 'ADMIN') return null;
   const officer = await db.user.findUnique({
@@ -634,7 +635,7 @@ router.post(
   async (req: AuthRequest, res) => {
     try {
       const onlyFailed = req.query.onlyFailed === 'true';
-      const result = await runNczSync(req.user?.id ?? 'manual', { onlyFailed });
+      const result = await runCouncilSync(req.user?.id ?? 'manual', { onlyFailed });
       return res.json(result);
     } catch {
       return res.status(500).json({ error: 'Sync trigger failed' });
@@ -679,13 +680,8 @@ router.get(
       db.cPDRecord.count({ where: { nczSyncStatus: 'FAILED' } }),
       db.cPDRecord.count({ where: { nczSyncStatus: 'SYNCED' } }),
     ]);
-    const disabled = process.env.COUNCIL_SYNC_DISABLED === 'true';
-    const configured = Boolean(
-      (process.env.COUNCIL_SYNC_API_URL ?? process.env.NCZ_SYNC_API_URL) &&
-      (process.env.COUNCIL_SYNC_API_KEY ?? process.env.NCZ_API_KEY),
-    );
-    const mode = disabled ? 'disabled' : configured ? 'live' : 'dry_run';
-    return res.json({ pending, blocked, failed, synced, mode, configured });
+    const mode = getSyncMode();
+    return res.json({ pending, blocked, failed, synced, mode });
     } catch {
       return res.status(500).json({ error: 'Could not fetch sync summary' });
     }

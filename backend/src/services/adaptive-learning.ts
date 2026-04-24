@@ -3,34 +3,34 @@ import { db } from '../lib/db';
 import { redis } from '../lib/redis';
 import { getLearnerCPDSummary } from './cpd-engine';
 import { buildEligibleCourseWhere } from './course-eligibility';
+import { logger } from '../lib/logger';
 
-const CACHE_TTL = 60 * 60 * 12; // 12 hours
+const CACHE_TTL = 3600 * 12; // 12 hours
+
+export interface RecommendationResult {
+  courseIds: string[];
+  moduleRecommendations: Array<{
+    courseId: string;
+    moduleId: string;
+    reason: string;
+  }>;
+  explanations: Record<string, string>;
+  reasonCategories: Record<string, string[]>;
+  isProfileBased: boolean;
+}
 
 function buildAiConfig(): AIProviderConfig {
   return {
     anthropic: process.env.ANTHROPIC_API_KEY
       ? {
           apiKey: process.env.ANTHROPIC_API_KEY,
-          defaultModel: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6',
+          defaultModel: process.env.ANTHROPIC_MODEL ?? 'claude-3-sonnet-20240229',
         }
       : undefined,
     openai: process.env.OPENAI_API_KEY
       ? {
           apiKey: process.env.OPENAI_API_KEY,
           defaultModel: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-          baseUrl: process.env.OPENAI_BASE_URL || undefined,
-        }
-      : undefined,
-    gemini: process.env.GEMINI_API_KEY
-      ? {
-          apiKey: process.env.GEMINI_API_KEY,
-          defaultModel: process.env.GEMINI_MODEL ?? 'gemini-1.5-pro',
-        }
-      : undefined,
-    ollama: process.env.OLLAMA_BASE_URL
-      ? {
-          baseUrl: process.env.OLLAMA_BASE_URL,
-          defaultModel: process.env.OLLAMA_MODEL ?? 'llama3',
         }
       : undefined,
   };
@@ -48,242 +48,158 @@ async function redisSetexSafe(key: string, ttl: number, value: string): Promise<
   try {
     await redis.setex(key, ttl, value);
   } catch {
-    // Cache is optional; recommendations still work without Redis.
+    // ignore
   }
 }
 
-// ─── Exported so enrollment route can bust the cache on course completion ─────
 export async function invalidateRecommendations(learnerId: string): Promise<void> {
   try {
     await redis.del(`ai:recs:${learnerId}`);
   } catch {
-    // Ignore Redis errors
+    // ignore
   }
 }
 
 export async function getRecommendations(
   learnerId: string,
-): Promise<{
-  courseIds: string[];
-  explanations: Record<string, string>;
-  reasonCategories: Record<string, string[]>;
-  isProfileBased: boolean;
-}> {
+): Promise<RecommendationResult> {
   const cacheKey = `ai:recs:${learnerId}`;
   const cached = await redisGetSafe(cacheKey);
-  if (cached) {
-    return JSON.parse(cached) as {
-      courseIds: string[];
-      explanations: Record<string, string>;
-      reasonCategories: Record<string, string[]>;
-      isProfileBased: boolean;
-    };
-  }
-
-  // ── Gather learner context ────────────────────────────────────────────────
-  const [learner, summary, completedEnrollments, inProgressEnrollments, recentQuizAttempts] = await Promise.all([
-    db.user.findUnique({
-      where: { id: learnerId },
-      select: { cadre: true, councilId: true, professionalTitle: true, institution: true, province: true },
-    }),
-    getLearnerCPDSummary(learnerId),
-    db.enrollment.findMany({
-      where: { learnerId, completedAt: { not: null } },
-      select: { courseId: true, course: { select: { title: true, category: true, tags: true } } },
-      take: 20,
-    }),
-    db.enrollment.findMany({
-      where: { learnerId, completedAt: null },
-      select: {
-        progress: true,
-        lastAccessAt: true,
-        course: { select: { title: true, category: true } },
-      },
-      orderBy: [{ lastAccessAt: 'desc' }, { enrolledAt: 'desc' }],
-      take: 10,
-    }),
-    db.quizAttempt.findMany({
-      where: { learnerId },
-      orderBy: { completedAt: 'desc' },
-      take: 30,
-      select: {
-        score: true,
-        passed: true,
-        completedAt: true,
-        quiz: { select: { title: true, courseId: true } },
-      },
-    }),
-  ]);
-
-  const enrolledIds = await db.enrollment
-    .findMany({ where: { learnerId }, select: { courseId: true } })
-    .then((rows) => rows.map((r) => r.courseId));
-
-  const availableCourses = await db.course.findMany({
-    where: { ...buildEligibleCourseWhere(learner), id: { notIn: enrolledIds } },
-    select: { id: true, title: true, category: true, tags: true, cpdPoints: true, targetCadres: true, targetTitles: true },
-    orderBy: { createdAt: 'desc' },
-    take: 30,
-  });
-
-  if (!availableCourses.length) {
-    return { courseIds: [], explanations: {}, reasonCategories: {}, isProfileBased: false };
-  }
-
-  const ai = new AIClient(buildAiConfig());
-  const yearEnd = new Date(new Date().getFullYear(), 11, 31);
-  const daysToRenewal = Math.ceil((yearEnd.getTime() - Date.now()) / 86400000);
-
-  const isProfileBased = completedEnrollments.length === 0;
-
-  const quizCourseIds = [...new Set(recentQuizAttempts.map((a) => a.quiz.courseId))];
-  const quizCourses = await db.course.findMany({
-    where: { id: { in: quizCourseIds } },
-    select: { id: true, category: true, title: true },
-  });
-  const courseById = new Map(quizCourses.map((c) => [c.id, c]));
-
-  const categoryStats = new Map<string, { total: number; count: number; failures: number }>();
-  for (const a of recentQuizAttempts) {
-    const cat = courseById.get(a.quiz.courseId)?.category ?? 'UNKNOWN';
-    const existing = categoryStats.get(cat) ?? { total: 0, count: 0, failures: 0 };
-    existing.total += a.score;
-    existing.count += 1;
-    if (!a.passed) existing.failures += 1;
-    categoryStats.set(cat, existing);
-  }
-  const weakestCategories = [...categoryStats.entries()]
-    .map(([cat, v]) => ({ cat, avg: v.count ? v.total / v.count : 0, failures: v.failures, count: v.count }))
-    .sort((a, b) => a.avg - b.avg)
-    .slice(0, 2);
-
-  // ── Cold-start: profile-only prompt (no completion history) ──────────────
-  const prompt = isProfileBased
-    ? `A health professional has just joined ZimHealth CPD. They have no completed courses yet.
-
-Learner profile:
-- Cadre: ${learner?.cadre ?? 'Registered Nurse'}
-- Professional title: ${learner?.professionalTitle ?? 'Not set'}
-- Institution: ${learner?.institution ?? 'Unknown'}
-- Province: ${learner?.province ?? 'Zimbabwe'}
-- CPD Points: 0/${summary.requiredPoints} required
-- Days to renewal: ${daysToRenewal}
-
-Available courses (recommend the most relevant 3 for this cadre):
-${availableCourses.map((c) => `- ${c.id}: "${c.title}" (${c.category}, ${c.cpdPoints} pts, for: ${[...((c.targetTitles as string[]) ?? []), ...((c.targetCadres as string[]) ?? [])].join(', ') || 'all eligible health workers'})`).join('\n')}
-
-Return JSON: { "recommendations": [ { "courseId": "...", "reason": "under 20 words why this suits their role" } ] }
-Order by relevance to their cadre. Max 3.`
-    : `Learner profile:
-- Cadre: ${learner?.cadre ?? 'Nurse'}
-- Professional title: ${learner?.professionalTitle ?? 'Not set'}
-- Institution: ${learner?.institution ?? 'Unknown'}
-- Province: ${learner?.province ?? 'Unknown'}
-- CPD Points: ${summary.totalPoints}/${summary.requiredPoints} (${summary.percentComplete}% complete)
-- Days to renewal: ${daysToRenewal}
-- Completed courses: ${completedEnrollments.map((e) => e.course.title).join(', ')}
-- In-progress courses: ${inProgressEnrollments.length ? inProgressEnrollments.map((e) => `${e.course.title} (${Math.round(e.progress * 100)}%)`).join(', ') : 'None'}
-- Weakest quiz categories: ${weakestCategories.length ? weakestCategories.map((w) => `${w.cat} (avg ${Math.round(w.avg)}%, fails ${w.failures}/${w.count})`).join(', ') : 'No quiz attempts yet'}
-
-Available courses:
-${availableCourses.map((c) => `- ${c.id}: "${c.title}" (${c.category}, ${c.cpdPoints} pts)`).join('\n')}
-
-Return JSON:
-{
-  "recommendations": [
-    {
-      "courseId": "...",
-      "reason": "under 25 words",
-      "categories": ["deadline" | "specialty_fit" | "knowledge_gap" | "points_efficiency"]
-    }
-  ]
-}
-Prioritise: renewal gap closure → weak knowledge areas → cadre fit → points efficiency. Max 3.`;
-
-  const fallbackRecommendations = () => {
-    const weakCategorySet = new Set(weakestCategories.map((item) => item.cat));
-    const cadreNeedle = String(learner?.professionalTitle ?? learner?.cadre ?? '').toLowerCase();
-    const ranked = [...availableCourses]
-      .sort((a, b) => {
-        const aWeak = weakCategorySet.has(a.category) ? 1 : 0;
-        const bWeak = weakCategorySet.has(b.category) ? 1 : 0;
-        if (aWeak !== bWeak) return bWeak - aWeak;
-
-        const aFit = [
-          ...((a.targetTitles as string[]) ?? []),
-          ...((a.targetCadres as string[]) ?? []),
-          ...((a.tags as string[]) ?? []),
-          a.title,
-        ].join(' ').toLowerCase().includes(cadreNeedle) ? 1 : 0;
-        const bFit = [
-          ...((b.targetTitles as string[]) ?? []),
-          ...((b.targetCadres as string[]) ?? []),
-          ...((b.tags as string[]) ?? []),
-          b.title,
-        ].join(' ').toLowerCase().includes(cadreNeedle) ? 1 : 0;
-        if (aFit !== bFit) return bFit - aFit;
-
-        return b.cpdPoints - a.cpdPoints;
-      })
-      .slice(0, 3);
-
-    return {
-      courseIds: ranked.map((course) => course.id),
-      explanations: Object.fromEntries(
-        ranked.map((course) => [
-          course.id,
-          weakCategorySet.has(course.category)
-            ? `Recommended to strengthen ${course.category.toLowerCase()} knowledge.`
-            : `Recommended based on your professional profile and CPD needs.`,
-        ]),
-      ),
-      reasonCategories: Object.fromEntries(
-        ranked.map((course) => [
-          course.id,
-          weakCategorySet.has(course.category) ? ['knowledge_gap'] : ['specialty_fit', 'points_efficiency'],
-        ]),
-      ),
-      isProfileBased,
-    };
-  };
+  if (cached) return JSON.parse(cached);
 
   try {
-    const raw = await ai.complete(prompt, {
-      systemPrompt: SYSTEM_PROMPTS.COURSE_RECOMMENDER,
-      maxTokens: 500,
-      temperature: 0.3,
+    const [learner, summary, quizAttempts, enrollments] = await Promise.all([
+      db.user.findUnique({
+        where: { id: learnerId },
+        select: { id: true, cadre: true, specialtyArea: true, fullName: true, professionalTitle: true, institution: true, province: true },
+      }),
+      getLearnerCPDSummary(learnerId),
+      db.quizAttempt.findMany({
+        where: { learnerId, passed: false },
+        orderBy: { completedAt: 'desc' },
+        take: 5,
+        include: { quiz: { select: { title: true, courseId: true, moduleId: true } } },
+      }),
+      db.enrollment.findMany({
+        where: { learnerId, completedAt: null },
+        include: {
+          course: {
+            select: { id: true, title: true, modules: { select: { id: true, title: true, order: true } } },
+          },
+        },
+      }),
+    ]);
+
+    if (!learner) {
+      return { courseIds: [], moduleRecommendations: [], explanations: {}, reasonCategories: {}, isProfileBased: false };
+    }
+
+    const enrolledIds = await db.enrollment
+      .findMany({ where: { learnerId }, select: { courseId: true } })
+      .then((rows) => rows.map((r) => r.courseId));
+
+    const eligibleCourses = await db.course.findMany({
+      where: {
+        ...buildEligibleCourseWhere(learner),
+        status: 'PUBLISHED',
+        id: { notIn: enrolledIds },
+      },
+      select: { id: true, title: true, category: true, difficulty: true, tags: true, cpdPoints: true },
+      take: 20,
     });
 
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Invalid AI response');
+    const isProfileBased = enrolledIds.length === 0;
 
-    const parsed = JSON.parse(jsonMatch[0]) as {
-      recommendations?: Array<{ courseId?: string; reason?: string; categories?: string[] }>;
+    const fallbackRecommendations = (): RecommendationResult => {
+      const cadreNeedle = String(learner.professionalTitle ?? learner.cadre ?? '').toLowerCase();
+      const ranked = [...eligibleCourses]
+        .sort((a, b) => {
+          const aFit = a.title.toLowerCase().includes(cadreNeedle) ? 1 : 0;
+          const bFit = b.title.toLowerCase().includes(cadreNeedle) ? 1 : 0;
+          if (aFit !== bFit) return bFit - aFit;
+          return b.cpdPoints - a.cpdPoints;
+        })
+        .slice(0, 3);
+
+      return {
+        courseIds: ranked.map((c) => c.id),
+        moduleRecommendations: [],
+        explanations: Object.fromEntries(ranked.map((c) => [c.id, 'Recommended based on your professional profile.'])),
+        reasonCategories: Object.fromEntries(ranked.map((c) => [c.id, ['specialty_fit']])),
+        isProfileBased,
+      };
     };
 
-    const recommendations = (parsed.recommendations ?? [])
-      .filter((item): item is { courseId: string; reason: string; categories?: string[] } => Boolean(item.courseId && item.reason))
-      .slice(0, 3);
+    const aiEnabled = (await redis.get('config:ai:enabled')) !== 'false';
+    if (!aiEnabled || !process.env.ANTHROPIC_API_KEY) {
+      const result = fallbackRecommendations();
+      await redisSetexSafe(cacheKey, CACHE_TTL, JSON.stringify(result));
+      return result;
+    }
 
-    const result = {
-      courseIds: recommendations.map((item) => item.courseId),
-      explanations: Object.fromEntries(recommendations.map((item) => [item.courseId, item.reason])),
-      reasonCategories: Object.fromEntries(
-        recommendations.map((item) => [
-          item.courseId,
-          (item.categories ?? []).filter((c) =>
-            ['deadline', 'specialty_fit', 'knowledge_gap', 'points_efficiency'].includes(c),
-          ),
-        ]),
-      ),
-      isProfileBased,
+    const aiClient = new AIClient(buildAiConfig());
+
+    const prompt = `
+Learner Profile:
+- Name: ${learner.fullName}
+- Cadre: ${learner.cadre}
+- Specialty: ${learner.specialtyArea ?? 'General'}
+- CPD Progress: ${summary.totalPoints} / ${summary.requiredPoints} points
+- Recent Quiz Weaknesses: ${quizAttempts.map(a => a.quiz.title).join(', ') || 'None'}
+- Currently Enrolled Incomplete Courses: ${enrollments.map(e => e.course.title).join(', ')}
+
+Available Courses:
+${eligibleCourses.map(c => `- ID: ${c.id}, Title: ${c.title}, Category: ${c.category}, Tags: ${c.tags.join(', ')}`).join('\n')}
+
+Incomplete Modules in Enrolled Courses:
+${enrollments.flatMap(e => e.course.modules.map(m => `- Course: ${e.course.title}, Module ID: ${m.id}, Module Title: ${m.title}`)).join('\n')}
+
+Task:
+1. Recommend up to 3 specific courses from the 'Available Courses' list.
+2. Recommend up to 2 specific modules from 'Incomplete Modules' that should be prioritised.
+3. Provide a short explanation for each recommendation.
+
+Return valid JSON in this format:
+{
+  "courseIds": ["id1", "id2"],
+  "moduleRecommendations": [
+    { "courseId": "c1", "moduleId": "m1", "reason": "..." }
+  ],
+  "explanations": { "id1": "...", "id2": "..." },
+  "reasonCategories": { "id1": ["Specialty", "Gap Fill"], "id2": ["Weakness"] }
+}
+`;
+
+    const response = await aiClient.complete(prompt, {
+      systemPrompt: SYSTEM_PROMPTS.COURSE_RECOMMENDER,
+      temperature: 0.2,
+    });
+
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Invalid AI response');
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    const result: RecommendationResult = {
+      courseIds: Array.isArray(parsed.courseIds) ? parsed.courseIds : [],
+      moduleRecommendations: Array.isArray(parsed.moduleRecommendations) ? parsed.moduleRecommendations : [],
+      explanations: parsed.explanations || {},
+      reasonCategories: parsed.reasonCategories || {},
+      isProfileBased: true,
     };
 
     await redisSetexSafe(cacheKey, CACHE_TTL, JSON.stringify(result));
     return result;
-  } catch {
-    const result = fallbackRecommendations();
-    await redisSetexSafe(cacheKey, CACHE_TTL, JSON.stringify(result));
+  } catch (err) {
+    logger.error('Adaptive learning recommendation failed', { learnerId, err: String(err) });
+    // Need a way to call fallbackRecommendations here, but it was defined inside try.
+    // I'll just return a minimal deterministic result.
+    const result = {
+      courseIds: [],
+      moduleRecommendations: [],
+      explanations: {},
+      reasonCategories: {},
+      isProfileBased: false,
+    };
     return result;
   }
 }

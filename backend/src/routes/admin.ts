@@ -101,6 +101,12 @@ router.get('/ai/health', requireAuth, requireRole('ADMIN'), async (_req, res) =>
       }
     }
 
+    const lastSuccess = await db.auditLog.findFirst({
+      where: { action: 'BOT_AI_TUTOR_SUCCESS' },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true }
+    });
+
     const avgLatencyMs = latencyCount ? Math.round(latencyTotal / latencyCount) : null;
     return res.json({
       activeProvider: provider,
@@ -117,6 +123,7 @@ router.get('/ai/health', requireAuth, requireRole('ADMIN'), async (_req, res) =>
       avgLatencyMs,
       lastFailureAt,
       lastFallbackAt,
+      lastSuccessAt: lastSuccess?.createdAt.toISOString() ?? null,
     });
   } catch {
     return res.status(500).json({ error: 'Could not load AI health' });

@@ -58,6 +58,7 @@ router.get('/recommendations', requireAuth, requireRole('LEARNER'), async (req: 
 
     return res.json({
       courses: ordered,
+      moduleRecommendations: recs.moduleRecommendations,
       isProfileBased: recs.isProfileBased,
     });
   } catch (err) {

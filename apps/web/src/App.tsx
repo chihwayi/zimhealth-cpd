@@ -27,7 +27,7 @@ const CourseBuilder = lazy(() => import('./pages/creator/CourseBuilder'));
 const QuizBuilder = lazy(() => import('./pages/creator/QuizBuilder'));
 const CreatorAnalytics = lazy(() => import('./pages/creator/Analytics'));
 const MediaLibrary = lazy(() => import('./pages/creator/MediaLibrary'));
-const NczDashboard = lazy(() => import('./pages/ncz/NczDashboard'));
+const CouncilDashboard = lazy(() => import('./pages/council/CouncilDashboard'));
 
 const Loader = () => (
   <main className="flex min-h-[50vh] flex-col items-center justify-center px-4" aria-busy="true">
@@ -233,25 +233,24 @@ export default function App() {
           }
         />
 
-        {/* NCZ */}
+        {/* Council Portal (generic, council-scoped; UI reuses legacy portal) */}
         <Route
           path="/ncz/*"
           element={
             <ProtectedRoute allowedRoles={['NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN']}>
               <AppShell>
-                <NczDashboard />
+                <CouncilDashboard />
               </AppShell>
             </ProtectedRoute>
           }
         />
 
-        {/* Council Portal (generic, council-scoped; UI reuses NCZ portal) */}
         <Route
           path="/council/*"
           element={
             <ProtectedRoute allowedRoles={['NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN']}>
               <AppShell>
-                <NczDashboard />
+                <CouncilDashboard />
               </AppShell>
             </ProtectedRoute>
           }

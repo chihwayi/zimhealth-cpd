@@ -216,7 +216,7 @@ function buildCsvUrl(): string {
   return `${baseUrl}/api/council/export/csv`;
 }
 
-export default function NczDashboard() {
+export default function CouncilDashboard() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const storeUser = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
