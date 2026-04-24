@@ -103,7 +103,7 @@ export default function App() {
         <Route
           path="/courses/:id"
           element={
-            <ProtectedRoute allowedRoles={['LEARNER']}>
+            <ProtectedRoute allowedRoles={['LEARNER', 'CONTENT_MANAGER', 'ADMIN']}>
               <AppShell>
                 <LearnerCoursePlayer />
               </AppShell>

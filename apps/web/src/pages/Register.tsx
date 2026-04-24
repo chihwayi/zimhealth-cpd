@@ -106,9 +106,8 @@ export default function Register() {
         <section className="relative hidden min-h-[720px] flex-col justify-between overflow-hidden bg-slate-950 p-10 text-white lg:flex">
           <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(59,130,246,0.35),_transparent_45%),radial-gradient(circle_at_80%_20%,_rgba(251,191,36,0.24),_transparent_30%)]" />
           <div className="relative">
-            <div className="flex items-center gap-3 mb-8">
-              <img src="/favicon.png" alt="" className="h-12 w-12 rounded-2xl object-contain p-1.5 bg-white/15 ring-1 ring-white/20" />
-              <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-10 w-auto max-w-[160px] object-contain brightness-110" />
+            <div className="mb-8">
+              <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-12 w-auto max-w-[200px] object-contain brightness-110" />
             </div>
             <h1 className="mt-8 max-w-md text-5xl font-black leading-[0.95] tracking-tight">
               One CPD home for every health council.

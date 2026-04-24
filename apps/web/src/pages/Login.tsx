@@ -75,12 +75,14 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Brand */}
         <header className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <img src="/favicon.png" alt="" className="h-12 w-12 rounded-2xl object-contain p-1.5 bg-white/10 ring-1 ring-white/20" />
-            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-10 w-auto max-w-[180px] object-contain" />
+          <div className="flex justify-center mb-5">
+            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-14 w-auto max-w-[240px] object-contain" />
           </div>
-          <p className="text-white/60 mt-1 text-sm">
-            Continuing Professional Development for Zimbabwe's health professionals
+          <p className="text-sm font-medium tracking-wide uppercase text-blue-300/80 letter-spacing-widest">
+            Continuing Professional Development
+          </p>
+          <p className="mt-1 text-white/50 text-xs">
+            For Zimbabwe's health professionals
           </p>
         </header>
 

@@ -149,20 +149,12 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
       <div className={clsx('relative px-5 py-5 border-b-4', ROLE_ACCENT[user.role])}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <img
-              src="/favicon.png"
-              alt="ZimHealth CPD"
-              className={clsx(
-                'h-10 w-10 rounded-2xl object-contain flex-shrink-0 p-1',
-                isDarkSidebar ? 'bg-white/10 ring-1 ring-white/15' : 'bg-primary-50 ring-1 ring-primary-200',
-              )}
-            />
             <div className="min-w-0">
               <img
                 src="/brand-zimhealthcpd.png"
                 alt="ZimHealth CPD"
                 className={clsx(
-                  'h-7 w-auto max-w-[130px] object-contain',
+                  'h-9 w-auto max-w-[160px] object-contain',
                   isDarkSidebar ? 'brightness-110' : '',
                 )}
               />

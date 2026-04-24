@@ -32,9 +32,8 @@ export default function ForgotPassword() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
       <div className="w-full max-w-md">
         <header className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <img src="/favicon.png" alt="" className="h-12 w-12 rounded-2xl object-contain p-1.5 bg-white/10 ring-1 ring-white/20" />
-            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-10 w-auto max-w-[180px] object-contain" />
+          <div className="flex justify-center mb-4">
+            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-14 w-auto max-w-[240px] object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white mt-2">Reset your password</h1>
           <p className="text-white/60 mt-1 text-sm">We’ll email you a link to set a new password.</p>

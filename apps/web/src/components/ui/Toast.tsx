@@ -18,11 +18,19 @@ interface ToastStore {
   remove: (id: string) => void;
 }
 
+function genId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for non-secure contexts (plain HTTP)
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 export const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
   add: (message, type = 'info') =>
     set((s) => ({
-      toasts: [...s.toasts, { id: crypto.randomUUID(), message, type }],
+      toasts: [...s.toasts, { id: genId(), message, type }],
     })),
   remove: (id) =>
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),

@@ -45,8 +45,7 @@ export function AppShell({ children }: Props) {
             <Menu size={18} />
           </button>
           <div className="flex items-center gap-2 min-w-0">
-            <img src="/favicon.png" alt="ZimHealth CPD" className="h-8 w-8 rounded-xl object-contain p-1 bg-white/10 ring-1 ring-white/20" />
-            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-7 w-auto max-w-[140px] object-contain brightness-110" />
+            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-8 w-auto max-w-[150px] object-contain brightness-110" />
           </div>
         </div>
       </header>

@@ -50,16 +50,16 @@ fi
 
 # ── Sanity-check: warn if .env on the server still has localhost ──────────────
 echo "▶ Checking server .env sanity..."
-APP_HOST_REMOTE=$("${ssh_base[@]}" "$SERVER" \
-  "grep -E '^APP_HOST=' \"$REMOTE_PATH/.env\" 2>/dev/null | cut -d= -f2- | tr -d '\r'" || echo "MISSING")
+ENV_EXISTS=$("${ssh_base[@]}" "$SERVER" "[[ -f \"$REMOTE_PATH/.env\" ]] && echo yes || echo no")
 
-if [[ "$APP_HOST_REMOTE" == "MISSING" ]]; then
+if [[ "$ENV_EXISTS" != "yes" ]]; then
   echo "ERROR: $REMOTE_PATH/.env does not exist on the server."
-  echo "  Create it first:"
-  echo "    ssh $SERVER"
-  echo "    mkdir -p $REMOTE_PATH && cp $REMOTE_PATH/.env.example $REMOTE_PATH/.env && nano $REMOTE_PATH/.env"
+  echo "  Create it first, then re-run this script."
   exit 1
 fi
+
+APP_HOST_REMOTE=$("${ssh_base[@]}" "$SERVER" \
+  "grep -E '^APP_HOST=' \"$REMOTE_PATH/.env\" | cut -d= -f2- | tr -d '\r'" 2>/dev/null || echo "")
 
 if [[ "$APP_HOST_REMOTE" == "localhost" ]]; then
   echo "  WARNING: APP_HOST=localhost in server .env — web frontend will use wrong API URL."
@@ -89,50 +89,59 @@ echo "▶ Uploading archive to $SERVER..."
 
 # ── Remote: extract → build → migrate → (seed) → start ───────────────────────
 echo "▶ Deploying on server..."
-"${ssh_base[@]}" "$SERVER" bash -lc "set -euo pipefail
+"${ssh_base[@]}" "$SERVER" \
+  REMOTE_PATH="$REMOTE_PATH" \
+  ARCHIVE_NAME="$ARCHIVE_NAME" \
+  SKIP_DOCKER="$SKIP_DOCKER" \
+  RESEED="$RESEED" \
+  bash -s << 'REMOTE_SCRIPT'
+set -euo pipefail
 
-  # ── Atomic extract ────────────────────────────────────────────────────────
-  mkdir -p \"$REMOTE_PATH\"
-  RELEASE_DIR=\"/tmp/zimhealth-cpd-release-\$(date +%s)\"
-  mkdir -p \"\$RELEASE_DIR\"
-  tar -xzf \"/tmp/$ARCHIVE_NAME\" -C \"\$RELEASE_DIR\"
+# ── Atomic extract ──────────────────────────────────────────────────────────
+mkdir -p "$REMOTE_PATH"
+RELEASE_DIR="/tmp/zimhealth-cpd-release-$(date +%s)"
+mkdir -p "$RELEASE_DIR"
+tar -xzf "/tmp/$ARCHIVE_NAME" -C "$RELEASE_DIR"
 
-  # ── Preserve .env ─────────────────────────────────────────────────────────
-  if [[ ! -f \"$REMOTE_PATH/.env\" ]]; then
-    echo 'ERROR: .env missing at $REMOTE_PATH/.env'
-    echo 'Create it from .env.example and set APP_HOST, DATABASE_URL, JWT_SECRET, etc.'
-    exit 1
-  fi
+# ── Preserve .env ───────────────────────────────────────────────────────────
+if [[ ! -f "$REMOTE_PATH/.env" ]]; then
+  echo "ERROR: .env missing at $REMOTE_PATH/.env"
+  exit 1
+fi
 
-  # Replace everything except .env and any local uploads/tmp
-  find \"$REMOTE_PATH\" -mindepth 1 -maxdepth 1 \
-    ! -name '.env' \
-    ! -name 'uploads' \
-    ! -name 'tmp' \
-    -exec rm -rf {} +
+# Backup .env before replacing files
+cp "$REMOTE_PATH/.env" "/tmp/.zimhealth-env-backup"
 
-  cp -a \"\$RELEASE_DIR\"/. \"$REMOTE_PATH\"/
-  # Restore .env (cp -a above would have overwritten if present in release dir)
-  rm -rf \"\$RELEASE_DIR\"
+# Replace everything except persistent data
+find "$REMOTE_PATH" -mindepth 1 -maxdepth 1 \
+  ! -name '.env' \
+  ! -name 'uploads' \
+  ! -name 'tmp' \
+  -exec rm -rf {} +
 
-  cd \"$REMOTE_PATH\"
+cp -a "$RELEASE_DIR"/. "$REMOTE_PATH"/
+rm -rf "$RELEASE_DIR"
 
-  chmod +x scripts/*.sh || true
+# Ensure .env is restored (cp -a may have overwritten it)
+cp "/tmp/.zimhealth-env-backup" "$REMOTE_PATH/.env"
 
-  # ── Run server-side deploy script ─────────────────────────────────────────
-  SKIP_DOCKER=$SKIP_DOCKER RESEED=$RESEED ./scripts/deploy.sh
+cd "$REMOTE_PATH"
+chmod +x scripts/*.sh || true
 
-  # ── Verify build outputs ──────────────────────────────────────────────────
-  test -f backend/dist/app.js \
-    || { echo 'ERROR: backend/dist/app.js missing — build failed'; exit 1; }
-  test -f apps/whatsapp-bot/dist/index.js \
-    || { echo 'ERROR: apps/whatsapp-bot/dist/index.js missing — build failed'; exit 1; }
+# ── Build, migrate, seed ─────────────────────────────────────────────────────
+SKIP_DOCKER="$SKIP_DOCKER" RESEED="$RESEED" ./scripts/deploy.sh
 
-  # ── Start / reload PM2 ────────────────────────────────────────────────────
-  ./scripts/start.sh
+# ── Verify outputs ───────────────────────────────────────────────────────────
+test -f backend/dist/app.js \
+  || { echo "ERROR: backend/dist/app.js missing — build failed"; exit 1; }
+test -f apps/whatsapp-bot/dist/index.js \
+  || { echo "ERROR: apps/whatsapp-bot/dist/index.js missing — build failed"; exit 1; }
 
-  echo '✓ ZimHealth CPD deployed and running'
-"
+# ── Start / reload PM2 ──────────────────────────────────────────────────────
+./scripts/start.sh
+
+echo "✓ ZimHealth CPD deployed and running"
+REMOTE_SCRIPT
 
 # ── Cleanup local temp ────────────────────────────────────────────────────────
 echo "▶ Cleaning up local temp archive..."

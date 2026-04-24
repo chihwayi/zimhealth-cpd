@@ -293,6 +293,8 @@ export default function CoursePlayerPage() {
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
   const user = useAuthStore((state) => state.user);
+  // Creators and admins preview without enrolling — skip learner-only API calls
+  const isPreviewMode = user?.role === 'CONTENT_MANAGER' || user?.role === 'ADMIN';
 
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [reviewRating, setReviewRating] = useState(0);
@@ -310,7 +312,7 @@ export default function CoursePlayerPage() {
   const { data: enrollmentRows, isLoading: enrollmentLoading } = useQuery<EnrollmentRow[]>({
     queryKey: ['enrollment-course', id],
     queryFn: () => api.get(`/api/enrollments?courseId=${encodeURIComponent(id!)}`),
-    enabled: !!id && isOnline,
+    enabled: !!id && isOnline && !isPreviewMode,
   });
 
   // ── Load offline data when offline ──
@@ -421,8 +423,10 @@ export default function CoursePlayerPage() {
         savedAt: Date.now(),
       });
       setOfflineModuleIds((prev) => new Set([...prev, moduleId]));
-      // Best-effort telemetry for admin release readiness (Sprint 30).
-      void api.post('/api/telemetry/offline-download', { courseId: id, moduleId }).catch(() => null);
+      // Best-effort telemetry (learner-only endpoint, skip in preview mode)
+      if (!isPreviewMode) {
+        void api.post('/api/telemetry/offline-download', { courseId: id, moduleId }).catch(() => null);
+      }
     } finally {
       setDownloadingModuleId(null);
     }
@@ -436,7 +440,7 @@ export default function CoursePlayerPage() {
 
   const enrollment = enrollmentRows?.[0] ?? null;
   const completedSections = enrollment?.completedSections ?? [];
-  const isEnrolled = !!enrollment;
+  const isEnrolled = isPreviewMode || !!enrollment;
   const isCompleted = enrollment?.status === 'COMPLETED';
   const progressPercent = enrollment?.progressPercent ?? 0;
   const isFreeLearner = user?.role === 'LEARNER' && (user.subscriptionTier ?? 'FREE') === 'FREE';
@@ -715,6 +719,13 @@ export default function CoursePlayerPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Preview mode banner */}
+      {isPreviewMode && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 flex items-center gap-2">
+          <span className="font-semibold">Preview mode</span>
+          <span className="text-amber-600">— learners see this after enrolling. Progress is not tracked.</span>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="min-w-0">
@@ -795,7 +806,7 @@ export default function CoursePlayerPage() {
               </button>
 
               <div className="flex items-center gap-2 flex-wrap justify-end">
-                {!activeSectionDone && active?.section.type !== 'QUIZ' && (
+                {!isPreviewMode && !activeSectionDone && active?.section.type !== 'QUIZ' && (
                   <button
                     onClick={() => active && void markSectionCompleteMutation.mutate(active.section.id)}
                     disabled={markSectionCompleteMutation.isPending}
