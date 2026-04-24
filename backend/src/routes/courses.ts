@@ -15,7 +15,6 @@ import type { AuthRequest } from '../middleware/auth.middleware';
 import { generateCourseFromGuideline } from '../services/ai-content-gen';
 import { resolveGuidelineText } from '../services/guideline-ingestion';
 import { getAIProvider } from '../lib/redis';
-import { canAccessPremiumCourse } from '../services/entitlements';
 import { verifyAccessToken } from '../services/auth.service';
 import { assertLearnerCanAccessCourse, buildEligibleCourseWhere } from '../services/course-eligibility';
 
@@ -390,6 +389,70 @@ router.post('/:id/approve', requireAuth, requireRole('ADMIN'), async (req: AuthR
 
 // ─── Module CRUD ─────────────────────────────────────────────────────────────
 
+// GET /api/courses/:id/modules — learner/mobile course player module payload
+router.get('/:id/modules', async (req, res) => {
+  try {
+    const learner = await getRequestLearner(req);
+    const role = await getRequestRole(req);
+    const course = await db.course.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, status: true },
+    });
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+    if (course.status !== 'PUBLISHED') {
+      const isStaff = role === 'ADMIN' || role === 'CONTENT_MANAGER';
+      if (!isStaff) return res.status(404).json({ error: 'Course not found' });
+    }
+    if (course.status === 'PUBLISHED' && learner) {
+      const allowed = await assertLearnerCanAccessCourse(learner.id, course.id);
+      if (!allowed) return res.status(403).json({ error: 'This course is not assigned to your council or professional title.' });
+    }
+
+    const modules = await db.module.findMany({
+      where: { courseId: req.params.id },
+      orderBy: { order: 'asc' },
+      include: {
+        sections: { orderBy: { order: 'asc' } },
+        quizzes: {
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, title: true },
+        },
+      },
+    });
+
+    return res.json(
+      modules.map((module) => ({
+        id: module.id,
+        title: module.title,
+        order: module.order,
+        sections: [
+          ...module.sections.map((section) => ({
+            id: section.id,
+            title: section.title,
+            type:
+              section.type === 'READING'
+                ? 'TEXT'
+                : section.type === 'QUIZ'
+                  ? 'QUIZ_LINK'
+                  : section.type,
+            content: section.mediaUrl || section.content,
+            order: section.order,
+          })),
+          ...module.quizzes.map((quiz, index) => ({
+            id: `quiz-link:${quiz.id}`,
+            title: quiz.title,
+            type: 'QUIZ_LINK',
+            content: quiz.id,
+            order: module.sections.length + index + 1,
+          })),
+        ].sort((a, b) => a.order - b.order),
+      })),
+    );
+  } catch {
+    return res.status(500).json({ error: 'Could not fetch course modules' });
+  }
+});
+
 // POST /api/courses/:id/modules
 router.post(
   '/:id/modules',
@@ -633,14 +696,6 @@ router.post('/:id/enroll', requireAuth, requireRole('LEARNER'), async (req: Auth
     const allowed = await assertLearnerCanAccessCourse(req.user!.id, course.id);
     if (!allowed) {
       return res.status(403).json({ error: 'This course is not assigned to your council or professional title.' });
-    }
-
-    const hasPremiumAccess = await canAccessPremiumCourse(req.user!.id, course.id);
-    if (!hasPremiumAccess) {
-      return res.status(402).json({
-        error: 'Upgrade required to access the full web course library.',
-        code: 'UPGRADE_REQUIRED',
-      });
     }
 
     const enrollment = await db.enrollment.upsert({

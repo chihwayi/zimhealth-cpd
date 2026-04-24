@@ -27,6 +27,35 @@ async function fetchCourses(phone: string): Promise<{ learnerId: string; courses
   }
 }
 
+async function fetchAvailableCourses(phone: string): Promise<BotCourseOption[] | null> {
+  try {
+    const res = await fetch(
+      `${API_URL}/api/bot/courses/available?phone=${encodeURIComponent(phone)}`,
+      { headers: botHeaders },
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as { courses?: BotCourseOption[] };
+    return data.courses ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function enrollInCourse(phone: string, courseId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/bot/enroll`, {
+      method: 'POST',
+      headers: botHeaders,
+      body: JSON.stringify({ phone, courseId }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { enrollmentId?: string };
+    return data.enrollmentId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchModules(courseId: string): Promise<BotModuleOption[] | null> {
   try {
     const res = await fetch(`${API_URL}/api/bot/course/${courseId}/modules`, { headers: botHeaders });
@@ -124,9 +153,32 @@ export async function handleLearn(msg: IncomingMessage, session: BotSession): Pr
     const data = await fetchCourses(phone);
 
     if (!data || data.courses.length === 0) {
+      const available = await fetchAvailableCourses(phone);
+
+      if (available && available.length > 0) {
+        session.state = 'BROWSE';
+        session.learningState = {
+          step: 'SELECT_COURSE',
+          courseOptions: available,
+          sections: [],
+          browsing: true,
+          sectionIndex: 0,
+        };
+        await saveSession(session);
+
+        const list = available
+          .map((c, i) => `${i + 1}️⃣ ${c.title} — ${c.cpdPoints ?? 0} CPD pts, ${c.moduleCount} module${c.moduleCount === 1 ? '' : 's'}`)
+          .join('\n');
+        await sendMessage(
+          msg.from,
+          `📚 *Available Courses*\n\nYou have no enrolled courses yet. Here are courses you can start now:\n\n${list}\n\n_Reply with a number to enrol, or *menu* to go back._`,
+        );
+        return;
+      }
+
       await sendMessage(
         msg.from,
-        `📚 *No enrolled courses found.*\n\nVisit ${WEB_URL} to browse and enrol in courses.\n\nReply *menu* to go back.`,
+        `📚 *No courses available right now.*\n\nNew courses are added regularly. Visit ${WEB_URL} for the full library.\n\nReply *menu* to go back.`,
       );
       session.state = 'MENU';
       await saveSession(session);
@@ -194,6 +246,20 @@ export async function handleLearn(msg: IncomingMessage, session: BotSession): Pr
     }
 
     const course = options[idx];
+    const phone = msg.from.replace('whatsapp:', '');
+
+    if (ls.browsing) {
+      const enrollmentId = await enrollInCourse(phone, course.id);
+      if (!enrollmentId) {
+        await sendMessage(msg.from, `⚠️ Could not enrol in *${course.title}* right now. Please try again.\n\nReply *menu* to go back.`);
+        return;
+      }
+
+      await sendMessage(msg.from, `✅ You are enrolled in *${course.title}*.\n\nLoading modules now...`);
+      session.state = 'LEARNING';
+      ls.browsing = false;
+    }
+
     ls.step = 'SELECT_MODULE';
     ls.courseId = course.id;
     ls.courseTitle = course.title;

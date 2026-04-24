@@ -23,6 +23,11 @@ import {
   Building2,
   Save,
   X,
+  Ticket,
+  Download,
+  Plus,
+  ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -122,7 +127,7 @@ interface SystemConfig {
   availableProviders: string[];
   configuredProviders: string[];
   maintenanceMode: boolean;
-  nczSyncSchedule: string;
+  councilSyncSchedule: string;
   cpdRules: Record<string, number>;
   activityPoints: Record<string, number>;
   subscriptionPricing: Array<{ tier: string; priceUsd: number; label: string }>;
@@ -190,6 +195,8 @@ interface NczSyncSummary {
   blocked: number;
   failed: number;
   synced: number;
+  mode?: 'dry_run' | 'live' | 'disabled';
+  configured?: boolean;
 }
 
 interface NczSyncLog {
@@ -223,14 +230,15 @@ const ADMIN_SECTIONS = [
   { key: 'guidelines', label: 'Guideline Lab', path: '/admin/guidelines', icon: Wand2 },
   { key: 'analytics', label: 'Analytics', path: '/admin/analytics', icon: BarChart2 },
   { key: 'payments', label: 'Payments', path: '/admin/payments', icon: CreditCard },
-  { key: 'ncz-sync', label: 'Council Sync', path: '/admin/ncz-sync', icon: RefreshCw },
+  { key: 'vouchers', label: 'Vouchers', path: '/admin/vouchers', icon: Ticket },
+  { key: 'council-sync', label: 'Council Sync', path: '/admin/council-sync', icon: RefreshCw },
   { key: 'audit', label: 'Audit Log', path: '/admin/audit', icon: ShieldAlert },
   { key: 'release', label: 'Release Readiness', path: '/admin/release', icon: ClipboardCheck },
   { key: 'settings', label: 'Settings', path: '/admin/settings', icon: Settings },
 ] as const;
 
 const ROLE_OPTIONS = ['ALL', 'ADMIN', 'CONTENT_MANAGER', 'NCZ_OFFICER', 'COUNCIL_OFFICER', 'LEARNER'] as const;
-const PIE_COLOURS = ['#e11d48', '#14b8a6', '#2563eb', '#f59e0b'];
+const PIE_COLOURS = ['#e11d48', '#3b82f6', '#2563eb', '#f59e0b'];
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('en-ZW', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -317,7 +325,8 @@ export default function AdminDashboard() {
       {section === 'release' && <ReleaseReadinessSection />}
       {section === 'settings' && <SettingsSection />}
       {section === 'payments' && <PaymentsSection />}
-      {section === 'ncz-sync' && <NczSyncSection />}
+      {section === 'vouchers' && <VouchersSection />}
+      {section === 'council-sync' && <CouncilSyncSection />}
     </div>
   );
 }
@@ -484,8 +493,8 @@ function CouncilsSection() {
       toast.success('Council settings updated.');
       qc.invalidateQueries({ queryKey: ['admin-councils'] });
       qc.invalidateQueries({ queryKey: ['cpd-summary'] });
-      qc.invalidateQueries({ queryKey: ['ncz-compliance'] });
-      qc.invalidateQueries({ queryKey: ['ncz-learners'] });
+      qc.invalidateQueries({ queryKey: ['council-compliance'] });
+      qc.invalidateQueries({ queryKey: ['council-learners'] });
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not update council settings.'),
   });
@@ -941,7 +950,7 @@ function UsersSection() {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') applySearch();
               }}
-              placeholder="Search by name, email, or NCZ number"
+              placeholder="Search by name, email, or registration number"
               className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
             />
           </div>
@@ -1101,7 +1110,7 @@ function GuidelineLabSection() {
   const token = useAuthStore((s) => s.accessToken);
   const [sourceMode, setSourceMode] = useState<'text' | 'url' | 'file'>('file');
   const [courseTitle, setCourseTitle] = useState('');
-  const [sourceName, setSourceName] = useState('MOHCC / NCZ official guideline');
+  const [sourceName, setSourceName] = useState('MOHCC / council official guideline');
   const [targetCadre, setTargetCadre] = useState('Registered General Nurse');
   const [category, setCategory] = useState<'CLINICAL' | 'MANAGEMENT' | 'ETHICS' | 'RESEARCH'>('CLINICAL');
   const [text, setText] = useState('');
@@ -1373,7 +1382,7 @@ function AnalyticsSection() {
               <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
               <YAxis stroke="#64748b" fontSize={12} allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="points" fill="#14b8a6" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="points" fill="#3b82f6" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -1606,8 +1615,8 @@ function SettingsSection() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
-        <h2 className="text-base font-semibold text-slate-900">NCZ Sync Schedule</h2>
-        <p className="text-sm text-slate-500 mt-1">Current backend schedule: <span className="font-mono text-xs">{configQuery.data.nczSyncSchedule}</span></p>
+        <h2 className="text-base font-semibold text-slate-900">Council Sync Schedule</h2>
+        <p className="text-sm text-slate-500 mt-1">Current backend schedule: <span className="font-mono text-xs">{configQuery.data.councilSyncSchedule}</span></p>
       </div>
     </div>
   );
@@ -1678,7 +1687,7 @@ function ReleaseReadinessSection() {
   const checklist = [
     { label: 'Offline quizzes work + sync safely', status: 'done' },
     { label: 'WhatsApp CPD credit dedupe + cap enforced', status: 'done' },
-    { label: 'NCZ sync blocked/failed queues + dry-run safety', status: 'done' },
+    { label: 'Council sync blocked/failed queues + dry-run safety', status: 'done' },
     { label: 'AI tutor gating + safety wrapper + fallback', status: 'done' },
     { label: 'Recommendations use weakness/deadline signals + reasons', status: 'done' },
     { label: 'AI guideline→course flow has review trail', status: 'done' },
@@ -1892,20 +1901,35 @@ function PaymentsSection() {
   );
 }
 
-function NczSyncSection() {
+function CouncilSyncSection() {
   const summaryQuery = useQuery<NczSyncSummary>({
-    queryKey: ['admin-ncz-sync-summary'],
-    queryFn: () => api.get('/api/ncz/sync/summary'),
+    queryKey: ['admin-council-sync-summary'],
+    queryFn: () => api.get('/api/council/sync/summary'),
     refetchInterval: 30000,
   });
   const logsQuery = useQuery<NczSyncLog[]>({
-    queryKey: ['admin-ncz-sync-logs'],
-    queryFn: () => api.get('/api/ncz/sync/logs'),
+    queryKey: ['admin-council-sync-logs'],
+    queryFn: () => api.get('/api/council/sync/logs'),
     refetchInterval: 30000,
   });
 
+  const syncMode = summaryQuery.data?.mode ?? 'dry_run';
+
   return (
     <div className="space-y-6">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Council sync mode</p>
+        <p className="mt-1 text-lg font-bold text-slate-900">
+          {syncMode === 'live' ? 'Live' : syncMode === 'disabled' ? 'Disabled' : 'Dry run'}
+        </p>
+        <p className="mt-1 text-sm text-slate-500">
+          {syncMode === 'live'
+            ? 'Records are submitted to the configured council endpoint.'
+            : syncMode === 'disabled'
+              ? 'Automatic submission is disabled by configuration.'
+              : 'No council endpoint/API key is configured, so records are not submitted.'}
+        </p>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <StatCard
           title="Pending"
@@ -1917,7 +1941,7 @@ function NczSyncSection() {
         <StatCard
           title="Blocked"
           value={summaryQuery.data?.blocked ?? '–'}
-          subtitle="Missing NCZ registration number"
+          subtitle="Missing registration number"
           icon={<XCircle size={20} />}
           accent="red"
         />
@@ -1931,7 +1955,7 @@ function NczSyncSection() {
         <StatCard
           title="Synced"
           value={summaryQuery.data?.synced ?? '–'}
-          subtitle="Successfully sent to NCZ"
+          subtitle="Successfully synced to council"
           icon={<CheckCircle size={20} />}
           accent="green"
         />
@@ -1942,7 +1966,7 @@ function NczSyncSection() {
           <div>
             <h2 className="text-base font-semibold text-slate-900">Council Sync Operations</h2>
             <p className="text-sm text-slate-500 mt-1">
-              Current integration: <span className="font-semibold text-slate-700">NCZ</span>. Other council integrations will appear here as they are connected.
+              Council registry sync logs and integration health. Each council manages its own sync endpoint via the Council Portal.
             </p>
           </div>
           <Link
@@ -1962,12 +1986,12 @@ function NczSyncSection() {
           </div>
         ) : logsQuery.isError ? (
           <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            Could not load NCZ sync logs.
+            Could not load council sync logs.
           </div>
         ) : !logsQuery.data?.length ? (
           <EmptyState
             icon={<RefreshCw size={28} />}
-            title="No NCZ sync logs yet"
+            title="No council sync logs yet"
             description="Sync history will appear here once the first scheduled or manual run happens."
           />
         ) : (
@@ -2005,6 +2029,521 @@ function ChartCard({ title, description, children }: { title: string; descriptio
       <h2 className="text-base font-semibold text-slate-900">{title}</h2>
       <p className="text-sm text-slate-500 mt-1 mb-4">{description}</p>
       <div className="h-[280px]">{children}</div>
+    </div>
+  );
+}
+
+// ─── Vouchers Section ─────────────────────────────────────────────────────────
+
+interface VoucherBatch {
+  id: string;
+  name: string;
+  sponsorName: string;
+  tier: string;
+  totalCount: number;
+  redeemed: number;
+  remaining: number;
+  expiresAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  createdBy: { fullName: string; email: string };
+}
+
+interface VoucherRow {
+  id: string;
+  code: string;
+  tier: string;
+  redeemedAt: string | null;
+  redeemedBy: {
+    id: string;
+    fullName: string;
+    email: string;
+    cadre: string | null;
+    nczRegistrationNumber: string | null;
+  } | null;
+}
+
+interface BatchDetail extends VoucherBatch {
+  vouchers: VoucherRow[];
+}
+
+interface CreateVoucherBatchResponse {
+  batch: Pick<VoucherBatch, 'id' | 'name' | 'sponsorName' | 'tier' | 'totalCount' | 'createdAt'>;
+  count: number;
+}
+
+interface VoucherLookupResponse {
+  voucher: VoucherRow & { batch: { name: string; sponsorName: string } };
+}
+
+const TIER_COLOURS: Record<string, string> = {
+  STANDARD: 'bg-teal-100 text-teal-800',
+  DIASPORA: 'bg-blue-100 text-blue-800',
+};
+
+function VouchersSection() {
+  const qc = useQueryClient();
+  const token = useAuthStore((s) => s.accessToken);
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [lookupCode, setLookupCode] = useState('');
+  const [lookupResult, setLookupResult] = useState<VoucherRow & { batch: { name: string; sponsorName: string } } | null>(null);
+  const [lookupError, setLookupError] = useState('');
+
+  // Generate form state
+  const [form, setForm] = useState({
+    name: '',
+    sponsorName: '',
+    tier: 'STANDARD' as 'STANDARD' | 'DIASPORA',
+    count: 100,
+    expiresAt: '',
+    notes: '',
+  });
+
+  const batchesQuery = useQuery<{ batches: VoucherBatch[] }>({
+    queryKey: ['admin-voucher-batches'],
+    queryFn: () => api.get('/api/admin/vouchers/batches'),
+  });
+
+  const batchDetailQuery = useQuery<{ batch: BatchDetail }>({
+    queryKey: ['admin-voucher-batch', selectedBatchId],
+    queryFn: () => api.get(`/api/admin/vouchers/batches/${selectedBatchId}`),
+    enabled: !!selectedBatchId,
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: () =>
+      api.post<CreateVoucherBatchResponse>('/api/admin/vouchers/batches', {
+        ...form,
+        count: Number(form.count),
+        expiresAt: form.expiresAt || undefined,
+        notes: form.notes || undefined,
+      }),
+    onSuccess: (data) => {
+      toast.success(`Generated ${data.count} voucher codes for "${form.name}".`);
+      qc.invalidateQueries({ queryKey: ['admin-voucher-batches'] });
+      setShowGenerate(false);
+      setForm({ name: '', sponsorName: '', tier: 'STANDARD', count: 100, expiresAt: '', notes: '' });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Generation failed'),
+  });
+
+  async function handleLookup() {
+    setLookupError('');
+    setLookupResult(null);
+    try {
+      const data = await api.get<VoucherLookupResponse>(
+        `/api/admin/vouchers/lookup?code=${encodeURIComponent(lookupCode.trim())}`,
+      );
+      setLookupResult(data.voucher);
+    } catch (err) {
+      setLookupError(err instanceof Error ? err.message : 'Not found');
+    }
+  }
+
+  async function downloadBatchCsv(batchId: string, batchName: string) {
+    if (!token) {
+      toast.error('You must be logged in as an admin.');
+      return;
+    }
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+      const response = await fetch(`${baseUrl}/api/admin/vouchers/batches/${batchId}/export.csv`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`Export failed (${response.status})`);
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `vouchers-${batchName.replace(/[^a-z0-9]+/gi, '-')}-${batchId.slice(-6)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Export failed');
+    }
+  }
+
+  const batches = batchesQuery.data?.batches ?? [];
+  const detail  = batchDetailQuery.data?.batch;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Header ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 md:p-8">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-xl md:text-2xl font-black tracking-tight text-slate-900">Sponsor Vouchers</h2>
+            <p className="text-sm text-slate-600 mt-2 max-w-2xl leading-relaxed">
+              Generate voucher codes for NGOs, sponsors, or institutions. Each code upgrades one
+              learner's account when redeemed. Codes are single-use and linked to the learner for audit.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowGenerate(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 transition-colors"
+          >
+            <Plus size={16} />
+            Generate Batch
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[
+            { label: 'Total batches',  value: batches.length },
+            { label: 'Total codes',    value: batches.reduce((s, b) => s + b.totalCount, 0) },
+            { label: 'Redeemed',       value: batches.reduce((s, b) => s + b.redeemed, 0) },
+            { label: 'Still available', value: batches.reduce((s, b) => s + b.remaining, 0) },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <p className="text-2xl font-bold tabular-nums text-slate-900">{stat.value}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Generate modal ── */}
+      {showGenerate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Generate Voucher Batch</h3>
+              <button onClick={() => setShowGenerate(false)} className="text-slate-400 hover:text-slate-700">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Batch name *</label>
+                <input
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. UNICEF Q1 2026 – Standard"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Sponsor / NGO name *</label>
+                <input
+                  value={form.sponsorName}
+                  onChange={(e) => setForm((f) => ({ ...f, sponsorName: e.target.value }))}
+                  placeholder="e.g. UNICEF Zimbabwe"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Subscription tier *</label>
+                  <select
+                    value={form.tier}
+                    onChange={(e) => setForm((f) => ({ ...f, tier: e.target.value as 'STANDARD' | 'DIASPORA' }))}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
+                  >
+                    <option value="STANDARD">Standard ($5/yr value)</option>
+                    <option value="DIASPORA">Diaspora ($15/yr value)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Number of codes *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={5000}
+                    value={form.count}
+                    onChange={(e) => setForm((f) => ({ ...f, count: parseInt(e.target.value, 10) || 1 }))}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Expiry date (optional)</label>
+                <input
+                  type="date"
+                  value={form.expiresAt ? form.expiresAt.substring(0, 10) : ''}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      expiresAt: e.target.value ? new Date(e.target.value).toISOString() : '',
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
+                />
+                <p className="text-xs text-slate-400 mt-1">Leave blank for no expiry.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Internal notes (optional)</label>
+                <textarea
+                  rows={2}
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  placeholder="e.g. Sponsored under MoHCC partnership agreement ref #2026-04"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowGenerate(false)}
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => generateMutation.mutate()}
+                disabled={generateMutation.isPending || !form.name || !form.sponsorName || form.count < 1}
+                className="flex-1 rounded-xl bg-primary-600 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-40"
+              >
+                {generateMutation.isPending ? `Generating ${form.count} codes…` : `Generate ${form.count} codes`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Batch detail panel ── */}
+      {selectedBatchId && (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSelectedBatchId(null)}
+                className="text-slate-400 hover:text-slate-700"
+                title="Back to list"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              {detail ? (
+                <div>
+                  <p className="font-semibold text-slate-900">{detail.name}</p>
+                  <p className="text-xs text-slate-500">Sponsor: {detail.sponsorName}</p>
+                </div>
+              ) : (
+                <div className="h-5 w-48 animate-pulse bg-slate-200 rounded" />
+              )}
+            </div>
+            {detail && (
+              <button
+                type="button"
+                onClick={() => void downloadBatchCsv(selectedBatchId, detail.name)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Download size={14} />
+                Export CSV
+              </button>
+            )}
+          </div>
+
+          {batchDetailQuery.isLoading ? (
+            <div className="p-6 space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-10 rounded-xl bg-slate-100 animate-pulse" />
+              ))}
+            </div>
+          ) : detail ? (
+            <>
+              {/* Batch stats */}
+              <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">
+                {[
+                  { label: 'Total codes', value: detail.totalCount },
+                  { label: 'Redeemed',    value: detail.redeemed },
+                  { label: 'Available',   value: detail.remaining },
+                ].map((s) => (
+                  <div key={s.label} className="px-6 py-4 text-center">
+                    <p className="text-2xl font-bold tabular-nums text-slate-900">{s.value}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Voucher table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      <th className="px-4 py-3 text-left">Code</th>
+                      <th className="px-4 py-3 text-left">Status</th>
+                      <th className="px-4 py-3 text-left">Redeemed by</th>
+                      <th className="px-4 py-3 text-left">Redeemed at</th>
+                      <th className="px-4 py-3 text-left">Council Reg</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {detail.vouchers.map((v) => (
+                      <tr key={v.id} className="hover:bg-slate-50/50">
+                        <td className="px-4 py-3 font-mono text-xs text-slate-700">{v.code}</td>
+                        <td className="px-4 py-3">
+                          {v.redeemedAt ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                              <CheckCircle size={10} />
+                              Redeemed
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                              Available
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {v.redeemedBy ? (
+                            <div>
+                              <p className="font-medium">{v.redeemedBy.fullName}</p>
+                              <p className="text-xs text-slate-400">{v.redeemedBy.email}</p>
+                            </div>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">
+                          {v.redeemedAt ? formatDateTime(v.redeemedAt) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 text-xs font-mono">
+                          {v.redeemedBy?.nczRegistrationNumber ?? '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* ── Batch list ── */}
+      {!selectedBatchId && (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <h3 className="text-base font-semibold text-slate-900">All Voucher Batches</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Click a batch to view individual codes and redemption audit trail.</p>
+          </div>
+
+          {batchesQuery.isLoading ? (
+            <div className="p-6 space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-16 rounded-xl bg-slate-100 animate-pulse" />
+              ))}
+            </div>
+          ) : batches.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <Ticket size={40} className="mx-auto text-slate-300 mb-3" />
+              <p className="text-sm font-medium text-slate-500">No voucher batches yet.</p>
+              <p className="text-xs text-slate-400 mt-1">Generate a batch to get started.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {batches.map((batch) => {
+                const pct = batch.totalCount > 0 ? Math.round((batch.redeemed / batch.totalCount) * 100) : 0;
+                const expired = batch.expiresAt && new Date(batch.expiresAt) < new Date();
+                return (
+                  <button
+                    key={batch.id}
+                    onClick={() => setSelectedBatchId(batch.id)}
+                    className="w-full text-left px-6 py-4 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-slate-900 truncate">{batch.name}</p>
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${TIER_COLOURS[batch.tier] ?? 'bg-slate-100 text-slate-600'}`}>
+                            {batch.tier}
+                          </span>
+                          {expired && (
+                            <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">
+                              Expired
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {batch.sponsorName} · Created by {batch.createdBy.fullName} · {formatDate(batch.createdAt)}
+                          {batch.expiresAt ? ` · Expires ${formatDate(batch.expiresAt)}` : ''}
+                        </p>
+                        {/* Redemption progress bar */}
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-primary-500 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs text-slate-500 whitespace-nowrap tabular-nums">
+                            {batch.redeemed} / {batch.totalCount} used
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-slate-300 flex-shrink-0 mt-1" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Code lookup ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+        <h3 className="text-base font-semibold text-slate-900">Code Lookup</h3>
+        <p className="text-sm text-slate-500 mt-0.5 mb-4">Look up any voucher code to see its status and redemption details.</p>
+
+        <div className="flex gap-3 max-w-md">
+          <input
+            value={lookupCode}
+            onChange={(e) => setLookupCode(e.target.value.toUpperCase())}
+            onKeyDown={(e) => e.key === 'Enter' && void handleLookup()}
+            placeholder="ZHCPD-XXXX-XXXX-XXXX"
+            className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm font-mono focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+          />
+          <button
+            onClick={handleLookup}
+            disabled={!lookupCode.trim()}
+            className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+          >
+            Look up
+          </button>
+        </div>
+
+        {lookupError && (
+          <p className="mt-3 text-sm text-red-600">{lookupError}</p>
+        )}
+
+        {lookupResult && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-sm max-w-lg">
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-semibold text-slate-900">{lookupResult.code}</span>
+              {lookupResult.redeemedAt ? (
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Redeemed</span>
+              ) : (
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">Available</span>
+              )}
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TIER_COLOURS[lookupResult.tier] ?? ''}`}>
+                {lookupResult.tier}
+              </span>
+            </div>
+            <p className="text-slate-500 text-xs">
+              Batch: <span className="text-slate-700 font-medium">{lookupResult.batch.name}</span>
+              {' '}· Sponsor: <span className="text-slate-700 font-medium">{lookupResult.batch.sponsorName}</span>
+            </p>
+            {lookupResult.redeemedBy && (
+              <div className="border-t border-slate-200 pt-2 mt-2">
+                <p className="text-xs font-semibold text-slate-700 mb-1">Redeemed by</p>
+                <p className="text-xs text-slate-600">{lookupResult.redeemedBy.fullName} · {lookupResult.redeemedBy.email}</p>
+                <p className="text-xs text-slate-500">
+                  {lookupResult.redeemedBy.cadre ?? 'Cadre unknown'}
+                  {lookupResult.redeemedBy.nczRegistrationNumber ? ` · Reg: ${lookupResult.redeemedBy.nczRegistrationNumber}` : ''}
+                </p>
+                {lookupResult.redeemedAt && (
+                  <p className="text-xs text-slate-400 mt-0.5">At: {formatDateTime(lookupResult.redeemedAt)}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import mediaRouter from './routes/media';
 import enrollmentsRouter from './routes/enrollments';
 import quizzesRouter from './routes/quizzes';
 import paymentsRouter from './routes/payments';
+import vouchersRouter from './routes/vouchers';
 import certificatesRouter from './routes/certificates';
 import entitlementsRouter from './routes/entitlements';
 import adminRouter from './routes/admin';
@@ -138,12 +139,13 @@ app.use('/api/media', mediaRouter);
 app.use('/api/enrollments', enrollmentsRouter);
 app.use('/api/quizzes', quizzesRouter);
 app.use('/api/payments', paymentsRouter);
+app.use('/api/admin/vouchers', vouchersRouter);
 app.use('/api/certificates', certificatesRouter);
 app.use('/api/entitlements', entitlementsRouter);
 app.use('/api/admin', adminRouter);
-app.use('/api/ncz', nczRouter);
 // Council portal endpoints (primary). `/api/ncz/*` remains as an alias during transition.
 app.use('/api/council', nczRouter);
+app.use('/api/ncz', nczRouter);
 app.use('/api/councils', councilsRouter);
 app.use('/api/creator', creatorRouter);
 app.use('/api', recommendationsRouter);
@@ -169,7 +171,7 @@ if (require.main === module) {
   });
   scheduleDailySync().catch((err) => {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[NCZ Sync] Schedule failed:', message);
+    console.error('[Council Sync] Schedule failed:', message);
   });
   scheduleRenewalReminders().catch((err) => {
     const message = err instanceof Error ? err.message : String(err);

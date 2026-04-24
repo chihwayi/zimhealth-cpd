@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
+import { cacheCourseOffline, shouldWarnForLargeDownload } from '../../lib/offlineDownload';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -51,7 +52,7 @@ export default function CourseDetailScreen({ route, navigation }: CourseDetailSc
   const enrollment = enrollments?.find((e) => e.courseId === courseId);
 
   const enrollMutation = useMutation({
-    mutationFn: () => api.post<Enrollment>('/api/enrollments', { courseId }),
+    mutationFn: () => api.post<Enrollment>(`/api/courses/${courseId}/enroll`, {}),
     onSuccess: (newEnrollment) => {
       queryClient.invalidateQueries({ queryKey: ['enrollments-mine'] });
       navigation.navigate('CoursePlayer', {
@@ -96,7 +97,7 @@ export default function CourseDetailScreen({ route, navigation }: CourseDetailSc
               { icon: 'people-outline' as const, label: `${course._count?.enrollments ?? 0} enrolled` },
             ].map((s) => (
               <View key={s.label} className="items-center gap-y-1">
-                <Ionicons name={s.icon} size={20} color="#0d9488" />
+                <Ionicons name={s.icon} size={20} color="#2563eb" />
                 <Text className="text-xs font-semibold text-slate-700">{s.label}</Text>
               </View>
             ))}
@@ -150,9 +151,23 @@ export default function CourseDetailScreen({ route, navigation }: CourseDetailSc
             />
           )}
 
-          <Pressable className="items-center" onPress={() => { /* Sprint 3: offline download */ }}>
+          <Pressable
+            className="items-center"
+            onPress={async () => {
+              if (!course) return;
+              try {
+                if (await shouldWarnForLargeDownload()) {
+                  alert('You are on mobile data. Course text and quiz data will be saved, but large media may take longer.');
+                }
+                await cacheCourseOffline(courseId);
+                alert('Course downloaded for offline use.');
+              } catch {
+                alert('Could not download this course for offline use. Please try again.');
+              }
+            }}
+          >
             <View className="flex-row items-center gap-x-1.5">
-              <Ionicons name="cloud-download-outline" size={16} color="#0d9488" />
+              <Ionicons name="cloud-download-outline" size={16} color="#2563eb" />
               <Text className="text-primary-600 text-sm font-medium">Download for offline use</Text>
             </View>
           </Pressable>

@@ -35,9 +35,9 @@ const UpdateSystemConfigSchema = z.object({
 
 const SUBSCRIPTION_PRICING = [
   { tier: 'FREE', priceUsd: 0, label: 'Free learner access' },
-  { tier: 'STANDARD', priceUsd: 10, label: 'Standard monthly subscription' },
+  { tier: 'STANDARD', priceUsd: 5, label: 'Standard annual subscription' },
   { tier: 'INSTITUTION', priceUsd: 99, label: 'Institution seat bundle' },
-  { tier: 'DIASPORA', priceUsd: 15, label: 'Diaspora learner subscription' },
+  { tier: 'DIASPORA', priceUsd: 15, label: 'Diaspora annual subscription' },
 ];
 
 function getConfiguredProviders(): string[] {
@@ -105,6 +105,9 @@ router.get('/ai/health', requireAuth, requireRole('ADMIN'), async (_req, res) =>
     return res.json({
       activeProvider: provider,
       configuredProviders: getConfiguredProviders(),
+      anthropicConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
+      claudeConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
+      fallbackProvidersEnabled: getConfiguredProviders().filter((p) => p !== 'anthropic').length > 0,
       windowHours: 24,
       requests,
       cacheHits,
@@ -185,7 +188,7 @@ router.get('/config/system', requireAuth, requireRole('ADMIN'), async (_req, res
     configuredProviders: getConfiguredProviders(),
     maintenanceMode,
     aiFeaturesEnabled,
-    nczSyncSchedule: process.env.NCZ_SYNC_SCHEDULE ?? '0 2 * * *',
+    councilSyncSchedule: process.env.COUNCIL_SYNC_SCHEDULE ?? process.env.NCZ_SYNC_SCHEDULE ?? '0 2 * * *',
     cpdRules: REQUIRED_POINTS,
     activityPoints: ACTIVITY_POINTS,
     subscriptionPricing: SUBSCRIPTION_PRICING,

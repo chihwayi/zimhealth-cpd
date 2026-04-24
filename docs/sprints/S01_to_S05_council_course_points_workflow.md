@@ -5,7 +5,7 @@ Move CPD points ownership from creators/courses to councils, enabling council ap
 
 ### Delivered
 - **DB model**: `CouncilCourseReview` with `status`, `points`, `rejectionReason`, `reviewedAt`, `reviewedByUserId`
-- **Role support**: `COUNCIL_OFFICER` with `/api/ncz/*` kept as alias for `/api/council/*`
+- **Role support**: `COUNCIL_OFFICER` with generic council API routes
 - **Seed**: multi-council seed data + sample approved reviews w/ points
 
 ### Acceptance criteria
@@ -80,4 +80,3 @@ Learners only see courses after their council approves + assigns points, and CPD
 ### Acceptance criteria
 - Learner cannot access/enroll unless their council approved & assigned points.
 - Points earned match the council-assigned points.
-

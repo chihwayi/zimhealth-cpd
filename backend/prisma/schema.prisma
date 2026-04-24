@@ -139,6 +139,8 @@ model User {
   nczFlags         NczFlag[]
   auditLogs        AuditLog[]
   councilCourseReviewsReviewed CouncilCourseReview[] @relation("CouncilCourseReviewedBy")
+  voucherBatchesCreated        VoucherBatch[]         @relation("VoucherBatchCreator")
+  vouchersRedeemed             Voucher[]              @relation("VoucherRedeemer")
 
   @@index([email])
   @@index([nczRegistrationNumber])
@@ -470,4 +472,38 @@ model Subscription {
   paymentRef String?
   gateway    String?          // "paynow" | "stripe"
   createdAt  DateTime         @default(now())
+}
+
+// ─── Voucher / Sponsored access ───────────────────────────────────────────────
+
+model VoucherBatch {
+  id          String           @id @default(cuid())
+  name        String           // human label, e.g. "UNICEF Q1 2026 – Standard"
+  sponsorName String           // e.g. "UNICEF Zimbabwe"
+  tier        SubscriptionTier
+  totalCount  Int              // number of codes generated in this batch
+  createdById String
+  createdBy   User             @relation("VoucherBatchCreator", fields: [createdById], references: [id])
+  expiresAt   DateTime?        // optional: all codes in batch expire at this date
+  notes       String?          // internal notes for admin
+  createdAt   DateTime         @default(now())
+  vouchers    Voucher[]
+
+  @@index([createdById])
+  @@index([createdAt])
+}
+
+model Voucher {
+  id           String           @id @default(cuid())
+  code         String           @unique  // e.g. "ZHCPD-A3K7-V9MQ-B4NP"
+  batchId      String
+  batch        VoucherBatch     @relation(fields: [batchId], references: [id])
+  tier         SubscriptionTier
+  redeemedById String?
+  redeemedBy   User?            @relation("VoucherRedeemer", fields: [redeemedById], references: [id])
+  redeemedAt   DateTime?
+  createdAt    DateTime         @default(now())
+
+  @@index([batchId])
+  @@index([redeemedById])
 }

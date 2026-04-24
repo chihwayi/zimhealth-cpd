@@ -216,7 +216,10 @@ export default function CourseBuilder() {
     queryFn: () => api.get('/api/councils'),
   });
 
-  const courseQuizOptions = courseQuizzesPayload?.quizzes ?? [];
+  const courseQuizOptions = useMemo(
+    () => courseQuizzesPayload?.quizzes ?? [],
+    [courseQuizzesPayload?.quizzes],
+  );
 
   useEffect(() => {
     if (!course) return;
@@ -422,8 +425,8 @@ export default function CourseBuilder() {
     watchedValues,
   ]);
 
-  const modules = course?.modules ?? [];
-  const councils = councilsPayload?.councils ?? [];
+  const modules = useMemo(() => course?.modules ?? [], [course?.modules]);
+  const councils = useMemo(() => councilsPayload?.councils ?? [], [councilsPayload?.councils]);
   const availableAudienceTitles = useMemo(
     () =>
       Array.from(
@@ -1451,10 +1454,10 @@ export default function CourseBuilder() {
                 <p className="mt-1 text-xs text-slate-400">Press Enter or comma to add each tag. Tags help learners discover this course.</p>
               </div>
 
-              <div className="overflow-hidden rounded-[1.75rem] border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-amber-50 shadow-sm">
+              <div className="overflow-hidden rounded-[1.75rem] border border-blue-200 bg-gradient-to-br from-emerald-50 via-white to-amber-50 shadow-sm">
                 <div className="border-b border-emerald-100 bg-white/70 p-5">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-emerald-300">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-blue-300">
                       <ShieldCheck size={20} />
                     </div>
                     <div>
@@ -1481,7 +1484,7 @@ export default function CourseBuilder() {
                     className={clsx(
                       'flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all',
                       watchedValues.isPublicToAll
-                        ? 'border-emerald-400 bg-emerald-600 text-white shadow-lg shadow-emerald-100'
+                        ? 'border-emerald-400 bg-blue-600 text-white shadow-lg shadow-emerald-100'
                         : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300',
                     )}
                   >
@@ -1527,7 +1530,7 @@ export default function CourseBuilder() {
                               >
                                 <span className="block text-sm font-black">{council.acronym}</span>
                                 <span className={clsx('mt-1 block text-xs leading-5', active ? 'text-slate-300' : 'text-slate-500')}>{council.name}</span>
-                                <span className={clsx('mt-2 inline-flex rounded-full px-2 py-1 text-xs font-bold', active ? 'bg-white/10 text-emerald-200' : 'bg-emerald-50 text-emerald-700')}>
+                                <span className={clsx('mt-2 inline-flex rounded-full px-2 py-1 text-xs font-bold', active ? 'bg-white/10 text-blue-200' : 'bg-blue-50 text-emerald-700')}>
                                   {council.requiredPoints} pts required
                                 </span>
                               </button>
@@ -1567,7 +1570,7 @@ export default function CourseBuilder() {
                                   className={clsx(
                                     'rounded-full border px-3 py-2 text-sm font-bold transition-colors',
                                     active
-                                      ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                                      ? 'border-emerald-300 bg-blue-100 text-blue-800'
                                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
                                   )}
                                 >

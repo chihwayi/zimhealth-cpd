@@ -162,7 +162,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             <>
               <Text className="text-xl font-bold text-slate-900 mb-1">Professional details</Text>
               <Text className="text-slate-500 text-sm mb-6">
-                Required for NCZ reporting and personalised recommendations.
+                Required for council reporting and personalised recommendations.
               </Text>
 
               {/* Cadre picker */}
@@ -189,7 +189,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
               <View className="gap-y-4">
                 <Input
-                  label="NCZ registration number (optional)"
+                  label="Council registration number (optional)"
                   value={nczReg}
                   onChangeText={setNczReg}
                   placeholder="e.g. RN-12345"

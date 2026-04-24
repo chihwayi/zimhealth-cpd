@@ -36,41 +36,44 @@ export default function CertificatesPage() {
   });
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Page header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">CPD Certificates</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Generate and download your annual CPD completion certificate.
-          </p>
+    <div className="min-h-screen bg-slate-50">
+      {/* Hero */}
+      <div className="relative bg-gradient-to-br from-[#030c1a] via-[#0d1f3c] to-[#0a1628] overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_85%,rgba(59,130,246,0.20),transparent_55%),radial-gradient(circle_at_85%_15%,rgba(251,191,36,0.08),transparent_45%)]" />
+        <div className="relative max-w-4xl mx-auto px-6 py-8">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-2xl bg-primary-500/20 ring-1 ring-primary-400/30 flex items-center justify-center">
+                  <Award size={20} className="text-primary-300" />
+                </div>
+                <div>
+                  <p className="text-white font-bold text-sm">{user?.fullName ?? '—'}</p>
+                  {user?.nczRegistrationNumber && (
+                    <p className="text-white/50 text-xs">Reg: {user.nczRegistrationNumber}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-green-300 bg-green-500/15 border border-green-400/20 px-3 py-1 rounded-full">
+                  <ShieldCheck size={11} />
+                  Verified Learner
+                </div>
+              </div>
+              <h1 className="text-3xl font-black text-white">CPD Certificates</h1>
+              <p className="text-white/55 mt-1 text-sm">Generate and download your annual completion certificates.</p>
+            </div>
+            <button
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+              className="flex items-center gap-2 bg-primary-500 text-white text-sm font-bold px-5 py-3 rounded-xl hover:bg-primary-400 disabled:opacity-40 transition-colors shadow-lg shadow-primary-900/30"
+            >
+              <FileText size={15} />
+              {generateMutation.isPending ? 'Generating…' : 'Generate Certificate'}
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => generateMutation.mutate()}
-          disabled={generateMutation.isPending}
-          className="flex items-center gap-2 bg-primary-500 text-white text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-primary-600 disabled:opacity-40 transition-colors shadow-sm"
-        >
-          <FileText size={15} />
-          {generateMutation.isPending ? 'Generating…' : 'Generate Certificate'}
-        </button>
       </div>
 
-      {/* Learner identity card */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-        <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-          <Award size={18} className="text-primary-700" />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-slate-900">{user?.fullName ?? '—'}</p>
-          {user?.nczRegistrationNumber && (
-            <p className="text-xs text-slate-500 mt-0.5">NCZ Reg: {user.nczRegistrationNumber}</p>
-          )}
-        </div>
-        <div className="ml-auto flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 px-3 py-1 rounded-full">
-          <ShieldCheck size={12} />
-          Verified Learner
-        </div>
-      </div>
+      <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
 
       {/* Certificate list */}
       {isLoading ? (
@@ -94,6 +97,7 @@ export default function CertificatesPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -104,7 +108,7 @@ function CertificateCard({ cert }: { cert: Certificate }) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
       {/* Top accent bar */}
-      <div className="h-1.5 bg-gradient-to-r from-primary-400 via-primary-500 to-teal-400" />
+      <div className="h-1.5 bg-gradient-to-r from-primary-400 via-primary-500 to-blue-400" />
 
       <div className="p-6">
         <div className="flex items-start justify-between gap-4">

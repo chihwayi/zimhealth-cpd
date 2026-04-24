@@ -4,7 +4,7 @@ import { db } from '../lib/db';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
 import type { AuthRequest } from '../middleware/auth.middleware';
-import { UpdateProgressSchema, SubmitReviewSchema } from './enrollments.schema';
+import { SubmitReviewSchema, SyncOfflineSchema, UpdateProgressSchema } from './enrollments.schema';
 import { invalidateRecommendations } from '../services/adaptive-learning';
 import { creditPoints } from '../services/cpd-engine';
 
@@ -113,6 +113,82 @@ router.get('/', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, re
     res.json(rows);
   } catch {
     res.status(500).json({ error: 'Could not fetch enrollments' });
+  }
+});
+
+// POST /api/enrollments/sync-offline — bulk progress sync for offline-queued items
+router.post('/sync-offline', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
+  try {
+    const { items } = SyncOfflineSchema.parse(req.body);
+    const learnerId = req.user!.id;
+    const results: Array<{ enrollmentId: string; sectionId: string; ok: boolean; error?: string }> = [];
+
+    for (const item of items) {
+      try {
+        const enrollment = await db.enrollment.findUnique({ where: { id: item.enrollmentId } });
+        if (!enrollment || enrollment.learnerId !== learnerId) {
+          results.push({ ...item, ok: false, error: 'Not found or not yours' });
+          continue;
+        }
+
+        const sectionExists = await db.contentSection.findFirst({
+          where: { id: item.sectionId, module: { courseId: enrollment.courseId } },
+          select: { id: true },
+        });
+        if (!sectionExists) {
+          results.push({ ...item, ok: false, error: 'Section not in course' });
+          continue;
+        }
+
+        const courseModules = await db.module.findMany({
+          where: { courseId: enrollment.courseId },
+          select: { _count: { select: { sections: true } } },
+        });
+        const realTotalSections = courseModules.reduce((sum, module) => sum + module._count.sections, 0);
+
+        let completedSections = enrollment.completedSections;
+        if (!completedSections.includes(item.sectionId)) {
+          completedSections = [...completedSections, item.sectionId];
+        }
+
+        const newProgress =
+          realTotalSections > 0 ? completedSections.length / realTotalSections : enrollment.progress;
+        const justCompleted = newProgress >= 1 && !enrollment.completedAt;
+
+        await db.enrollment.update({
+          where: { id: item.enrollmentId },
+          data: {
+            progress: Math.min(1, newProgress),
+            completedSections,
+            lastAccessAt: new Date(),
+            completedAt: justCompleted ? new Date() : enrollment.completedAt,
+          },
+        });
+
+        if (justCompleted) {
+          try {
+            await creditPoints({
+              learnerId,
+              courseId: enrollment.courseId,
+              activityType: 'VIDEO_WATCH',
+            });
+          } catch (creditErr) {
+            console.error('CPD credit failed during offline sync', creditErr);
+          }
+          void invalidateRecommendations(learnerId);
+        }
+
+        results.push({ ...item, ok: true });
+      } catch (itemErr: any) {
+        results.push({ ...item, ok: false, error: itemErr.message ?? 'Unknown error' });
+      }
+    }
+
+    const synced = results.filter((result) => result.ok).length;
+    res.json({ synced, total: items.length, results });
+  } catch (err: any) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    res.status(500).json({ error: 'Offline sync failed' });
   }
 });
 

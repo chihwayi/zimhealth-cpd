@@ -7,8 +7,8 @@ export function useOnlineStatus() {
 
   const runSync = useCallback(async () => {
     try {
-      const synced = await syncPendingProgress((enrollmentId, sectionId, totalSections) =>
-        api.patch(`/api/enrollments/${enrollmentId}/progress`, { sectionId, totalSections }),
+      const synced = await syncPendingProgress((items) =>
+        api.post('/api/enrollments/sync-offline', { items }),
       );
       if (synced > 0) {
         // Dispatch a custom event so components can react (e.g. invalidate TanStack queries)

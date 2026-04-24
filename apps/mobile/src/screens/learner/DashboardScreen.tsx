@@ -18,9 +18,10 @@ import { Card } from '../../components/ui/Card';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type PointsData = {
-  total: number;
-  target: number;
-  entries: Array<{ id: string; points: number; reason: string; createdAt: string }>;
+  totalPoints: number;
+  requiredPoints: number;
+  percentComplete: number;
+  cycleYear: number;
 };
 
 type RecommendedCourse = {
@@ -68,8 +69,8 @@ export default function DashboardScreen() {
   const queryClient = useQueryClient();
 
   const { data: pointsData, isLoading: pointsLoading } = useQuery({
-    queryKey: ['points'],
-    queryFn: () => api.get<PointsData>('/api/points/my'),
+    queryKey: ['points-summary'],
+    queryFn: () => api.get<PointsData>('/api/points/summary'),
   });
 
   const {
@@ -95,9 +96,9 @@ export default function DashboardScreen() {
     },
   });
 
-  const totalPoints   = pointsData?.total ?? 0;
-  const targetPoints  = pointsData?.target ?? 60;
-  const progressPct   = Math.min((totalPoints / targetPoints) * 100, 100);
+  const totalPoints   = pointsData?.totalPoints ?? 0;
+  const targetPoints  = pointsData?.requiredPoints ?? 60;
+  const progressPct   = pointsData?.percentComplete ?? 0;
   const completedCount = enrollments?.filter((e) => e.completedAt).length ?? 0;
 
   const inProgress = enrollments?.find((e) => !e.completedAt);
@@ -113,11 +114,11 @@ export default function DashboardScreen() {
           <RefreshControl
             refreshing={pointsLoading || recsLoading}
             onRefresh={() => {
-              void queryClient.invalidateQueries({ queryKey: ['points'] });
+              void queryClient.invalidateQueries({ queryKey: ['points-summary'] });
               void queryClient.invalidateQueries({ queryKey: ['enrollments-mine'] });
               void refetchRecs();
             }}
-            tintColor="#14b8a6"
+            tintColor="#3b82f6"
           />
         }
       >
@@ -173,7 +174,7 @@ export default function DashboardScreen() {
               { icon: 'flame-outline'             as const, label: 'Streak',   value: '—'            },
             ].map((stat) => (
               <Card key={stat.label} className="flex-1 items-center py-4">
-                <Ionicons name={stat.icon} size={22} color="#0d9488" />
+                <Ionicons name={stat.icon} size={22} color="#2563eb" />
                 <Text className="text-xl font-bold text-slate-900 mt-1">{stat.value}</Text>
                 <Text className="text-xs text-slate-400 mt-0.5">{stat.label}</Text>
               </Card>
@@ -186,7 +187,7 @@ export default function DashboardScreen() {
               <Text className="text-sm font-bold text-slate-700 mb-2 px-1">Continue Learning</Text>
               <Card className="flex-row items-center gap-x-3">
                 <View className="h-12 w-12 bg-primary-100 rounded-2xl items-center justify-center">
-                  <Ionicons name="play-circle" size={24} color="#0d9488" />
+                  <Ionicons name="play-circle" size={24} color="#2563eb" />
                 </View>
                 <View className="flex-1">
                   <Text className="text-sm font-semibold text-slate-900" numberOfLines={2}>
@@ -216,9 +217,9 @@ export default function DashboardScreen() {
                 disabled={refreshMutation.isPending}
               >
                 {refreshMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#0d9488" />
+                  <ActivityIndicator size="small" color="#2563eb" />
                 ) : (
-                  <Ionicons name="refresh-outline" size={18} color="#0d9488" />
+                  <Ionicons name="refresh-outline" size={18} color="#2563eb" />
                 )}
               </Pressable>
             </View>

@@ -486,7 +486,7 @@ router.patch(
       return res.json(updated);
     } catch (err: any) {
       if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
-      if (err?.code === 'P2002') return res.status(409).json({ error: 'NCZ registration number is already in use.' });
+      if (err?.code === 'P2002') return res.status(409).json({ error: 'Council registration number is already in use.' });
       return res.status(500).json({ error: 'Could not update learner' });
     }
 });
@@ -679,7 +679,13 @@ router.get(
       db.cPDRecord.count({ where: { nczSyncStatus: 'FAILED' } }),
       db.cPDRecord.count({ where: { nczSyncStatus: 'SYNCED' } }),
     ]);
-    return res.json({ pending, blocked, failed, synced });
+    const disabled = process.env.COUNCIL_SYNC_DISABLED === 'true';
+    const configured = Boolean(
+      (process.env.COUNCIL_SYNC_API_URL ?? process.env.NCZ_SYNC_API_URL) &&
+      (process.env.COUNCIL_SYNC_API_KEY ?? process.env.NCZ_API_KEY),
+    );
+    const mode = disabled ? 'disabled' : configured ? 'live' : 'dry_run';
+    return res.json({ pending, blocked, failed, synced, mode, configured });
     } catch {
       return res.status(500).json({ error: 'Could not fetch sync summary' });
     }

@@ -8,7 +8,7 @@ export interface AuthUser {
   role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'LEARNER';
   cadre: string | null;
   nczRegistrationNumber: string | null;
-  subscriptionTier: string;
+  subscriptionTier?: 'FREE' | 'STANDARD' | 'INSTITUTION' | 'DIASPORA';
   subscriptionExpiresAt: string | null;
   avatarUrl: string | null;
   specialtyArea: string | null;

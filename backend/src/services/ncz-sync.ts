@@ -1,8 +1,8 @@
 import { db } from '../lib/db';
 import { logger } from '../lib/logger';
 
-const NCZ_API_URL = process.env.NCZ_SYNC_API_URL;
-const NCZ_API_KEY = process.env.NCZ_API_KEY;
+const COUNCIL_API_URL = process.env.COUNCIL_SYNC_API_URL ?? process.env.NCZ_SYNC_API_URL;
+const COUNCIL_API_KEY = process.env.COUNCIL_SYNC_API_KEY ?? process.env.NCZ_API_KEY;
 
 export interface SyncRecord {
   nczRegistrationNumber: string;
@@ -34,7 +34,7 @@ export async function runNczSync(
     take: 1000,
   });
 
-  const isDryRun = !(NCZ_API_URL && NCZ_API_KEY);
+  const isDryRun = !(COUNCIL_API_URL && COUNCIL_API_KEY);
 
   if (unsyncedRecords.length === 0) {
     await db.nczSyncLog.create({
@@ -67,7 +67,7 @@ export async function runNczSync(
         recordCount: 0,
         success: true,
         dryRun: isDryRun,
-        errorMessage: blocked.length ? `Blocked: ${blocked.length} (missing NCZ registration number)` : undefined,
+        errorMessage: blocked.length ? `Blocked: ${blocked.length} (missing council registration number)` : undefined,
         meta: { sentIds: [], blockedIds },
       },
     });
@@ -76,20 +76,20 @@ export async function runNczSync(
 
   try {
     if (!isDryRun) {
-      const res = await fetch(`${NCZ_API_URL}/cpd-records`, {
+      const res = await fetch(`${COUNCIL_API_URL}/cpd-records`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': NCZ_API_KEY,
+          'x-api-key': COUNCIL_API_KEY,
         },
         body: JSON.stringify({ records: payload }),
       });
 
       if (!res.ok) {
-        throw new Error(`NCZ API responded with ${res.status}`);
+        throw new Error(`Council API responded with ${res.status}`);
       }
     } else {
-      logger.info('NCZ sync dry run', { recordCount: payload.length });
+      logger.info('Council sync dry run', { recordCount: payload.length });
     }
 
     // Update blocked records so operators can see them clearly.
@@ -114,12 +114,12 @@ export async function runNczSync(
         recordCount: payload.length,
         success: true,
         dryRun: isDryRun,
-        errorMessage: blocked.length ? `Blocked: ${blocked.length} (missing NCZ registration number)` : undefined,
+        errorMessage: blocked.length ? `Blocked: ${blocked.length} (missing council registration number)` : undefined,
         meta: { sentIds, blockedIds },
       },
     });
 
-    logger.info('NCZ sync complete', { recordCount: payload.length });
+    logger.info('Council sync complete', { recordCount: payload.length });
     return { success: true, recordCount: payload.length };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -141,7 +141,7 @@ export async function runNczSync(
         meta: { sentIds, blockedIds },
       },
     });
-    logger.error('NCZ sync failed', { error: message });
+    logger.error('Council sync failed', { error: message });
     return { success: false, recordCount: 0, errorMessage: message };
   }
 }
@@ -159,7 +159,7 @@ export async function retryNczRecord(
   });
   if (!record) return { success: false, recordCount: 0, errorMessage: 'Record not found' };
 
-  const isDryRun = !(NCZ_API_URL && NCZ_API_KEY);
+  const isDryRun = !(COUNCIL_API_URL && COUNCIL_API_KEY);
 
   if (!record.learner.nczRegistrationNumber) {
     if (!isDryRun) {
@@ -168,7 +168,7 @@ export async function retryNczRecord(
         data: { nczSyncStatus: 'BLOCKED_MISSING_NCZ' },
       });
     }
-    return { success: false, recordCount: 0, errorMessage: 'Blocked: missing NCZ registration number' };
+    return { success: false, recordCount: 0, errorMessage: 'Blocked: missing council registration number' };
   }
 
   const payload: SyncRecord[] = [
@@ -187,16 +187,16 @@ export async function retryNczRecord(
 
   try {
     if (!isDryRun) {
-      const res = await fetch(`${NCZ_API_URL}/cpd-records`, {
+      const res = await fetch(`${COUNCIL_API_URL}/cpd-records`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': NCZ_API_KEY!,
+          'x-api-key': COUNCIL_API_KEY!,
         },
         body: JSON.stringify({ records: payload }),
       });
 
-      if (!res.ok) throw new Error(`NCZ API responded with ${res.status}`);
+      if (!res.ok) throw new Error(`Council API responded with ${res.status}`);
 
       await db.cPDRecord.update({
         where: { id: recordId },
@@ -209,7 +209,7 @@ export async function retryNczRecord(
         },
       });
     } else {
-      logger.info('NCZ sync dry run (single record)', { recordId });
+      logger.info('Council sync dry run (single record)', { recordId });
     }
 
     await db.nczSyncLog.create({

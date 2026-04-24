@@ -14,12 +14,12 @@ export default function Landing() {
   const supportedCouncils = councilsQuery.data?.councils ?? [];
 
   return (
-    <main className="min-h-screen lg:h-dvh lg:overflow-hidden bg-[#071510] text-white">
+    <main className="min-h-screen lg:h-dvh lg:overflow-hidden bg-[#030c1a] text-white">
       <div className="relative h-full">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(78,203,160,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
-        <div className="pointer-events-none absolute -left-40 -bottom-40 h-[520px] w-[520px] rounded-full border border-emerald-400/10" />
-        <div className="pointer-events-none absolute -left-24 -bottom-24 h-[380px] w-[380px] rounded-full border border-emerald-400/10" />
-        <div className="pointer-events-none absolute -right-16 -top-16 h-[180px] w-[180px] rounded-full border border-emerald-400/10" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
+        <div className="pointer-events-none absolute -left-40 -bottom-40 h-[520px] w-[520px] rounded-full border border-blue-400/10" />
+        <div className="pointer-events-none absolute -left-24 -bottom-24 h-[380px] w-[380px] rounded-full border border-blue-400/10" />
+        <div className="pointer-events-none absolute -right-16 -top-16 h-[180px] w-[180px] rounded-full border border-blue-400/10" />
 
         <div className="relative mx-auto flex h-full max-w-6xl flex-col px-6 py-10 sm:px-10 lg:px-12 lg:py-12">
           {/* Top bar */}
@@ -41,7 +41,7 @@ export default function Landing() {
           {/* Main content */}
           <div className="mt-10 grid flex-1 min-h-0 grid-cols-1 gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:items-start">
             <section className="min-h-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/25 bg-blue-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-200">
                 <Globe size={14} />
                 Council-aware CPD
               </div>
@@ -50,7 +50,7 @@ export default function Landing() {
                 className="mt-5 text-[34px] leading-[1.15] max-w-xl"
                 style={{ fontFamily: '"DM Serif Display", ui-serif, Georgia, serif' }}
               >
-                Professional development for Zimbabwe&apos;s <span className="text-emerald-300">health workforce</span>
+                Professional development for Zimbabwe&apos;s <span className="text-blue-300">health workforce</span>
               </h1>
               <p className="mt-4 text-sm leading-7 text-white/55 max-w-xl">
                 Earn CPD points, renew your licence, and grow clinical skills — online, offline, and via WhatsApp.
@@ -64,7 +64,7 @@ export default function Landing() {
                 ].map((item) => (
                   <div key={item.title} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                     <div className="flex items-center gap-2 text-sm font-bold text-white/90">
-                      <CheckCircle2 size={16} className="text-emerald-300" />
+                      <CheckCircle2 size={16} className="text-blue-300" />
                       {item.title}
                     </div>
                     <p className="mt-1 text-xs leading-6 text-white/55">{item.body}</p>
@@ -81,7 +81,7 @@ export default function Landing() {
                   <button
                     type="button"
                     onClick={() => navigate('/login')}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 py-3.5 text-sm font-black text-white shadow-xl shadow-emerald-900/20 transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-700 py-3.5 text-sm font-black text-white shadow-xl shadow-blue-900/30 transition-colors"
                   >
                     <LogIn size={16} />
                     Sign in
@@ -119,7 +119,7 @@ export default function Landing() {
                         <span
                           key={c.id}
                           title={c.name}
-                          className="inline-flex items-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black tracking-wide text-emerald-200 hover:bg-white/10 transition-colors"
+                          className="inline-flex items-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black tracking-wide text-blue-200 hover:bg-white/10 transition-colors"
                         >
                           {c.acronym}
                         </span>

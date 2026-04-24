@@ -22,31 +22,31 @@ export function AppShell({ children }: Props) {
   }, [location.pathname]);
 
   return (
-    <div className={isCouncilRole ? 'relative flex min-h-dvh bg-[#071510]' : 'relative flex min-h-dvh bg-slate-100'}>
+    <div className={isCouncilRole ? 'relative flex min-h-dvh bg-[#030c1a]' : 'relative flex min-h-dvh bg-slate-100'}>
       {isCouncilRole ? (
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(78,203,160,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
       ) : isAdmin ? (
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(244,63,94,0.10),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(14,165,233,0.10),transparent_45%)]" />
       ) : (
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(20,184,166,0.10),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.08),transparent_45%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.08),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.06),transparent_45%)]" />
       )}
       {/* Desktop sidebar */}
       <Sidebar className="hidden md:flex" />
 
       {/* Mobile: top bar + drawer sidebar */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200">
+      <header className={`md:hidden fixed top-0 left-0 right-0 z-40 backdrop-blur border-b ${isCouncilRole || (!isAdmin && !isCouncilRole) ? 'bg-[#030c1a]/90 border-white/10' : 'bg-white/80 border-slate-200'}`}>
         <div className="h-14 px-4 flex items-center gap-3">
           <button
             type="button"
             onClick={() => setMobileMenuOpen(true)}
-            className="inline-flex items-center justify-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            className={`inline-flex items-center justify-center rounded-lg p-2 ${isCouncilRole || (!isAdmin && !isCouncilRole) ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
             aria-label="Open menu"
           >
             <Menu size={18} />
           </button>
           <div className="flex items-center gap-2 min-w-0">
-            <img src="/logo.png" alt="ZimHealth CPD" className="h-8 w-8 rounded-xl object-cover ring-1 ring-slate-200 bg-white" />
-            <div className="font-semibold text-slate-900 truncate">ZimHealth CPD</div>
+            <img src="/favicon.png" alt="ZimHealth CPD" className="h-8 w-8 rounded-xl object-contain p-1 bg-white/10 ring-1 ring-white/20" />
+            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-7 w-auto max-w-[140px] object-contain brightness-110" />
           </div>
         </div>
       </header>

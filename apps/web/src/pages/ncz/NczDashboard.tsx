@@ -93,6 +93,8 @@ interface SyncSummary {
   blocked: number;
   failed: number;
   synced: number;
+  mode?: 'dry_run' | 'live' | 'disabled';
+  configured?: boolean;
 }
 
 interface SyncRecordRow {
@@ -211,7 +213,7 @@ function formatDateTime(value: string): string {
 
 function buildCsvUrl(): string {
   const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
-  return `${baseUrl}/api/ncz/export/csv`;
+  return `${baseUrl}/api/council/export/csv`;
 }
 
 export default function NczDashboard() {
@@ -241,7 +243,10 @@ export default function NczDashboard() {
 
   const councilName = meQuery.data?.council?.name ?? storeUser?.council?.name ?? 'Council';
   const councilAcronym = meQuery.data?.council?.acronym ?? storeUser?.council?.acronym ?? 'Council';
-  const councilTitles = (storeUser?.council?.allowedTitles ?? []) as string[];
+  const councilTitles = useMemo(
+    () => (storeUser?.council?.allowedTitles ?? []) as string[],
+    [storeUser?.council?.allowedTitles],
+  );
   const titleOptions: TitleOption[] = useMemo(() => {
     const titles = councilTitles.length ? councilTitles : [];
     return [{ value: '', label: 'All titles' }, ...titles.map((t) => ({ value: t, label: t }))];
@@ -255,7 +260,6 @@ export default function NczDashboard() {
       setSearch(q);
       setPage(1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
 
   const [councilDraft, setCouncilDraft] = useState<{ requiredPoints: string; renewalMonth: string; renewalDay: string } | null>(null);
@@ -269,16 +273,16 @@ export default function NczDashboard() {
   }, [meQuery.data?.council]);
 
   const learnersQuery = useQuery<LearnersResponse>({
-    queryKey: ['ncz-learners', search, professionalTitle, page],
+    queryKey: ['council-learners', search, professionalTitle, page],
     queryFn: () =>
       api.get(
-        `/api/ncz/learners?search=${encodeURIComponent(search)}&professionalTitle=${encodeURIComponent(professionalTitle)}&page=${page}&limit=25`,
+        `/api/council/learners?search=${encodeURIComponent(search)}&professionalTitle=${encodeURIComponent(professionalTitle)}&page=${page}&limit=25`,
       ),
   });
 
   const complianceQuery = useQuery<ComplianceData>({
-    queryKey: ['ncz-compliance'],
-    queryFn: () => api.get('/api/ncz/compliance'),
+    queryKey: ['council-compliance'],
+    queryFn: () => api.get('/api/council/compliance'),
   });
 
   const learnerCountLabel = useMemo(() => {
@@ -343,13 +347,13 @@ export default function NczDashboard() {
 
     setSavingCouncil(true);
     try {
-      await api.patch('/api/ncz/settings', { requiredPoints, renewalMonth, renewalDay });
+      await api.patch('/api/council/settings', { requiredPoints, renewalMonth, renewalDay });
       toast.success('Council settings updated. Learner targets will reflect this automatically.');
       // Refresh key views that depend on council.requiredPoints / renewal date.
       queryClient.invalidateQueries({ queryKey: ['auth-me'] });
       queryClient.invalidateQueries({ queryKey: ['cpd-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['ncz-compliance'] });
-      queryClient.invalidateQueries({ queryKey: ['ncz-learners'] });
+      queryClient.invalidateQueries({ queryKey: ['council-compliance'] });
+      queryClient.invalidateQueries({ queryKey: ['council-learners'] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not update council settings.');
     } finally {
@@ -448,7 +452,7 @@ export default function NczDashboard() {
             className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
           >
             <h2 className="text-base font-semibold text-slate-900">Learner Search</h2>
-            <p className="mt-1 text-sm text-slate-500">Find learners, inspect history, and resolve NCZ numbers.</p>
+            <p className="mt-1 text-sm text-slate-500">Find learners, inspect history, and resolve registration numbers.</p>
           </Link>
           <Link
             to={`${basePath}/reports`}
@@ -462,7 +466,7 @@ export default function NczDashboard() {
             className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
           >
             <h2 className="text-base font-semibold text-slate-900">Sync Status</h2>
-            <p className="mt-1 text-sm text-slate-500">Monitor pending, blocked, failed, and synced NCZ records.</p>
+            <p className="mt-1 text-sm text-slate-500">Monitor pending, blocked, failed, and synced records.</p>
           </Link>
         </div>
       )}
@@ -493,7 +497,7 @@ export default function NczDashboard() {
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') applySearch();
                   }}
-                  placeholder="Search by learner name, NCZ number, or email"
+                  placeholder="Search by learner name, registration number, or email"
                   className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </div>
@@ -651,7 +655,7 @@ export default function NczDashboard() {
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
             <p className="text-sm text-slate-700">
-              The CSV export includes learner name, NCZ registration number, cadre, institution, province,
+              The CSV export includes learner name, council registration number, professional title, institution, province,
               current CPD points, compliance status, and reporting year.
             </p>
           </div>
@@ -781,29 +785,29 @@ function LearnerHistoryPanel({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [editingNcz, setEditingNcz] = useState(false);
-  const [nczValue, setNczValue] = useState(learner.nczRegistrationNumber ?? '');
+  const [editingReg, setEditingReg] = useState(false);
+  const [regValue, setRegValue] = useState(learner.registrationNumber ?? learner.nczRegistrationNumber ?? '');
 
   const historyQuery = useQuery<LearnerHistoryResponse>({
-    queryKey: ['ncz-learner-history', learner.id],
-    queryFn: () => api.get(`/api/ncz/learners/${learner.id}/history`),
+    queryKey: ['council-learner-history', learner.id],
+    queryFn: () => api.get(`/api/council/learners/${learner.id}/history`),
   });
 
-  async function saveNczNumber() {
-    setEditingNcz(true);
+  async function saveRegistrationNumber() {
+    setEditingReg(true);
     try {
-      const payload = { nczRegistrationNumber: nczValue.trim() ? nczValue.trim() : null };
-      const updated = await api.patch<Learner>(`/api/ncz/learners/${learner.id}`, payload);
-      toast.success('NCZ registration number updated.');
+      const payload = { nczRegistrationNumber: regValue.trim() ? regValue.trim() : null };
+      const updated = await api.patch<Learner>(`/api/council/learners/${learner.id}`, payload);
+      toast.success('Registration number updated.');
       // Keep the panel header in sync and refresh queues/search lists.
       learner.nczRegistrationNumber = updated.nczRegistrationNumber;
-      queryClient.invalidateQueries({ queryKey: ['ncz-learners'] });
-      queryClient.invalidateQueries({ queryKey: ['ncz-sync-blocked'] });
-      queryClient.invalidateQueries({ queryKey: ['ncz-learner-history', learner.id] });
+      queryClient.invalidateQueries({ queryKey: ['council-learners'] });
+      queryClient.invalidateQueries({ queryKey: ['council-sync-blocked'] });
+      queryClient.invalidateQueries({ queryKey: ['council-learner-history', learner.id] });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not update NCZ number.');
+      toast.error(err instanceof Error ? err.message : 'Could not update registration number.');
     } finally {
-      setEditingNcz(false);
+      setEditingReg(false);
     }
   }
 
@@ -822,25 +826,25 @@ function LearnerHistoryPanel({
               </p>
               <div className="mt-4 flex flex-col sm:flex-row sm:items-end gap-2">
                 <div className="w-full sm:w-80">
-                  <label htmlFor="ncz-number" className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    NCZ registration number
+                  <label htmlFor="reg-number" className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    Registration number
                   </label>
                   <input
-                    id="ncz-number"
-                    value={nczValue}
-                    onChange={(e) => setNczValue(e.target.value)}
+                    id="reg-number"
+                    value={regValue}
+                    onChange={(e) => setRegValue(e.target.value)}
                     placeholder="e.g. NCZ-12345"
                     className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
                 <button
                   type="button"
-                  onClick={() => void saveNczNumber()}
-                  disabled={editingNcz}
+                  onClick={() => void saveRegistrationNumber()}
+                  disabled={editingReg}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
                   <CheckCircle size={16} />
-                  {editingNcz ? 'Saving…' : 'Save'}
+                  {editingReg ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </div>
@@ -961,8 +965,8 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
   const [retryingRecordId, setRetryingRecordId] = useState<string | null>(null);
   const [retryingAllFailed, setRetryingAllFailed] = useState(false);
   const logsQuery = useQuery<SyncLog[]>({
-    queryKey: ['ncz-sync-logs'],
-    queryFn: () => api.get('/api/ncz/sync/logs'),
+    queryKey: ['council-sync-logs'],
+    queryFn: () => api.get('/api/council/sync/logs'),
     refetchInterval: 30000,
   });
 
@@ -975,18 +979,18 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
     return { sent: sent ?? 0, blocked: blocked ?? 0 };
   };
   const summaryQuery = useQuery<SyncSummary>({
-    queryKey: ['ncz-sync-summary'],
-    queryFn: () => api.get('/api/ncz/sync/summary'),
+    queryKey: ['council-sync-summary'],
+    queryFn: () => api.get('/api/council/sync/summary'),
     refetchInterval: 30000,
   });
   const blockedQuery = useQuery<{ records: SyncRecordRow[] }>({
-    queryKey: ['ncz-sync-blocked'],
-    queryFn: () => api.get('/api/ncz/sync/blocked?limit=50'),
+    queryKey: ['council-sync-blocked'],
+    queryFn: () => api.get('/api/council/sync/blocked?limit=50'),
     enabled: tab === 'BLOCKED',
   });
   const failedQuery = useQuery<{ records: SyncRecordRow[] }>({
-    queryKey: ['ncz-sync-failed'],
-    queryFn: () => api.get('/api/ncz/sync/failed?limit=50'),
+    queryKey: ['council-sync-failed'],
+    queryFn: () => api.get('/api/council/sync/failed?limit=50'),
     enabled: tab === 'FAILED',
   });
 
@@ -994,24 +998,24 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
     setTriggering(true);
     try {
       const result = await api.post<{ success: boolean; recordCount: number; errorMessage?: string }>(
-        '/api/ncz/sync/trigger',
+        '/api/council/sync/trigger',
       );
 
       if (result.success) {
         toast.success(
           result.recordCount > 0
-            ? `NCZ sync completed for ${result.recordCount} records.`
-            : 'NCZ sync completed. No pending records were found.',
+            ? `Council sync completed for ${result.recordCount} records.`
+            : 'Council sync completed. No pending records were found.',
         );
         await logsQuery.refetch();
         await summaryQuery.refetch();
         if (tab === 'BLOCKED') await blockedQuery.refetch();
         if (tab === 'FAILED') await failedQuery.refetch();
       } else {
-        toast.error(result.errorMessage ?? 'NCZ sync failed.');
+        toast.error(result.errorMessage ?? 'Council sync failed.');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'NCZ sync failed.';
+      const message = err instanceof Error ? err.message : 'Council sync failed.';
       toast.error(message);
     } finally {
       setTriggering(false);
@@ -1022,7 +1026,7 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
     setRetryingAllFailed(true);
     try {
       const result = await api.post<{ success: boolean; recordCount: number; errorMessage?: string }>(
-        '/api/ncz/sync/trigger?onlyFailed=true',
+        '/api/council/sync/trigger?onlyFailed=true',
       );
       if (result.success) {
         toast.success(
@@ -1044,7 +1048,7 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
   async function retryRecord(id: string) {
     setRetryingRecordId(id);
     try {
-      const result = await api.post<{ success: boolean; recordCount: number; errorMessage?: string }>(`/api/ncz/sync/retry/${id}`);
+      const result = await api.post<{ success: boolean; recordCount: number; errorMessage?: string }>(`/api/council/sync/retry/${id}`);
       if (result.success) {
         toast.success('Record retried successfully.');
         await logsQuery.refetch();
@@ -1064,7 +1068,7 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">NCZ Sync Status</h2>
+          <h2 className="text-base font-semibold text-slate-900">Council Sync Status</h2>
           <p className="text-sm text-slate-500 mt-1">Daily sync logs and manual resubmission control.</p>
         </div>
         <button
@@ -1075,6 +1079,24 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
           <RefreshCw size={15} className={triggering ? 'animate-spin' : ''} />
           {triggering ? 'Syncing…' : 'Sync Now'}
         </button>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Mode</div>
+        <div className="mt-1 text-sm font-bold text-slate-900">
+          {summaryQuery.data?.mode === 'live'
+            ? 'Live'
+            : summaryQuery.data?.mode === 'disabled'
+              ? 'Disabled'
+              : 'Dry run'}
+        </div>
+        <p className="mt-1 text-xs text-slate-500">
+          {summaryQuery.data?.mode === 'live'
+            ? 'Records are submitted to the configured council endpoint.'
+            : summaryQuery.data?.mode === 'disabled'
+              ? 'Submission is disabled by configuration.'
+              : 'No council endpoint/API key is configured, so records are not submitted.'}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1089,7 +1111,7 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
         >
           <div className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Blocked</div>
           <div className="mt-1 text-xl font-bold text-amber-900 tabular-nums">{summaryQuery.data?.blocked ?? '—'}</div>
-          <div className="text-[11px] text-amber-800 mt-1">Missing NCZ number</div>
+          <div className="text-[11px] text-amber-800 mt-1">Missing registration number</div>
         </button>
         <button
           type="button"
@@ -1147,7 +1169,7 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900 truncate">{r.learner.fullName}</p>
                     <p className="text-xs text-slate-700 mt-1">
-                      Missing NCZ registration number · {r.course?.title ?? 'No course'}
+                      Missing registration number · {r.course?.title ?? 'No course'}
                     </p>
                     <p className="text-xs text-slate-600 mt-1">{r.learner.email}</p>
                   </div>
@@ -1170,7 +1192,7 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
           <EmptyState
             icon={<RefreshCw size={28} />}
             title="No blocked records"
-            description="Blocked records appear when a learner is missing an NCZ registration number."
+            description="Blocked records appear when a learner is missing a council registration number."
           />
         )
       ) : null}
@@ -1230,7 +1252,7 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
           <EmptyState
             icon={<RefreshCw size={28} />}
             title="No failed records"
-            description="Failed records appear when NCZ rejects a payload or the endpoint is unavailable."
+            description="Failed records appear when the council endpoint rejects a payload or is unavailable."
           />
         )
       ) : null}
@@ -1244,7 +1266,7 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
             </div>
           ) : logsQuery.isError ? (
             <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              Could not load NCZ sync logs right now.
+              Could not load council sync logs right now.
             </div>
           ) : logsQuery.data?.length ? (
             <div className="space-y-2">
@@ -1288,7 +1310,7 @@ function SyncStatusPanel({ basePath }: { basePath: '/ncz' | '/council' }) {
             <EmptyState
               icon={<RefreshCw size={28} />}
               title="No sync history yet"
-              description="Sync logs will appear here after the first scheduled or manual NCZ sync run."
+              description="Sync logs will appear here after the first scheduled or manual sync run."
             />
           )
         : null}
@@ -1305,7 +1327,7 @@ function CouncilCourseReviewsPanel() {
 
   const listQuery = useQuery<{ reviews: CouncilCourseReviewRow[] }>({
     queryKey: ['council-course-reviews', tab],
-    queryFn: () => api.get(`/api/ncz/courses/reviews?status=${encodeURIComponent(tab)}&limit=100`),
+    queryFn: () => api.get(`/api/council/courses/reviews?status=${encodeURIComponent(tab)}&limit=100`),
     refetchInterval: tab === 'PENDING_REVIEW' ? 20000 : false,
   });
 
@@ -1323,7 +1345,7 @@ function CouncilCourseReviewsPanel() {
     }
     setSubmitting(true);
     try {
-      await api.post(`/api/ncz/courses/${courseId}/reviews/approve`, { points: value });
+      await api.post(`/api/council/courses/${courseId}/reviews/approve`, { points: value });
       toast.success('Course approved and points assigned.');
       setActionCourse(null);
       await listQuery.refetch();
@@ -1342,7 +1364,7 @@ function CouncilCourseReviewsPanel() {
     }
     setSubmitting(true);
     try {
-      await api.post(`/api/ncz/courses/${courseId}/reviews/reject`, { reason });
+      await api.post(`/api/council/courses/${courseId}/reviews/reject`, { reason });
       toast.success('Course rejected.');
       setActionCourse(null);
       await listQuery.refetch();
@@ -1361,7 +1383,7 @@ function CouncilCourseReviewsPanel() {
     }
     setSubmitting(true);
     try {
-      await api.patch(`/api/ncz/courses/${courseId}/reviews/points`, { points: value });
+      await api.patch(`/api/council/courses/${courseId}/reviews/points`, { points: value });
       toast.success('Points updated.');
       setActionCourse(null);
       await listQuery.refetch();

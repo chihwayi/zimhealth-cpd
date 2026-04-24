@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
+import { cacheCourseOffline, shouldWarnForLargeDownload } from '../../lib/offlineDownload';
 import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
 import type { CoursesListScreenProps } from '../../navigation/types';
@@ -27,6 +28,10 @@ type Course = {
   _count?: { modules: number };
 };
 
+type Enrollment = {
+  courseId: string;
+};
+
 const CATEGORIES = ['ALL', 'CLINICAL', 'PHARMACOLOGY', 'MATERNAL', 'PAEDIATRICS', 'MENTAL_HEALTH'];
 
 const DIFF_COLOUR: Record<string, 'teal' | 'amber' | 'red'> = {
@@ -38,6 +43,7 @@ const DIFF_COLOUR: Record<string, 'teal' | 'amber' | 'red'> = {
 export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
   const [search,   setSearch]   = useState('');
   const [category, setCategory] = useState('ALL');
+  const [preparingOffline, setPreparingOffline] = useState(false);
 
   const { data: courses, isLoading, refetch } = useQuery({
     queryKey: ['courses', category, search],
@@ -47,6 +53,11 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
       if (search.trim())      params.set('q', search.trim());
       return api.get<Course[]>(`/api/courses?${params.toString()}`);
     },
+  });
+
+  const { data: enrollments } = useQuery({
+    queryKey: ['enrollments-mine'],
+    queryFn: () => api.get<Enrollment[]>('/api/enrollments'),
   });
 
   const filtered = courses ?? [];
@@ -71,6 +82,37 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
             </Pressable>
           )}
         </View>
+        <Pressable
+          className="mt-3 flex-row items-center justify-center gap-x-2 rounded-2xl border border-primary-200 bg-primary-50 px-4 py-3 disabled:opacity-50"
+          disabled={preparingOffline}
+          onPress={async () => {
+            const enrolledCourseIds = [...new Set((enrollments ?? []).map((entry) => entry.courseId))];
+            if (enrolledCourseIds.length === 0) {
+              alert('Enroll in a course before preparing an offline pack.');
+              return;
+            }
+
+            setPreparingOffline(true);
+            try {
+              if (await shouldWarnForLargeDownload()) {
+                alert('You are on mobile data. Preparing an offline pack may use a lot of data.');
+              }
+              for (const enrolledCourseId of enrolledCourseIds) {
+                await cacheCourseOffline(enrolledCourseId);
+              }
+              alert('Offline pack prepared for your enrolled courses.');
+            } catch {
+              alert('Could not prepare the full offline pack. Please try again on Wi-Fi.');
+            } finally {
+              setPreparingOffline(false);
+            }
+          }}
+        >
+          <Ionicons name="cloud-download-outline" size={17} color="#2563eb" />
+          <Text className="text-primary-700 text-sm font-semibold">
+            {preparingOffline ? 'Preparing offline pack…' : 'Prepare offline pack'}
+          </Text>
+        </Pressable>
       </View>
 
       {/* ── Category chips ── */}
@@ -127,7 +169,7 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
               <Card className="flex-row gap-x-4 items-start">
                 {/* Icon placeholder */}
                 <View className="h-14 w-14 bg-primary-100 rounded-2xl items-center justify-center shrink-0">
-                  <Ionicons name="document-text" size={24} color="#0d9488" />
+                  <Ionicons name="document-text" size={24} color="#2563eb" />
                 </View>
 
                 <View className="flex-1">

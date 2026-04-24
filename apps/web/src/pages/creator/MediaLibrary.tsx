@@ -54,7 +54,7 @@ function viewerHint(asset: Asset): { label: string; classes: string } | null {
 
   // PDF: viewable inline
   if (kind === 'pdf') {
-    return { label: 'Inline viewer ready', classes: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+    return { label: 'Inline viewer ready', classes: 'bg-blue-50 text-emerald-700 border border-blue-200' };
   }
 
   // DOCX/PPTX: conversion pipeline → PDF
@@ -66,7 +66,7 @@ function viewerHint(asset: Asset): { label: string; classes: string } | null {
       return { label: 'Converting to PDF…', classes: 'bg-amber-50 text-amber-800 border border-amber-200' };
     }
     if (asset.status === 'PROCESSED' && isPdfOutput) {
-      return { label: 'PDF ready (inline)', classes: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+      return { label: 'PDF ready (inline)', classes: 'bg-blue-50 text-emerald-700 border border-blue-200' };
     }
     return { label: 'Ready (download)', classes: 'bg-slate-50 text-slate-700 border border-slate-200' };
   }
@@ -74,7 +74,7 @@ function viewerHint(asset: Asset): { label: string; classes: string } | null {
   // Video: playable in-app when processed
   if (kind === 'video') {
     if (asset.status === 'PROCESSED') {
-      return { label: 'Playback ready', classes: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+      return { label: 'Playback ready', classes: 'bg-blue-50 text-emerald-700 border border-blue-200' };
     }
     if (asset.status === 'FAILED') {
       return { label: 'Processing failed', classes: 'bg-red-50 text-red-700 border border-red-200' };
@@ -84,7 +84,7 @@ function viewerHint(asset: Asset): { label: string; classes: string } | null {
 
   // Images: always viewable
   if (kind === 'image') {
-    return { label: 'Ready', classes: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+    return { label: 'Ready', classes: 'bg-blue-50 text-emerald-700 border border-blue-200' };
   }
 
   return null;
@@ -99,7 +99,7 @@ function formatDuration(value?: number | null) {
 }
 
 function statusClasses(status: Asset['status']) {
-  if (status === 'PROCESSED') return 'bg-emerald-50 text-emerald-700';
+  if (status === 'PROCESSED') return 'bg-blue-50 text-emerald-700';
   if (status === 'FAILED') return 'bg-red-50 text-red-700';
   if (status === 'PROCESSING') return 'bg-amber-50 text-amber-700';
   return 'bg-slate-100 text-slate-700';

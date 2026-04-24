@@ -257,6 +257,9 @@ export default function App() {
           }
         />
 
+        {/* Backward-compatible redirect for old NCZ sync path */}
+        <Route path="/admin/ncz-sync" element={<Navigate to="/admin/council-sync" replace />} />
+
         {/* Admin */}
         <Route
           path="/admin/*"

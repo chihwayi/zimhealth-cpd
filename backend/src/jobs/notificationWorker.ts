@@ -3,6 +3,7 @@ import { db } from '../lib/db';
 import { getLearnerCPDSummary } from '../services/cpd-engine';
 import { AIClient, SYSTEM_PROMPTS, type AIProviderConfig } from '@zimhealth/ai-client';
 import { logger } from '../lib/logger';
+import twilio from 'twilio';
 
 export const notificationQueue = new Bull('notifications', {
   redis: process.env.REDIS_URL ?? 'redis://localhost:6379',
@@ -36,6 +37,24 @@ function buildAiConfig(): AIProviderConfig {
         }
       : undefined,
   };
+}
+
+async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_NUMBER;
+  const toFormatted = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+
+  if (!sid || !token || !from) {
+    logger.info('[notificationWorker] Reminder dry run - no Twilio credentials', {
+      to: toFormatted,
+      body,
+    });
+    return;
+  }
+
+  const client = twilio(sid, token);
+  await client.messages.create({ from, to: toFormatted, body });
 }
 
 notificationQueue.process('renewal-reminder', async () => {
@@ -74,7 +93,7 @@ Under 80 words. Warm and motivating. End with "Reply 1 to start learning."`;
         temperature: 0.7,
       });
 
-      logger.info('Reminder (dry run)', { to: learner.phone, message });
+      await sendWhatsAppMessage(learner.phone!, message);
       sent += 1;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -82,7 +101,7 @@ Under 80 words. Warm and motivating. End with "Reply 1 to start learning."`;
     }
   }
 
-  return { sent, daysLeft };
+  return { sent, skipped: learners.length - sent, daysLeft };
 });
 
 export async function scheduleRenewalReminders(): Promise<void> {

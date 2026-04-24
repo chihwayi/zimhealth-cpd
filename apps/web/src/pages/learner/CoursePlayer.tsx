@@ -635,7 +635,7 @@ export default function CoursePlayerPage() {
       <div className="p-6 max-w-xl mx-auto">
         <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm space-y-6 text-center">
           <div className="flex justify-center">
-            <div className="h-20 w-20 rounded-full bg-emerald-100 flex items-center justify-center">
+            <div className="h-20 w-20 rounded-full bg-blue-100 flex items-center justify-center">
               <Trophy size={36} className="text-emerald-500" />
             </div>
           </div>
@@ -654,7 +654,7 @@ export default function CoursePlayerPage() {
             </div>
             <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
               <div
-                className="h-full bg-emerald-500 rounded-full transition-all"
+                className="h-full bg-blue-500 rounded-full transition-all"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -693,7 +693,7 @@ export default function CoursePlayerPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-emerald-50 text-emerald-700 text-sm font-medium rounded-xl p-4">
+            <div className="bg-blue-50 text-emerald-700 text-sm font-medium rounded-xl p-4">
               Thank you for your review!
             </div>
           )}
@@ -799,7 +799,7 @@ export default function CoursePlayerPage() {
                   <button
                     onClick={() => active && void markSectionCompleteMutation.mutate(active.section.id)}
                     disabled={markSectionCompleteMutation.isPending}
-                    className="inline-flex items-center gap-2 bg-emerald-500 text-white font-semibold px-4 py-2 rounded-xl hover:bg-emerald-600 disabled:opacity-50 text-sm"
+                    className="inline-flex items-center gap-2 bg-blue-500 text-white font-semibold px-4 py-2 rounded-xl hover:bg-blue-600 disabled:opacity-50 text-sm"
                   >
                     {markSectionCompleteMutation.isPending ? (
                       <Loader2 size={14} className="animate-spin" />

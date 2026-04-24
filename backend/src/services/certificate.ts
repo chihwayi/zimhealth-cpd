@@ -72,7 +72,7 @@ export async function generateCertificate(learnerId: string, cycleYear: number) 
     doc
       .fontSize(11)
       .fillColor('#475569')
-      .text(`NCZ Reg No: ${learner.nczRegistrationNumber}`, { align: 'center' });
+      .text(`Registration No: ${learner.nczRegistrationNumber}`, { align: 'center' });
     doc.moveDown(0.75);
   }
 
@@ -120,4 +120,3 @@ export async function generateCertificate(learnerId: string, cycleYear: number) 
     data: { pdfKey: key, pdfUrl },
   });
 }
-

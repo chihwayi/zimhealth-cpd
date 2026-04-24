@@ -10,3 +10,12 @@ export const SubmitReviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
   comment: z.string().max(1000).optional(),
 });
+
+export const SyncOfflineSchema = z.object({
+  items: z.array(
+    z.object({
+      enrollmentId: z.string().cuid(),
+      sectionId: z.string().cuid(),
+    }),
+  ).max(100),
+});

@@ -206,20 +206,31 @@ export async function syncPendingQuizAttempts(
 // ─── Sync pending progress updates when back online ──────────────────────────
 
 export async function syncPendingProgress(
-  apiFn: (enrollmentId: string, sectionId: string, totalSections: number) => Promise<unknown>,
+  bulkApiFn: (
+    items: Array<{ enrollmentId: string; sectionId: string }>
+  ) => Promise<{
+    synced: number;
+    results: Array<{ enrollmentId: string; sectionId: string; ok: boolean }>;
+  }>,
 ): Promise<number> {
   const pending = await getPendingProgressUpdates();
-  let synced = 0;
+  if (pending.length === 0) return 0;
 
-  for (const entry of pending) {
-    try {
-      await apiFn(entry.enrollmentId, entry.sectionId, entry.totalSections);
-      await clearPendingProgress(entry.key);
-      synced++;
-    } catch {
-      // Leave in queue to retry later
+  const items = pending.map((entry) => ({
+    enrollmentId: entry.enrollmentId,
+    sectionId: entry.sectionId,
+  }));
+
+  try {
+    const response = await bulkApiFn(items);
+    for (const result of response.results) {
+      if (result.ok) {
+        await clearPendingProgress(`${result.enrollmentId}_${result.sectionId}`);
+      }
     }
+    return response.synced;
+  } catch {
+    // Leave in queue to retry later
+    return 0;
   }
-
-  return synced;
 }

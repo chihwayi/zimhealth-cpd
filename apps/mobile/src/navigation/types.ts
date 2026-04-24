@@ -15,6 +15,11 @@ export type CoursesStackParamList = {
   CoursePlayer: { enrollmentId: string; courseId: string };
 };
 
+export type ProfileStackParamList = {
+  ProfileHome: undefined;
+  Subscription: undefined;
+};
+
 // ─── Bottom Tabs ─────────────────────────────────────────────────────────────
 
 export type AppTabParamList = {
@@ -35,3 +40,4 @@ export type CoursesListScreenProps = CompositeScreenProps<
 >;
 export type CourseDetailScreenProps = NativeStackScreenProps<CoursesStackParamList, 'CourseDetail'>;
 export type CoursePlayerScreenProps = NativeStackScreenProps<CoursesStackParamList, 'CoursePlayer'>;
+export type ProfileScreenProps = NativeStackScreenProps<ProfileStackParamList, 'ProfileHome'>;

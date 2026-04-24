@@ -49,17 +49,16 @@ export default function ResetPassword() {
   const tokenMissing = !token || token.length < 10;
 
   return (
-    <main className="min-h-screen bg-[#071510] text-[#0B1F1A] relative flex items-center justify-center p-4 overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(78,203,160,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
+    <main className="min-h-screen bg-[#030c1a] text-[#0a1628] relative flex items-center justify-center p-4 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
       <div className="w-full max-w-md">
         <header className="text-center mb-8">
-          <img
-            src="/logo.png"
-            alt="ZimHealth CPD"
-            className="mx-auto mb-4 w-full max-w-xs h-auto rounded-2xl bg-white shadow-lg ring-1 ring-slate-200 p-2"
-          />
-          <h1 className="text-3xl font-bold text-slate-900">Set a new password</h1>
-          <p className="text-slate-500 mt-2 text-sm">Choose a strong password you’ll remember.</p>
+          <div className="inline-flex items-center gap-3 mb-4">
+            <img src="/favicon.png" alt="" className="h-12 w-12 rounded-2xl object-contain p-1.5 bg-white/10 ring-1 ring-white/20" />
+            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-10 w-auto max-w-[180px] object-contain" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mt-2">Set a new password</h1>
+          <p className="text-white/60 mt-1 text-sm">Choose a strong password you’ll remember.</p>
         </header>
 
         <section className="bg-white/85 backdrop-blur rounded-2xl border border-white/15 shadow-2xl shadow-black/20 p-8 space-y-6">

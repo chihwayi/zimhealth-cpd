@@ -83,12 +83,12 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
     await saveSession(session);
     await sendMessage(
       msg.from,
-      `What is your *NCZ registration number*?\n\n_Reply *skip* if you don't have one yet._`,
+      `What is your *council registration number*?\n\n_Reply *skip* if you don't have one yet._`,
     );
     return;
   }
 
-  // ── NCZ step: registration number (optional) ──
+  // ── Registration-number step (optional) ──
   if (rs.step === 'NCZ') {
     rs.nczRegistrationNumber = lower === 'skip' ? undefined : text;
     rs.step = 'INSTITUTION';
@@ -110,7 +110,7 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
     const cadreName = CADRE_OPTIONS.find((c) => c.key === rs.cadre)?.label ?? rs.cadre;
     await sendMessage(
       msg.from,
-      `📋 *Review your details:*\n\n👤 Name: *${rs.fullName}*\n🏥 Cadre: *${cadreName}*\n🔖 NCZ No: *${rs.nczRegistrationNumber ?? 'Not provided'}*\n🏨 Workplace: *${rs.institution}*\n\nReply *yes* to confirm and create your account, or *no* to start over.`,
+      `📋 *Review your details:*\n\n👤 Name: *${rs.fullName}*\n🏥 Cadre: *${cadreName}*\n🔖 Registration No: *${rs.nczRegistrationNumber ?? 'Not provided'}*\n🏨 Workplace: *${rs.institution}*\n\nReply *yes* to confirm and create your account, or *no* to start over.`,
     );
     return;
   }

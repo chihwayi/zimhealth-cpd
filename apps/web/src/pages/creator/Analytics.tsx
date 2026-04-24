@@ -100,8 +100,8 @@ export default function CreatorAnalytics() {
                 <AreaChart data={timeseries ?? []}>
                   <defs>
                     <linearGradient id="creator-enrollments" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.18} />
-                      <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.18} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="creator-completions" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#22c55e" stopOpacity={0.16} />
@@ -118,7 +118,7 @@ export default function CreatorAnalytics() {
                       boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
                     }}
                   />
-                  <Area type="monotone" dataKey="enrollments" stroke="#14b8a6" fill="url(#creator-enrollments)" strokeWidth={3} />
+                  <Area type="monotone" dataKey="enrollments" stroke="#3b82f6" fill="url(#creator-enrollments)" strokeWidth={3} />
                   <Area type="monotone" dataKey="completions" stroke="#22c55e" fill="url(#creator-completions)" strokeWidth={3} />
                 </AreaChart>
               </ResponsiveContainer>

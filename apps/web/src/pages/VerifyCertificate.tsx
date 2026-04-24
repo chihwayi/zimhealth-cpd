@@ -82,7 +82,7 @@ export default function VerifyCertificatePage() {
                   </div>
                   {data.learner.nczRegistrationNumber && (
                     <div className="flex items-start justify-between gap-4 py-3 border-b border-slate-100">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">NCZ Reg No</span>
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Council Reg No</span>
                       <span className="text-sm font-medium text-slate-700">{data.learner.nczRegistrationNumber}</span>
                     </div>
                   )}

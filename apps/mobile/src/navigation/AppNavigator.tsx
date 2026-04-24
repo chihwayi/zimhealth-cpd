@@ -7,17 +7,19 @@ import CourseDetailScreen from '../screens/learner/CourseDetailScreen';
 import CoursePlayerScreen from '../screens/learner/CoursePlayerScreen';
 import CertificatesScreen from '../screens/learner/CertificatesScreen';
 import ProfileScreen      from '../screens/learner/ProfileScreen';
-import type { AppTabParamList, CoursesStackParamList } from './types';
+import SubscriptionScreen from '../screens/learner/SubscriptionScreen';
+import type { AppTabParamList, CoursesStackParamList, ProfileStackParamList } from './types';
 
 const Tab   = createBottomTabNavigator<AppTabParamList>();
 const Stack = createNativeStackNavigator<CoursesStackParamList>();
+const ProfileStackNav = createNativeStackNavigator<ProfileStackParamList>();
 
 function CoursesStack() {
   return (
     <Stack.Navigator
       screenOptions={{
         headerStyle:     { backgroundColor: '#fff' },
-        headerTintColor: '#0f766e',
+        headerTintColor: '#2563eb',
         headerTitleStyle: { fontWeight: '700', color: '#0f172a' },
         headerShadowVisible: false,
       }}
@@ -26,6 +28,30 @@ function CoursesStack() {
       <Stack.Screen name="CourseDetail"  component={CourseDetailScreen}  options={{ title: '' }}        />
       <Stack.Screen name="CoursePlayer"  component={CoursePlayerScreen}  options={{ title: 'Player' }} />
     </Stack.Navigator>
+  );
+}
+
+function ProfileStack() {
+  return (
+    <ProfileStackNav.Navigator
+      screenOptions={{
+        headerStyle:     { backgroundColor: '#fff' },
+        headerTintColor: '#2563eb',
+        headerTitleStyle: { fontWeight: '700', color: '#0f172a' },
+        headerShadowVisible: false,
+      }}
+    >
+      <ProfileStackNav.Screen
+        name="ProfileHome"
+        component={ProfileScreen}
+        options={{ title: 'Profile', headerShown: false }}
+      />
+      <ProfileStackNav.Screen
+        name="Subscription"
+        component={SubscriptionScreen}
+        options={{ title: 'Subscription' }}
+      />
+    </ProfileStackNav.Navigator>
   );
 }
 
@@ -43,7 +69,7 @@ export default function AppNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor:   '#0d9488',
+        tabBarActiveTintColor:   '#2563eb',
         tabBarInactiveTintColor: '#94a3b8',
         tabBarStyle: {
           backgroundColor: '#fff',
@@ -67,7 +93,7 @@ export default function AppNavigator() {
       <Tab.Screen name="DashboardTab"    component={DashboardScreen}    options={{ title: 'Home'         }} />
       <Tab.Screen name="CoursesTab"      component={CoursesStack}        options={{ title: 'Courses'      }} />
       <Tab.Screen name="CertificatesTab" component={CertificatesScreen} options={{ title: 'Certificates' }} />
-      <Tab.Screen name="ProfileTab"      component={ProfileScreen}      options={{ title: 'Profile'      }} />
+      <Tab.Screen name="ProfileTab"      component={ProfileStack}       options={{ title: 'Profile'      }} />
     </Tab.Navigator>
   );
 }

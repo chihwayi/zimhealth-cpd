@@ -38,7 +38,7 @@ export default function Register() {
     queryFn: () => api.get('/api/councils'),
   });
 
-  const councils = councilsQuery.data?.councils ?? [];
+  const councils = useMemo(() => councilsQuery.data?.councils ?? [], [councilsQuery.data?.councils]);
   const selectedCouncil = useMemo(() => councils.find((c) => c.id === councilId) ?? null, [councilId, councils]);
   const titles = selectedCouncil?.allowedTitles ?? [];
 
@@ -97,20 +97,19 @@ export default function Register() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#071510] text-[#0B1F1A] relative flex items-center justify-center p-4">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(78,203,160,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
-      <div className="absolute left-8 top-12 hidden h-48 w-48 rounded-full border border-emerald-200/80 lg:block" />
+    <main className="min-h-screen overflow-hidden bg-[#030c1a] text-[#0a1628] relative flex items-center justify-center p-4">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
+      <div className="absolute left-8 top-12 hidden h-48 w-48 rounded-full border border-blue-200/80 lg:block" />
       <div className="absolute bottom-8 right-12 hidden h-64 w-64 rounded-[4rem] bg-white/40 rotate-12 lg:block" />
 
       <div className="relative grid w-full max-w-6xl grid-cols-1 overflow-hidden rounded-[2rem] border border-white/80 bg-white/85 shadow-2xl backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">
         <section className="relative hidden min-h-[720px] flex-col justify-between overflow-hidden bg-slate-950 p-10 text-white lg:flex">
-          <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(20,184,166,0.35),_transparent_45%),radial-gradient(circle_at_80%_20%,_rgba(251,191,36,0.24),_transparent_30%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(59,130,246,0.35),_transparent_45%),radial-gradient(circle_at_80%_20%,_rgba(251,191,36,0.24),_transparent_30%)]" />
           <div className="relative">
-            <img
-              src="/logo.png"
-              alt="ZimHealth CPD"
-              className="mb-8 w-full max-w-xs h-auto rounded-2xl bg-white text-slate-950 shadow-xl ring-1 ring-white/10 p-2"
-            />
+            <div className="flex items-center gap-3 mb-8">
+              <img src="/favicon.png" alt="" className="h-12 w-12 rounded-2xl object-contain p-1.5 bg-white/15 ring-1 ring-white/20" />
+              <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-10 w-auto max-w-[160px] object-contain brightness-110" />
+            </div>
             <h1 className="mt-8 max-w-md text-5xl font-black leading-[0.95] tracking-tight">
               One CPD home for every health council.
             </h1>
@@ -127,7 +126,7 @@ export default function Register() {
             ].map(([title, body]) => (
               <div key={title} className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
                 <div className="flex items-center gap-2 text-sm font-semibold">
-                  <Sparkles size={15} className="text-emerald-300" />
+                  <Sparkles size={15} className="text-blue-300" />
                   {title}
                 </div>
                 <p className="mt-1 text-xs text-slate-300">{body}</p>
@@ -143,7 +142,7 @@ export default function Register() {
               alt="ZimHealth CPD"
               className="mx-auto mb-4 w-full max-w-xs h-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 p-2 lg:hidden"
             />
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-emerald-800">
+            <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-blue-800">
               <BadgeCheck size={14} />
               Account setup
             </div>
@@ -298,7 +297,7 @@ export default function Register() {
               </div>
             )}
 
-            <button type="submit" disabled={loading || councilsQuery.isLoading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 py-4 text-sm font-black text-white shadow-xl shadow-slate-300 transition-all hover:-translate-y-0.5 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={loading || councilsQuery.isLoading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 py-4 text-sm font-black text-white shadow-xl shadow-slate-300 transition-all hover:-translate-y-0.5 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
               {loading ? <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <UserPlus size={17} />}
               {loading ? 'Creating your account...' : 'Create council-aware account'}
             </button>

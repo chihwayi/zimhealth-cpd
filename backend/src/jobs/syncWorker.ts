@@ -8,11 +8,11 @@ export const syncQueue = new Bull('ncz-sync', {
 
 syncQueue.process('run-sync', async (job) => {
   const { triggeredBy } = job.data as { triggeredBy?: string };
-  logger.info('Running NCZ sync', { triggeredBy: triggeredBy ?? 'cron' });
+  logger.info('Running council sync', { triggeredBy: triggeredBy ?? 'cron' });
   return runNczSync(triggeredBy ?? 'cron');
 });
 
-const schedule = process.env.NCZ_SYNC_SCHEDULE ?? '0 2 * * *';
+const schedule = process.env.COUNCIL_SYNC_SCHEDULE ?? process.env.NCZ_SYNC_SCHEDULE ?? '0 2 * * *';
 
 export async function scheduleDailySync(): Promise<void> {
   const repeatableJobs = await syncQueue.getRepeatableJobs();
@@ -26,9 +26,9 @@ export async function scheduleDailySync(): Promise<void> {
     { repeat: { cron: schedule }, removeOnComplete: 50 },
   );
 
-  logger.info('NCZ daily sync scheduled', { schedule });
+  logger.info('Council daily sync scheduled', { schedule });
 }
 
 syncQueue.on('failed', (job, err) => {
-  logger.error('NCZ sync job failed', { jobId: job.id, err: err.message });
+  logger.error('Council sync job failed', { jobId: job.id, err: err.message });
 });

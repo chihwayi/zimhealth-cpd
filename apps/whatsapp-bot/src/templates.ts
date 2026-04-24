@@ -43,5 +43,5 @@ Web: ${WEB_URL}`,
     `Hi ${name} 👋\n\nYour CPD renewal is in *${days} days*.\nYou need *${points} more points*.\n\nReply *1* to start learning now.`,
 
   CERT_READY: (link: string) =>
-    `🎓 Your CPD certificate is ready!\n\nDownload here:\n${link}\n\nValid for NCZ renewal submission.`,
+    `🎓 Your CPD certificate is ready!\n\nDownload here:\n${link}\n\nValid for council renewal submission.`,
 };

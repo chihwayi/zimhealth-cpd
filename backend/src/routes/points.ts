@@ -8,8 +8,24 @@ import { canEarnWhatsAppPoints, getLearnerEntitlements } from '../services/entit
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { requireBotSecret } from '../middleware/auth.middleware';
+import twilio from 'twilio';
 
 const router: ExpressRouter = Router();
+
+async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_NUMBER;
+  const toFormatted = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+
+  if (!sid || !token || !from) {
+    console.info(`[points] Completion message dry run: to=${toFormatted}\n${body}`);
+    return;
+  }
+
+  const client = twilio(sid, token);
+  await client.messages.create({ from, to: toFormatted, body });
+}
 const BotCreditSchema = z.object({
   phone: z.string().min(8),
   quizId: z.string().min(3),
@@ -107,19 +123,22 @@ router.get('/bot/:phone', requireBotSecret, async (req, res) => {
 router.post('/bot/credit', requireBotSecret, async (req, res) => {
   try {
     const { phone, quizId, courseId, attemptKey, quizScore } = BotCreditSchema.parse(req.body);
-    const learner = await db.user.findUnique({ where: { phone } });
+    const learner = await db.user.findUnique({
+      where: { phone },
+      select: { id: true, fullName: true, phone: true, subscriptionTier: true },
+    });
     if (!learner) return res.status(404).json({ error: 'Learner not found' });
     const cycleYear = new Date().getFullYear();
 
     // Enforce FREE-tier WhatsApp CPD cap at the backend.
+    const entitlementBeforeCredit = await getLearnerEntitlements(learner.id);
     const allowed = await canEarnWhatsAppPoints(learner.id, cycleYear);
     if (!allowed) {
-      const ent = await getLearnerEntitlements(learner.id);
       return res.status(402).json({
         error: 'WhatsApp CPD allowance reached for this cycle. Upgrade to continue earning points.',
         code: 'WHATSAPP_POINTS_CAP_REACHED',
-        remainingWhatsappPoints: ent.remainingWhatsappPoints,
-        subscriptionTier: ent.subscriptionTier,
+        remainingWhatsappPoints: entitlementBeforeCredit.remainingWhatsappPoints,
+        subscriptionTier: entitlementBeforeCredit.subscriptionTier,
       });
     }
     // Prevent farming: if already credited for this quiz this cycle, return 0 points.
@@ -138,6 +157,20 @@ router.post('/bot/credit', requireBotSecret, async (req, res) => {
       quizScore,
     });
 
+    if (
+      entitlementBeforeCredit.subscriptionTier === 'FREE' &&
+      Number.isFinite(entitlementBeforeCredit.remainingWhatsappPoints) &&
+      result.pointsEarned > entitlementBeforeCredit.remainingWhatsappPoints
+    ) {
+      result.pointsEarned = entitlementBeforeCredit.remainingWhatsappPoints;
+      if (result.recordId) {
+        await db.cPDRecord.update({
+          where: { id: result.recordId },
+          data: { pointsEarned: result.pointsEarned },
+        });
+      }
+    }
+
     // Persist attemptKey on the record for audit/deduplication visibility.
     if (result.recordId) {
       await db.cPDRecord.update({
@@ -155,6 +188,29 @@ router.post('/bot/credit', requireBotSecret, async (req, res) => {
         meta: { attemptKey, pointsEarned: result.pointsEarned, courseId },
       },
     });
+
+    const learnerPhone = learner.phone;
+    if (result.pointsEarned > 0 && learnerPhone) {
+      void (async () => {
+        try {
+          const summary = await getLearnerCPDSummary(learner.id);
+          const previousTotal = summary.totalPoints - result.pointsEarned;
+          if (summary.totalPoints >= summary.requiredPoints && previousTotal < summary.requiredPoints) {
+            const firstName = learner.fullName.split(' ')[0] || 'there';
+            const webUrl = process.env.WEB_URL ?? 'https://zimhealthcpd.co.zw';
+            const message =
+              `Congratulations, ${firstName}!\n\n` +
+              `You have earned ${summary.totalPoints} CPD points, meeting your ${summary.cycleYear} renewal requirement of ${summary.requiredPoints} points.\n\n` +
+              `Your points have been recorded and will be submitted to your council.\n\n` +
+              `Visit ${webUrl}/certificates to download your CPD certificate.`;
+            await sendWhatsAppMessage(learnerPhone, message);
+          }
+        } catch (err) {
+          console.error('[points/bot/credit] Completion notification failed', err);
+        }
+      })();
+    }
+
     res.json(result);
   } catch (err: any) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });

@@ -18,6 +18,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import type { AuthUser } from '../../store/auth.store';
+import type { ProfileScreenProps } from '../../navigation/types';
 
 const CADRE_LABEL: Record<string, string> = {
   NURSE:            'Registered General Nurse',
@@ -29,11 +30,12 @@ const CADRE_LABEL: Record<string, string> = {
 
 const TIER_LABEL: Record<string, string> = {
   FREE:    'Free',
-  PREMIUM: 'Premium',
-  INSTITUTIONAL: 'Institutional',
+  STANDARD: 'Standard',
+  INSTITUTION: 'Institution',
+  DIASPORA: 'Diaspora',
 };
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const queryClient  = useQueryClient();
   const clearAuth    = useAuthStore((s) => s.clearAuth);
   const updateUser   = useAuthStore((s) => s.updateUser);
@@ -121,7 +123,7 @@ export default function ProfileScreen() {
               </View>
 
               <View className="h-16 w-16 bg-primary-100 rounded-3xl items-center justify-center">
-                <Ionicons name="person" size={32} color="#0d9488" />
+                <Ionicons name="person" size={32} color="#2563eb" />
               </View>
             </View>
           </View>
@@ -132,7 +134,9 @@ export default function ProfileScreen() {
               <View>
                 <Text className="text-white/70 text-xs font-medium">Subscription</Text>
                 <Text className="text-white text-lg font-bold mt-0.5">
-                  {TIER_LABEL[me.subscriptionTier] ?? me.subscriptionTier}
+                  {me.subscriptionTier
+                    ? TIER_LABEL[me.subscriptionTier] ?? me.subscriptionTier
+                    : 'Free'}
                 </Text>
                 {(me as any).subscriptionExpiresAt && (
                   <Text className="text-primary-200 text-xs mt-0.5">
@@ -140,7 +144,14 @@ export default function ProfileScreen() {
                   </Text>
                 )}
               </View>
-              <Ionicons name="shield-checkmark" size={32} color="rgba(255,255,255,0.5)" />
+              <Pressable
+                onPress={() => navigation.navigate('Subscription')}
+                className="items-center gap-y-1"
+                hitSlop={8}
+              >
+                <Ionicons name="shield-checkmark" size={32} color="rgba(255,255,255,0.5)" />
+                <Text className="text-white/80 text-xs font-semibold">Manage</Text>
+              </Pressable>
             </Card>
 
             {/* ── Profile details ── */}
@@ -170,7 +181,7 @@ export default function ProfileScreen() {
                     placeholder="+263 77 123 4567"
                   />
                   <Input
-                    label="NCZ registration number"
+                    label="Council registration number"
                     value={nczReg}
                     onChangeText={setNczReg}
                     autoCapitalize="characters"
@@ -213,7 +224,7 @@ export default function ProfileScreen() {
                   {[
                     { label: 'Email',         value: (me as any).email },
                     { label: 'Phone',         value: (me as any).phone ?? '—' },
-                    { label: 'NCZ number',    value: me.nczRegistrationNumber ?? '—' },
+                    { label: 'Registration number', value: me.nczRegistrationNumber ?? '—' },
                     { label: 'Specialty',     value: me.specialtyArea ?? '—' },
                     { label: 'Institution',   value: (me as any).institution ?? '—' },
                     { label: 'Province',      value: (me as any).province ?? '—' },

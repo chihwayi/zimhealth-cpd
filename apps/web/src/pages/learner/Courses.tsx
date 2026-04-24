@@ -76,12 +76,8 @@ export default function CoursesPage() {
   });
 
   const sortedCourses = useMemo(
-    () =>
-      sortCourses(data?.courses ?? [], sort).map((course) => ({
-        ...course,
-        locked: user?.role === 'LEARNER' && (user.subscriptionTier ?? 'FREE') === 'FREE',
-      })),
-    [data?.courses, sort, user?.role, user?.subscriptionTier],
+    () => sortCourses(data?.courses ?? [], sort),
+    [data?.courses, sort],
   );
 
   const activeFiltersCount = [search, category, difficulty].filter(Boolean).length;
@@ -162,12 +158,12 @@ export default function CoursesPage() {
             </select>
           </div>
 
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
             <div className="flex items-center gap-2 text-sm font-bold text-emerald-900">
               <ShieldCheck size={15} />
               Matched to your profile
             </div>
-            <p className="mt-1 text-xs leading-5 text-emerald-800">
+            <p className="mt-1 text-xs leading-5 text-blue-800">
               Showing courses allowed for {user?.professionalTitle ?? 'your professional title'} under your council.
             </p>
           </div>

@@ -16,18 +16,26 @@ interface Props {
   trend?: Trend;
 }
 
-const ACCENT_CLASSES = {
-  teal: 'bg-primary-100 text-primary-700',
-  amber: 'bg-amber-100 text-amber-700',
-  green: 'bg-green-100 text-green-700',
-  red: 'bg-red-100 text-red-700',
-  blue: 'bg-blue-100 text-blue-700',
+const ACCENT_BG: Record<string, string> = {
+  teal: 'bg-gradient-to-br from-primary-600 to-primary-800',
+  blue: 'bg-gradient-to-br from-blue-600 to-blue-800',
+  amber: 'bg-gradient-to-br from-amber-500 to-orange-600',
+  green: 'bg-gradient-to-br from-emerald-500 to-emerald-700',
+  red: 'bg-gradient-to-br from-rose-500 to-rose-700',
+};
+
+const ACCENT_ICON: Record<string, string> = {
+  teal: 'bg-white/20 text-white',
+  blue: 'bg-white/20 text-white',
+  amber: 'bg-white/20 text-white',
+  green: 'bg-white/20 text-white',
+  red: 'bg-white/20 text-white',
 };
 
 const TREND_CLASSES = {
-  up: 'text-green-700 font-bold',
-  down: 'text-red-700 font-bold',
-  neutral: 'text-slate-500',
+  up: 'text-white/80',
+  down: 'text-white/80',
+  neutral: 'text-white/60',
 };
 
 const TREND_ICONS = {
@@ -40,14 +48,19 @@ export function StatCard({ title, value, subtitle, icon, accent = 'teal', trend 
   const TrendIcon = trend ? TREND_ICONS[trend.direction] : null;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between">
+    <div
+      className={clsx(
+        'rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5',
+        ACCENT_BG[accent],
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-slate-600 font-semibold truncate">{title}</p>
-          <p className="text-3xl font-bold text-slate-900 mt-1 tabular-nums">{value}</p>
-          {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
+          <p className="text-xs font-semibold uppercase tracking-widest text-white/60 truncate">{title}</p>
+          <p className="text-4xl font-black text-white mt-2 tabular-nums leading-none">{value}</p>
+          {subtitle && <p className="text-sm text-white/70 mt-1.5 font-medium">{subtitle}</p>}
           {trend && TrendIcon && (
-            <div className={clsx('flex items-center gap-1 mt-2 text-xs font-medium', TREND_CLASSES[trend.direction])}>
+            <div className={clsx('flex items-center gap-1.5 mt-3 text-xs font-semibold', TREND_CLASSES[trend.direction])}>
               <TrendIcon size={12} />
               {trend.label}
             </div>
@@ -56,8 +69,8 @@ export function StatCard({ title, value, subtitle, icon, accent = 'teal', trend 
         {icon && (
           <div
             className={clsx(
-              'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ml-3',
-              ACCENT_CLASSES[accent],
+              'w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0',
+              ACCENT_ICON[accent],
             )}
           >
             {icon}

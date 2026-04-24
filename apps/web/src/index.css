@@ -7,7 +7,7 @@
     @apply antialiased;
   }
   body {
-    background: #071510;
+    background: #030c1a;
     color: #0b1f1a;
   }
   * {
@@ -17,6 +17,6 @@
 
 @layer components {
   .field-input {
-    @apply w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 shadow-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 placeholder:text-slate-400;
+    @apply w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 placeholder:text-slate-400;
   }
 }

@@ -49,6 +49,100 @@ router.get('/courses', requireBotSecret, async (req, res) => {
   }
 });
 
+// ─── GET /api/bot/courses/available?phone=+263771234567 ─────────────────────
+// Returns published courses the learner can start from WhatsApp.
+router.get('/courses/available', requireBotSecret, async (req, res) => {
+  const phone = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+
+  try {
+    const learner = await db.user.findUnique({
+      where: { phone },
+      select: { id: true, councilId: true },
+    });
+    if (!learner) return res.status(404).json({ error: 'Learner not found' });
+
+    const enrolled = await db.enrollment.findMany({
+      where: { learnerId: learner.id },
+      select: { courseId: true },
+    });
+    const enrolledIds = enrolled.map((entry) => entry.courseId);
+
+    const courses = await db.course.findMany({
+      where: {
+        status: 'PUBLISHED',
+        id: { notIn: enrolledIds },
+        OR: [
+          { isPublicToAll: true },
+          ...(learner.councilId ? [{ targetCouncilIds: { has: learner.councilId } }] : []),
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        title: true,
+        cpdPoints: true,
+        estimatedMinutes: true,
+        _count: { select: { modules: true } },
+      },
+    });
+
+    return res.json({
+      learnerId: learner.id,
+      courses: courses.map((course) => ({
+        id: course.id,
+        title: course.title,
+        cpdPoints: course.cpdPoints,
+        estimatedMinutes: course.estimatedMinutes,
+        moduleCount: course._count.modules,
+        progressPercent: 0,
+      })),
+    });
+  } catch {
+    return res.status(500).json({ error: 'Could not fetch available courses' });
+  }
+});
+
+// ─── POST /api/bot/enroll ────────────────────────────────────────────────────
+router.post('/enroll', requireBotSecret, async (req, res) => {
+  const { phone, courseId } = req.body as { phone?: string; courseId?: string };
+  if (!phone || !courseId) {
+    return res.status(400).json({ error: 'phone and courseId are required' });
+  }
+
+  try {
+    const learner = await db.user.findUnique({
+      where: { phone },
+      select: { id: true, councilId: true },
+    });
+    if (!learner) return res.status(404).json({ error: 'Learner not found' });
+
+    const course = await db.course.findFirst({
+      where: {
+        id: courseId,
+        status: 'PUBLISHED',
+        OR: [
+          { isPublicToAll: true },
+          ...(learner.councilId ? [{ targetCouncilIds: { has: learner.councilId } }] : []),
+        ],
+      },
+      select: { id: true, title: true },
+    });
+    if (!course) return res.status(404).json({ error: 'Course not available' });
+
+    const enrollment = await db.enrollment.upsert({
+      where: { learnerId_courseId: { learnerId: learner.id, courseId } },
+      create: { learnerId: learner.id, courseId, progress: 0 },
+      update: {},
+    });
+
+    return res.json({ enrollmentId: enrollment.id, courseTitle: course.title });
+  } catch {
+    return res.status(500).json({ error: 'Enrolment failed' });
+  }
+});
+
 // ─── GET /api/bot/course/:courseId/modules ────────────────────────────────────
 // Returns module list for a course (for bot navigation)
 router.get('/course/:courseId/modules', requireBotSecret, async (req, res) => {

@@ -200,6 +200,53 @@ Return JSON:
 }
 Prioritise: renewal gap closure → weak knowledge areas → cadre fit → points efficiency. Max 3.`;
 
+  const fallbackRecommendations = () => {
+    const weakCategorySet = new Set(weakestCategories.map((item) => item.cat));
+    const cadreNeedle = String(learner?.professionalTitle ?? learner?.cadre ?? '').toLowerCase();
+    const ranked = [...availableCourses]
+      .sort((a, b) => {
+        const aWeak = weakCategorySet.has(a.category) ? 1 : 0;
+        const bWeak = weakCategorySet.has(b.category) ? 1 : 0;
+        if (aWeak !== bWeak) return bWeak - aWeak;
+
+        const aFit = [
+          ...((a.targetTitles as string[]) ?? []),
+          ...((a.targetCadres as string[]) ?? []),
+          ...((a.tags as string[]) ?? []),
+          a.title,
+        ].join(' ').toLowerCase().includes(cadreNeedle) ? 1 : 0;
+        const bFit = [
+          ...((b.targetTitles as string[]) ?? []),
+          ...((b.targetCadres as string[]) ?? []),
+          ...((b.tags as string[]) ?? []),
+          b.title,
+        ].join(' ').toLowerCase().includes(cadreNeedle) ? 1 : 0;
+        if (aFit !== bFit) return bFit - aFit;
+
+        return b.cpdPoints - a.cpdPoints;
+      })
+      .slice(0, 3);
+
+    return {
+      courseIds: ranked.map((course) => course.id),
+      explanations: Object.fromEntries(
+        ranked.map((course) => [
+          course.id,
+          weakCategorySet.has(course.category)
+            ? `Recommended to strengthen ${course.category.toLowerCase()} knowledge.`
+            : `Recommended based on your professional profile and CPD needs.`,
+        ]),
+      ),
+      reasonCategories: Object.fromEntries(
+        ranked.map((course) => [
+          course.id,
+          weakCategorySet.has(course.category) ? ['knowledge_gap'] : ['specialty_fit', 'points_efficiency'],
+        ]),
+      ),
+      isProfileBased,
+    };
+  };
+
   try {
     const raw = await ai.complete(prompt, {
       systemPrompt: SYSTEM_PROMPTS.COURSE_RECOMMENDER,
@@ -235,6 +282,8 @@ Prioritise: renewal gap closure → weak knowledge areas → cadre fit → point
     await redisSetexSafe(cacheKey, CACHE_TTL, JSON.stringify(result));
     return result;
   } catch {
-    return { courseIds: [], explanations: {}, reasonCategories: {}, isProfileBased };
+    const result = fallbackRecommendations();
+    await redisSetexSafe(cacheKey, CACHE_TTL, JSON.stringify(result));
+    return result;
   }
 }

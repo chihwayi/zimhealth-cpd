@@ -1,10 +1,10 @@
 import Stripe from 'stripe';
 import { Paynow } from 'paynow';
-import type { SubscriptionTier } from '@prisma/client';
+import type { Prisma, SubscriptionTier } from '@prisma/client';
 import { db } from '../lib/db';
 
 type PaidTier = Exclude<SubscriptionTier, 'FREE'>;
-type Gateway = 'paynow' | 'stripe';
+type Gateway = 'paynow' | 'stripe' | 'voucher';
 
 function getTierAmountUSD(tier: PaidTier): number {
   if (tier === 'STANDARD') return 5;
@@ -25,11 +25,13 @@ export async function applyConfirmedPayment(input: {
   paymentRef?: string;
   gateway: Gateway;
   meta?: Record<string, unknown>;
+  tx?: Prisma.TransactionClient;
 }) {
+  const client = input.tx ?? db;
   const now = new Date();
   const expiresAt = addOneYear(now);
 
-  const subscription = await db.subscription.upsert({
+  const subscription = await client.subscription.upsert({
     where: { learnerId: input.learnerId },
     create: {
       learnerId: input.learnerId,
@@ -48,12 +50,12 @@ export async function applyConfirmedPayment(input: {
     },
   });
 
-  await db.user.update({
+  await client.user.update({
     where: { id: input.learnerId },
     data: { subscriptionTier: input.tier, subscriptionExpiresAt: expiresAt },
   });
 
-  await db.auditLog.create({
+  await client.auditLog.create({
     data: {
       userId: input.learnerId,
       action: 'SUBSCRIPTION_PAYMENT_CONFIRMED',

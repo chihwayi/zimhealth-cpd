@@ -108,6 +108,9 @@ export async function routeMessage(msg: IncomingMessage): Promise<void> {
     case 'LEARNING':
       await handleLearn(msg, session);
       break;
+    case 'BROWSE':
+      await handleLearn(msg, session);
+      break;
     case 'PAYMENT':
       await handlePayment(msg, session);
       break;

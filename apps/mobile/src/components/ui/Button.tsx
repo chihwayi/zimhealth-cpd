@@ -42,7 +42,7 @@ export function Button({
         ${BG[variant]} ${fullWidth ? 'w-full' : ''} ${isDisabled ? 'opacity-50' : ''}`}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? '#fff' : '#0d9488'} />
+        <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? '#fff' : '#2563eb'} />
       ) : (
         <Text className={LABEL[variant]}>{label}</Text>
       )}

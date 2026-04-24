@@ -5,7 +5,6 @@ import { Loader2, Save, User, Camera, Building2, BadgeCheck } from 'lucide-react
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/auth.store';
 import { toast } from '../../components/ui/Toast';
-import clsx from 'clsx';
 
 type MeUser = {
   id: string;
@@ -72,7 +71,7 @@ export default function ProfilePage() {
     queryFn: () => api.get('/api/councils'),
   });
 
-  const councils = councilsQuery.data?.councils ?? [];
+  const councils = useMemo(() => councilsQuery.data?.councils ?? [], [councilsQuery.data?.councils]);
   const selectedCouncil = useMemo(
     () => councils.find((c) => c.id === councilId) ?? null,
     [councilId, councils],
@@ -164,13 +163,49 @@ export default function ProfilePage() {
   const expires = me?.subscriptionExpiresAt ? new Date(me.subscriptionExpiresAt) : null;
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Profile</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Keep your professional details up to date for certificates and NCZ reporting.
-        </p>
+    <div className="min-h-screen bg-slate-50">
+      {/* Hero */}
+      <div className="relative bg-gradient-to-br from-[#030c1a] via-[#0d1f3c] to-[#0a1628] overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(59,130,246,0.18),transparent_55%),radial-gradient(circle_at_85%_15%,rgba(251,191,36,0.08),transparent_45%)]" />
+        <div className="relative max-w-2xl mx-auto px-6 py-8">
+          <div className="flex items-center gap-5">
+            {/* Avatar */}
+            <div className="relative flex-shrink-0">
+              {me?.avatarUrl ? (
+                <img src={me.avatarUrl} alt="" className="w-16 h-16 rounded-2xl object-cover ring-2 ring-white/20" />
+              ) : (
+                <div className="w-16 h-16 rounded-2xl bg-primary-500/25 ring-2 ring-primary-400/30 flex items-center justify-center">
+                  <User size={28} className="text-primary-300" />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={avatarUploading}
+                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary-500 ring-2 ring-[#030c1a] flex items-center justify-center hover:bg-primary-400 transition-colors disabled:opacity-50"
+              >
+                {avatarUploading ? (
+                  <Loader2 size={12} className="text-white animate-spin" />
+                ) : (
+                  <Camera size={12} className="text-white" />
+                )}
+              </button>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-white">{me?.fullName ?? 'Your Profile'}</h1>
+              <p className="text-white/55 text-sm mt-0.5">
+                {me?.council ? `${me.council.acronym} · ` : ''}{me?.professionalTitle ?? 'Health Professional'}
+              </p>
+              <p className="text-white/40 text-xs mt-1">
+                Keep your details up to date for certificates and council reporting.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
 
       {isLoading ? (
         <div className="h-48 rounded-xl bg-white border border-slate-200 animate-pulse" />
@@ -185,10 +220,10 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <div className="overflow-hidden rounded-[1.75rem] border border-emerald-200 bg-gradient-to-br from-white via-emerald-50/60 to-amber-50 shadow-sm">
+          <div className="overflow-hidden rounded-[1.75rem] border border-blue-200 bg-gradient-to-br from-white via-emerald-50/60 to-amber-50 shadow-sm">
             <div className="border-b border-emerald-100 bg-white/70 p-5">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-emerald-300">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-blue-300">
                   <BadgeCheck size={20} />
                 </div>
                 <div>
@@ -268,47 +303,6 @@ export default function ProfilePage() {
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-              <div className="relative shrink-0">
-                <div
-                  className={clsx(
-                    'w-24 h-24 rounded-full overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center',
-                  )}
-                >
-                  {me.avatarUrl ? (
-                    <img src={me.avatarUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="text-slate-400" size={40} />
-                  )}
-                </div>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={() => void handleAvatarChange()}
-                />
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={avatarUploading || patchMutation.isPending}
-                  className="absolute -bottom-1 -right-1 h-9 w-9 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-md hover:bg-primary-600 disabled:opacity-50"
-                  aria-label="Upload profile photo"
-                >
-                  {avatarUploading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
-                </button>
-              </div>
-              <div className="flex-1 space-y-1">
-                <p className="text-sm font-semibold text-slate-900">Photo</p>
-                <p className="text-xs text-slate-500">
-                  JPG, PNG or Webp. Used on certificates and across the platform when configured.
-                </p>
-                <p className="text-xs text-slate-400">
-                  Upload requires media storage (S3) to be configured on the server.
-                </p>
-              </div>
-            </div>
-
             <div>
               <label className="block text-sm font-semibold text-slate-900 mb-1.5">Email</label>
               <input
@@ -416,6 +410,7 @@ export default function ProfilePage() {
           </div>
         </form>
       ) : null}
+      </div>
     </div>
   );
 }

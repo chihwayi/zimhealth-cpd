@@ -10,6 +10,7 @@ export type BotState =
   | 'QUIZ'
   | 'AI_TUTOR'
   | 'PAYMENT'
+  | 'BROWSE'
   | 'AWAITING_REGISTRATION';
 
 export interface BotCourseOption {
@@ -17,6 +18,7 @@ export interface BotCourseOption {
   title: string;
   moduleCount: number;
   progressPercent: number;
+  cpdPoints?: number;
 }
 
 export interface BotModuleOption {
@@ -53,6 +55,7 @@ export interface LearningState {
   sections: BotSection[];
   quizId?: string | null;
   quizQuestions?: BotQuizQuestion[];
+  browsing?: boolean;
   sectionIndex: number; // which section we're currently on
 }
 

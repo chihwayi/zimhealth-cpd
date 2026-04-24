@@ -15,7 +15,7 @@ export function ProgressRing({
   strokeWidth = 12,
   label,
   sublabel,
-  color = '#14b8a6',
+  color = '#3b82f6',
 }: Props) {
   const r = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * r;

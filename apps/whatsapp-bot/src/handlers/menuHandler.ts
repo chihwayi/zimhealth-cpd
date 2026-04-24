@@ -13,6 +13,8 @@ export async function handleMenu(msg: IncomingMessage, session: BotSession): Pro
 
   switch (text) {
     case '1':
+    case 'browse':
+    case 'learn':
       session.state = 'LEARNING';
       await saveSession(session);
       await handleLearn(msg, session);
@@ -48,4 +50,3 @@ export async function handleMenu(msg: IncomingMessage, session: BotSession): Pro
       await sendMessage(msg.from, TEMPLATES.MAIN_MENU);
   }
 }
-
