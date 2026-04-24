@@ -4,7 +4,7 @@
     "slug": "zimhealth-cpd",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/zimhealthcpd.png",
     "scheme": "zimhealth",
     "userInterfaceStyle": "light",
     "splash": {
