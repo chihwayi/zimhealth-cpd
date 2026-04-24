@@ -430,7 +430,7 @@ export default function CoursePlayerPage() {
     } finally {
       setDownloadingModuleId(null);
     }
-  }, [course, id]);
+  }, [course, id, isPreviewMode]);
 
   // ── Remove offline module ──
   const removeOfflineModule = useCallback(async (moduleId: string) => {

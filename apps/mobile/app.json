@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/zimhealthcpd.png",
+    "newArchEnabled": true,
     "scheme": "zimhealth",
     "userInterfaceStyle": "light",
     "splash": {
@@ -21,9 +22,7 @@
       },
       "package": "zw.co.zimhealthcpd.app"
     },
-    "plugins": ["expo-font", "expo-secure-store", "expo-sqlite"],
-    "extra": {
-      "apiUrl": "https://api.zimhealthcpd.co.zw"
-    }
+    "platforms": ["ios", "android"],
+    "plugins": ["expo-font", "expo-secure-store", "expo-sqlite"]
   }
 }

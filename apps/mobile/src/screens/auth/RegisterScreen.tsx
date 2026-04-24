@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,227 +15,278 @@ import { useMutation } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/auth.store';
-import { Button } from '../../components/ui/Button';
-import { Input }  from '../../components/ui/Input';
 import type { AuthUser } from '../../store/auth.store';
 import type { RegisterScreenProps } from '../../navigation/types';
 
-type RegisterResponse = {
-  user: AuthUser;
-  accessToken: string;
-  refreshToken: string;
-};
+type RegisterResponse = { user: AuthUser; accessToken: string; refreshToken: string };
 
 const CADRE_OPTIONS = [
-  { value: 'NURSE',           label: 'Nurse'                  },
-  { value: 'MIDWIFE',         label: 'Midwife'                },
-  { value: 'PHARMACIST',      label: 'Pharmacist'             },
-  { value: 'CLINICAL_OFFICER', label: 'Clinical Officer'      },
-  { value: 'LAB_TECH',        label: 'Laboratory Technician'  },
+  { value: 'NURSE',            label: 'Nurse'             },
+  { value: 'MIDWIFE',          label: 'Midwife'           },
+  { value: 'PHARMACIST',       label: 'Pharmacist'        },
+  { value: 'CLINICAL_OFFICER', label: 'Clinical Officer'  },
+  { value: 'LAB_TECH',         label: 'Lab Technician'    },
 ] as const;
-
 type CadreValue = typeof CADRE_OPTIONS[number]['value'];
+
+// ── Dark glass input ──────────────────────────────────────────────────────────
+
+function DarkInput({
+  icon,
+  placeholder,
+  value,
+  onChangeText,
+  secureTextEntry,
+  hint,
+  keyboardType = 'default',
+  autoCapitalize = 'sentences',
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  placeholder: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  secureTextEntry?: boolean;
+  hint?: string;
+  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric';
+  autoCapitalize?: 'none' | 'words' | 'sentences' | 'characters';
+}) {
+  const [focused, setFocused] = useState(false);
+  const [show,    setShow]    = useState(false);
+
+  return (
+    <View style={{ gap: 6 }} pointerEvents="box-none">
+      <View style={[s.inputRow, focused && s.inputRowFocused]}>
+        <Ionicons
+          name={icon}
+          size={18}
+          color={focused ? '#60a5fa' : 'rgba(255,255,255,0.35)'}
+          style={{ marginRight: 12 }}
+        />
+        <TextInput
+          style={s.inputText}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="rgba(255,255,255,0.25)"
+          secureTextEntry={secureTextEntry && !show}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={false}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+        />
+        {secureTextEntry && (
+          <Pressable onPress={() => setShow(v => !v)} hitSlop={10}>
+            <Ionicons
+              name={show ? 'eye-off-outline' : 'eye-outline'}
+              size={18}
+              color="rgba(255,255,255,0.3)"
+            />
+          </Pressable>
+        )}
+      </View>
+      {hint && (
+        <Text style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, paddingLeft: 4 }}>
+          {hint}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function RegisterScreen({ navigation }: RegisterScreenProps) {
   const [step, setStep] = useState<1 | 2>(1);
 
-  // Step 1
-  const [fullName,  setFullName]  = useState('');
-  const [email,     setEmail]     = useState('');
-  const [password,  setPassword]  = useState('');
-  const [phone,     setPhone]     = useState('');
-
-  // Step 2
-  const [cadre,    setCadre]    = useState<CadreValue | ''>('');
-  const [nczReg,   setNczReg]   = useState('');
+  const [fullName,    setFullName]    = useState('');
+  const [email,       setEmail]       = useState('');
+  const [password,    setPassword]    = useState('');
+  const [phone,       setPhone]       = useState('');
+  const [cadre,       setCadre]       = useState<CadreValue | ''>('');
+  const [nczReg,      setNczReg]      = useState('');
   const [institution, setInstitution] = useState('');
-  const [province, setProvince] = useState('');
+  const [province,    setProvince]    = useState('');
 
   const setAuth = useAuthStore((s) => s.setAuth);
 
   const registerMutation = useMutation({
     mutationFn: () =>
       api.post<RegisterResponse>('/api/auth/register', {
-        fullName:            fullName.trim(),
-        email:               email.trim().toLowerCase(),
+        fullName:              fullName.trim(),
+        email:                 email.trim().toLowerCase(),
         password,
-        phone:               phone.trim() || undefined,
-        cadre:               cadre || undefined,
+        phone:                 phone.trim() || undefined,
+        cadre:                 cadre || undefined,
         nczRegistrationNumber: nczReg.trim() || undefined,
-        institution:         institution.trim() || undefined,
-        province:            province.trim() || undefined,
+        institution:           institution.trim() || undefined,
+        province:              province.trim() || undefined,
       }),
     onSuccess: async (data) => {
       await setAuth(data.user, data.accessToken, data.refreshToken);
     },
   });
 
-  const step1Valid = fullName.trim().length >= 2 && email.includes('@') && password.length >= 8;
-
-  // ── Step indicator ──────────────────────────────────────────────────────────
-  function StepDot({ n }: { n: 1 | 2 }) {
-    const active = step === n;
-    return (
-      <View
-        className={`h-2.5 rounded-full ${active ? 'bg-primary-500 w-8' : 'bg-slate-200 w-2.5'}`}
-      />
-    );
-  }
+  const step1Valid =
+    fullName.trim().length >= 2 && email.includes('@') && password.length >= 8;
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={['top']}>
+    <SafeAreaView style={s.safe}>
       <KeyboardAvoidingView
-        className="flex-1"
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* ── Header ── */}
-        <View className="flex-row items-center px-4 py-3 border-b border-slate-100">
-          <Pressable
-            onPress={step === 1 ? () => navigation.goBack() : () => setStep(1)}
-            hitSlop={12}
-            className="p-1"
-          >
-            <Ionicons name="arrow-back" size={22} color="#0f172a" />
-          </Pressable>
-          <View className="flex-1 items-center">
-            <Text className="text-base font-bold text-slate-900">Create account</Text>
-            <Text className="text-xs text-slate-400 mt-0.5">Step {step} of 2</Text>
-          </View>
-          <View className="flex-row gap-x-1.5 pr-1">
-            <StepDot n={1} />
-            <StepDot n={2} />
-          </View>
-        </View>
-
         <ScrollView
-          className="flex-1 px-6"
-          contentContainerStyle={{ paddingBottom: 48, paddingTop: 24 }}
+          contentContainerStyle={s.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {step === 1 ? (
-            <>
-              <Text className="text-xl font-bold text-slate-900 mb-1">Your details</Text>
-              <Text className="text-slate-500 text-sm mb-8">
-                Used for your ZimHealth account and certificates.
+          {/* ── Header ── */}
+          <View style={s.header}>
+            <Pressable
+              onPress={step === 1 ? () => navigation.goBack() : () => setStep(1)}
+              hitSlop={12}
+              style={s.backBtn}
+            >
+              <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.5)" />
+            </Pressable>
+
+            <View style={s.brand}>
+              <Image
+                source={require('../../../assets/brand-logo.png')}
+                style={s.logo}
+                resizeMode="contain"
+              />
+              <Text style={s.headline}>
+                {step === 1 ? 'Create account' : 'Almost there'}
+              </Text>
+              <Text style={s.sub}>
+                {step === 1
+                  ? "Join Zimbabwe's health professionals"
+                  : 'Tell us about your profession'}
               </Text>
 
-              <View className="gap-y-4">
-                <Input
-                  label="Full name"
+              {/* Step dots */}
+              <View style={s.dots}>
+                <View style={[s.dot, step === 1 && s.dotActive]} />
+                <View style={[s.dot, step === 2 && s.dotActive]} />
+              </View>
+            </View>
+          </View>
+
+          {/* ── Form ── */}
+          <View style={s.form}>
+            {step === 1 ? (
+              <>
+                <DarkInput
+                  icon="person-outline"
+                  placeholder="Full name"
                   value={fullName}
                   onChangeText={setFullName}
-                  placeholder="e.g. Chiedza Moyo"
                   autoCapitalize="words"
                 />
-                <Input
-                  label="Email address"
+                <DarkInput
+                  icon="mail-outline"
+                  placeholder="Email address"
                   value={email}
                   onChangeText={setEmail}
-                  placeholder="clinician@example.com"
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
-                <Input
-                  label="Password"
+                <DarkInput
+                  icon="lock-closed-outline"
+                  placeholder="Password (min 8 characters)"
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="Minimum 8 characters"
                   secureTextEntry
                   hint="At least 8 characters"
                 />
-                <Input
-                  label="Phone (optional)"
+                <DarkInput
+                  icon="call-outline"
+                  placeholder="Phone (optional)"
                   value={phone}
                   onChangeText={setPhone}
-                  placeholder="+263 77 123 4567"
                   keyboardType="phone-pad"
                 />
-              </View>
 
-              <View className="mt-8">
-                <Button
-                  label="Next: Professional Details"
+                <Pressable
+                  style={[s.btn, !step1Valid && s.btnDisabled]}
                   onPress={() => setStep(2)}
                   disabled={!step1Valid}
-                />
-              </View>
-            </>
-          ) : (
-            <>
-              <Text className="text-xl font-bold text-slate-900 mb-1">Professional details</Text>
-              <Text className="text-slate-500 text-sm mb-6">
-                Required for council reporting and personalised recommendations.
-              </Text>
+                >
+                  <Text style={s.btnText}>Next: Professional Details →</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                {/* Cadre pills */}
+                <View style={{ gap: 10 }}>
+                  <Text style={s.sectionLabel}>Your cadre</Text>
+                  <View style={s.pills}>
+                    {CADRE_OPTIONS.map((opt) => (
+                      <Pressable
+                        key={opt.value}
+                        onPress={() => setCadre(opt.value)}
+                        style={[s.pill, cadre === opt.value && s.pillActive]}
+                      >
+                        <Text style={[s.pillText, cadre === opt.value && s.pillTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
 
-              {/* Cadre picker */}
-              <Text className="text-sm font-semibold text-slate-800 mb-3">Cadre</Text>
-              <View className="flex-row flex-wrap gap-2 mb-5">
-                {CADRE_OPTIONS.map((opt) => (
-                  <Pressable
-                    key={opt.value}
-                    onPress={() => setCadre(opt.value)}
-                    className={`rounded-full px-4 py-2.5 border
-                      ${cadre === opt.value
-                        ? 'bg-primary-500 border-primary-500'
-                        : 'bg-white border-slate-200'}`}
-                  >
-                    <Text
-                      className={`text-sm font-semibold
-                        ${cadre === opt.value ? 'text-white' : 'text-slate-700'}`}
-                    >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <View className="gap-y-4">
-                <Input
-                  label="Council registration number (optional)"
+                <DarkInput
+                  icon="card-outline"
+                  placeholder="Council registration number"
                   value={nczReg}
                   onChangeText={setNczReg}
-                  placeholder="e.g. RN-12345"
                   autoCapitalize="characters"
+                  hint="Optional — for automatic council reporting"
                 />
-                <Input
-                  label="Institution (optional)"
+                <DarkInput
+                  icon="business-outline"
+                  placeholder="Institution (optional)"
                   value={institution}
                   onChangeText={setInstitution}
-                  placeholder="e.g. Parirenyatwa Hospital"
                   autoCapitalize="words"
                 />
-                <Input
-                  label="Province (optional)"
+                <DarkInput
+                  icon="location-outline"
+                  placeholder="Province (optional)"
                   value={province}
                   onChangeText={setProvince}
-                  placeholder="e.g. Harare"
                   autoCapitalize="words"
                 />
-              </View>
 
-              {registerMutation.isError && (
-                <View className="bg-red-50 border border-red-200 rounded-2xl p-3 mt-4">
-                  <Text className="text-red-600 text-sm text-center">
-                    {registerMutation.error?.message ?? 'Registration failed. Please try again.'}
-                  </Text>
-                </View>
-              )}
+                {registerMutation.isError && (
+                  <View style={s.errorBox}>
+                    <Ionicons name="alert-circle-outline" size={15} color="#fca5a5" />
+                    <Text style={s.errorText}>
+                      {registerMutation.error?.message ?? 'Registration failed. Please try again.'}
+                    </Text>
+                  </View>
+                )}
 
-              <View className="mt-8">
-                <Button
-                  label="Create Account"
+                <Pressable
+                  style={[s.btn, registerMutation.isPending && s.btnDisabled]}
                   onPress={() => registerMutation.mutate()}
-                  loading={registerMutation.isPending}
-                />
-              </View>
-            </>
-          )}
+                  disabled={registerMutation.isPending}
+                >
+                  <Text style={s.btnText}>
+                    {registerMutation.isPending ? 'Creating account…' : 'Create Account'}
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </View>
 
-          <View className="flex-row justify-center mt-6">
-            <Text className="text-slate-500 text-sm">Already have an account? </Text>
+          {/* ── Footer ── */}
+          <View style={s.footer}>
+            <Text style={s.footerText}>Already have an account? </Text>
             <Pressable onPress={() => navigation.navigate('Login')} hitSlop={8}>
-              <Text className="text-primary-600 text-sm font-semibold">Log in</Text>
+              <Text style={s.footerLink}>Log in</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -240,3 +294,58 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     </SafeAreaView>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const BG     = '#0f172a';
+const CARD   = 'rgba(255,255,255,0.05)';
+const BORDER = 'rgba(255,255,255,0.10)';
+const BORDER_FOCUS = 'rgba(96,165,250,0.7)';
+
+const s = StyleSheet.create({
+  safe:   { flex: 1, backgroundColor: BG },
+  scroll: { flexGrow: 1, paddingHorizontal: 28, paddingBottom: 40 },
+
+  header:  { paddingTop: 16, paddingBottom: 36 },
+  backBtn: { alignSelf: 'flex-start', marginBottom: 20 },
+
+  brand:    { alignItems: 'center' },
+  logo:     { width: 180, height: 48 },
+  headline: { color: '#f8fafc', fontSize: 26, fontWeight: '700', marginTop: 24, letterSpacing: -0.5, textAlign: 'center' },
+  sub:      { color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 6, textAlign: 'center' },
+
+  dots:     { flexDirection: 'row', gap: 8, marginTop: 20 },
+  dot:      { width: 16, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)' },
+  dotActive:{ width: 32, backgroundColor: '#3b82f6' },
+
+  form: { gap: 14 },
+
+  sectionLabel: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+
+  pills:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pill:        { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 50, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  pillActive:  { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
+  pillText:    { color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: '600' },
+  pillTextActive: { color: '#fff' },
+
+  inputRow:        { flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 16, paddingVertical: 15 },
+  inputRowFocused: { borderColor: BORDER_FOCUS, backgroundColor: 'rgba(96,165,250,0.06)' },
+  inputText:       { flex: 1, color: '#f8fafc', fontSize: 15 },
+
+  errorBox:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(239,68,68,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', paddingHorizontal: 14, paddingVertical: 10 },
+  errorText: { color: '#fca5a5', fontSize: 13, flex: 1 },
+
+  btn:         { backgroundColor: '#3b82f6', borderRadius: 16, paddingVertical: 16, alignItems: 'center', shadowColor: '#3b82f6', shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 8, marginTop: 4 },
+  btnDisabled: { opacity: 0.4, shadowOpacity: 0 },
+  btnText:     { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+
+  footer:     { flexDirection: 'row', justifyContent: 'center', marginTop: 36 },
+  footerText: { color: 'rgba(255,255,255,0.3)', fontSize: 14 },
+  footerLink: { color: '#60a5fa', fontSize: 14, fontWeight: '600' },
+});

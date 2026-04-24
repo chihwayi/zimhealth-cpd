@@ -2,14 +2,12 @@ import { FlatList, Pressable, Share, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/auth.store';
 import { Card } from '../../components/ui/Card';
 
-const BASE_URL =
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? 'http://localhost:4000';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 type Certificate = {
   id: string;

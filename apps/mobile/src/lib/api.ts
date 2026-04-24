@@ -1,8 +1,6 @@
-import Constants from 'expo-constants';
 import { storage } from './storage';
 
-const BASE_URL =
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? 'http://localhost:4000';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = await storage.getItem('access_token');

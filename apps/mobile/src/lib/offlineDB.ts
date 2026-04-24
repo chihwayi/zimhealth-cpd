@@ -1,9 +1,19 @@
 import * as SQLite from 'expo-sqlite';
 
-const db = SQLite.openDatabaseSync('zimhealth_offline.db');
+// Lazy-initialised so the top-level import never throws.
+// openDatabaseSync is called only the first time any DB function is used,
+// safely inside initOfflineDB() which runs inside a useEffect.
+let _db: SQLite.SQLiteDatabase | null = null;
+
+function getDb(): SQLite.SQLiteDatabase {
+  if (!_db) {
+    _db = SQLite.openDatabaseSync('zimhealth_offline.db');
+  }
+  return _db;
+}
 
 export function initOfflineDB(): void {
-  db.execSync(`
+  getDb().execSync(`
     CREATE TABLE IF NOT EXISTS pending_progress (
       enrollment_id TEXT NOT NULL,
       section_id    TEXT NOT NULL,
@@ -39,7 +49,7 @@ export async function savePendingProgress(
   enrollmentId: string,
   sectionId: string,
 ): Promise<void> {
-  await db.runAsync(
+  await getDb().runAsync(
     `INSERT OR IGNORE INTO pending_progress (enrollment_id, section_id) VALUES (?, ?)`,
     [enrollmentId, sectionId],
   );
@@ -48,7 +58,7 @@ export async function savePendingProgress(
 export async function getPendingProgress(): Promise<
   Array<{ enrollmentId: string; sectionId: string }>
 > {
-  const rows = await db.getAllAsync<{ enrollment_id: string; section_id: string }>(
+  const rows = await getDb().getAllAsync<{ enrollment_id: string; section_id: string }>(
     `SELECT enrollment_id, section_id FROM pending_progress ORDER BY queued_at ASC`,
   );
   return rows.map((row) => ({
@@ -61,7 +71,7 @@ export async function clearPendingProgress(
   enrollmentId: string,
   sectionId: string,
 ): Promise<void> {
-  await db.runAsync(
+  await getDb().runAsync(
     `DELETE FROM pending_progress WHERE enrollment_id = ? AND section_id = ?`,
     [enrollmentId, sectionId],
   );
@@ -70,14 +80,14 @@ export async function clearPendingProgress(
 // ── Offline module cache ──────────────────────────────────────────────────────
 
 export async function saveOfflineModule(moduleId: string, data: unknown): Promise<void> {
-  await db.runAsync(
+  await getDb().runAsync(
     `INSERT OR REPLACE INTO offline_modules (module_id, data_json) VALUES (?, ?)`,
     [moduleId, JSON.stringify(data)],
   );
 }
 
 export async function getOfflineModule<T = unknown>(moduleId: string): Promise<T | null> {
-  const row = await db.getFirstAsync<{ data_json: string }>(
+  const row = await getDb().getFirstAsync<{ data_json: string }>(
     `SELECT data_json FROM offline_modules WHERE module_id = ?`,
     [moduleId],
   );
@@ -92,7 +102,7 @@ export async function savePendingQuizAttempt(
   quizId: string,
   answers: Record<string, string>,
 ): Promise<void> {
-  await db.runAsync(
+  await getDb().runAsync(
     `INSERT OR REPLACE INTO pending_quiz_attempts (local_id, quiz_id, answers_json) VALUES (?, ?, ?)`,
     [localId, quizId, JSON.stringify(answers)],
   );
@@ -101,7 +111,7 @@ export async function savePendingQuizAttempt(
 export async function getPendingQuizAttempts(): Promise<
   Array<{ localId: string; quizId: string; answers: Record<string, string> }>
 > {
-  const rows = await db.getAllAsync<{
+  const rows = await getDb().getAllAsync<{
     local_id: string;
     quiz_id: string;
     answers_json: string;
@@ -116,7 +126,7 @@ export async function getPendingQuizAttempts(): Promise<
 }
 
 export async function clearPendingQuizAttempt(localId: string): Promise<void> {
-  await db.runAsync(
+  await getDb().runAsync(
     `DELETE FROM pending_quiz_attempts WHERE local_id = ?`,
     [localId],
   );
@@ -129,7 +139,7 @@ export async function saveOfflineAsset(
   localUri: string,
   status: 'ready' | 'failed',
 ): Promise<void> {
-  await db.runAsync(
+  await getDb().runAsync(
     `INSERT OR REPLACE INTO offline_assets (remote_url, local_uri, status) VALUES (?, ?, ?)`,
     [remoteUrl, localUri, status],
   );
@@ -138,7 +148,7 @@ export async function saveOfflineAsset(
 export async function getOfflineAsset(
   remoteUrl: string,
 ): Promise<{ localUri: string; status: string } | null> {
-  const row = await db.getFirstAsync<{ local_uri: string; status: string }>(
+  const row = await getDb().getFirstAsync<{ local_uri: string; status: string }>(
     `SELECT local_uri, status FROM offline_assets WHERE remote_url = ?`,
     [remoteUrl],
   );

@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, Text } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -11,18 +11,25 @@ interface ButtonProps {
   fullWidth?: boolean;
 }
 
+const SHADOW = {
+  primary: { shadowColor: '#2563eb', shadowOpacity: 0.30, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  danger:  { shadowColor: '#ef4444', shadowOpacity: 0.25, shadowRadius: 8,  shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  secondary: {},
+  ghost: {},
+};
+
 const BG: Record<Variant, string> = {
   primary:   'bg-primary-500',
-  secondary: 'bg-white border border-primary-400',
+  secondary: 'bg-white border border-slate-200',
   ghost:     'bg-transparent',
   danger:    'bg-red-500',
 };
 
 const LABEL: Record<Variant, string> = {
-  primary:   'text-white font-semibold text-base',
-  secondary: 'text-primary-600 font-semibold text-base',
+  primary:   'text-white font-bold text-base tracking-wide',
+  secondary: 'text-slate-700 font-semibold text-base',
   ghost:     'text-primary-600 font-semibold text-base',
-  danger:    'text-white font-semibold text-base',
+  danger:    'text-white font-bold text-base',
 };
 
 export function Button({
@@ -34,12 +41,16 @@ export function Button({
   fullWidth = true,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
+
   return (
     <Pressable
       onPress={onPress}
       disabled={isDisabled}
+      style={[
+        !isDisabled ? SHADOW[variant] : undefined,
+      ]}
       className={`flex-row items-center justify-center rounded-2xl py-4 px-6
-        ${BG[variant]} ${fullWidth ? 'w-full' : ''} ${isDisabled ? 'opacity-50' : ''}`}
+        ${BG[variant]} ${fullWidth ? 'w-full' : ''} ${isDisabled ? 'opacity-40' : ''}`}
     >
       {loading ? (
         <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? '#fff' : '#2563eb'} />
