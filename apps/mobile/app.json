@@ -23,6 +23,6 @@
       "package": "zw.co.zimhealthcpd.app"
     },
     "platforms": ["ios", "android"],
-    "plugins": ["expo-font", "expo-secure-store", "expo-sqlite"]
+    "plugins": ["expo-font", "expo-secure-store", "expo-sqlite", "expo-background-fetch"]
   }
 }

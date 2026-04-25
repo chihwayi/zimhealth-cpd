@@ -1,6 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { BG, SURFACE2, BORDER, ACCENT_L, TEXT3 } from '../theme';
 import DashboardScreen    from '../screens/learner/DashboardScreen';
 import CoursesScreen      from '../screens/learner/CoursesScreen';
 import CourseDetailScreen from '../screens/learner/CourseDetailScreen';
@@ -18,9 +19,9 @@ function CoursesStack() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle:     { backgroundColor: '#fff' },
-        headerTintColor: '#2563eb',
-        headerTitleStyle: { fontWeight: '700', color: '#0f172a' },
+        headerStyle:     { backgroundColor: BG },
+        headerTintColor: ACCENT_L,
+        headerTitleStyle: { fontWeight: '700', color: '#f8fafc' },
         headerShadowVisible: false,
       }}
     >
@@ -35,9 +36,9 @@ function ProfileStack() {
   return (
     <ProfileStackNav.Navigator
       screenOptions={{
-        headerStyle:     { backgroundColor: '#fff' },
-        headerTintColor: '#2563eb',
-        headerTitleStyle: { fontWeight: '700', color: '#0f172a' },
+        headerStyle:     { backgroundColor: BG },
+        headerTintColor: ACCENT_L,
+        headerTitleStyle: { fontWeight: '700', color: '#f8fafc' },
         headerShadowVisible: false,
       }}
     >
@@ -69,11 +70,12 @@ export default function AppNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor:   '#2563eb',
-        tabBarInactiveTintColor: '#94a3b8',
+        tabBarActiveTintColor:   ACCENT_L,
+        tabBarInactiveTintColor: TEXT3,
         tabBarStyle: {
-          backgroundColor: '#fff',
-          borderTopColor:  '#f1f5f9',
+          backgroundColor: BG,
+          borderTopColor:  BORDER,
+          borderTopWidth:  1,
           paddingBottom:   4,
           height:          60,
         },

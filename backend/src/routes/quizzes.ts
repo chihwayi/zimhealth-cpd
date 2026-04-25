@@ -206,7 +206,7 @@ router.delete('/:id/questions/:qid', requireAuth, requireRole('CONTENT_MANAGER',
 // POST /api/quizzes/:id/attempt — submit answers
 router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
   try {
-    const { answers, attemptedAt } = SubmitQuizAttemptSchema.parse(req.body);
+    const { answers, attemptedAt, enrollmentId, sectionId } = SubmitQuizAttemptSchema.parse(req.body);
 
     const quiz = await db.quiz.findUnique({
       where: { id: req.params.id },
@@ -280,6 +280,53 @@ router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: Aut
         quizScore: score,
       });
       pointsEarned = credited.pointsEarned;
+    }
+
+    if (passed && enrollmentId && sectionId) {
+      try {
+        const enrollment = await db.enrollment.findUnique({ where: { id: enrollmentId } });
+        if (enrollment && enrollment.learnerId === req.user!.id) {
+          const courseModules = await db.module.findMany({
+            where: { courseId: enrollment.courseId },
+            select: { _count: { select: { sections: true } } },
+          });
+          const realTotalSections = courseModules.reduce((sum, m) => sum + m._count.sections, 0);
+
+          const newCompleted = enrollment.completedSections.includes(sectionId)
+            ? enrollment.completedSections
+            : [...enrollment.completedSections, sectionId];
+
+          const newProgress = realTotalSections > 0
+            ? newCompleted.length / realTotalSections
+            : enrollment.progress;
+
+          const justCompleted = newProgress >= 1 && !enrollment.completedAt;
+
+          await db.enrollment.update({
+            where: { id: enrollmentId },
+            data: {
+              completedSections: newCompleted,
+              progress: Math.min(1, newProgress),
+              lastAccessAt: new Date(),
+              completedAt: justCompleted ? new Date() : enrollment.completedAt,
+            },
+          });
+
+          if (justCompleted) {
+            try {
+              await creditPoints({
+                learnerId: req.user!.id,
+                courseId: enrollment.courseId,
+                activityType: 'VIDEO_WATCH',
+              });
+            } catch (creditErr) {
+              console.error('CPD credit failed during offline quiz sync', creditErr);
+            }
+          }
+        }
+      } catch (sectionErr) {
+        console.error('Failed to mark quiz section complete during offline sync', sectionErr);
+      }
     }
 
     res.json({

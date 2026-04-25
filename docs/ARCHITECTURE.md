@@ -11,7 +11,7 @@ This document replaces prior scattered sprint notes and reference artifacts (spr
 
 ZimHealth CPD provides CPD learning and compliance across **multiple Zimbabwe health councils** via:
 - **Web app (PWA)** for learners, creators, council officers, and admins
-- **Mobile (Expo)** (in progress / optional)
+- **Mobile app (Expo / React Native)** — fully implemented, offline-capable, Moodle-style
 - **WhatsApp bot** for micro‑learning and point crediting
 
 Core product principles:
@@ -42,6 +42,23 @@ pnpm --filter @zimhealth/web dev       # Web http://localhost:3000
 ```
 
 Health check: `GET http://localhost:4000/health`
+
+### Mobile quick start (local dev)
+
+```bash
+# Create apps/mobile/.env
+echo "EXPO_PUBLIC_API_URL=http://localhost:4000" > apps/mobile/.env
+
+cd apps/mobile
+pnpm expo start          # scan QR in Expo Go (offline/background features need a real build)
+```
+
+For background sync (`expo-background-fetch`) to work, a real native build is required:
+
+```bash
+npx expo run:ios     # or
+npx expo run:android
+```
 
 ---
 
@@ -115,7 +132,88 @@ Source/reference artifacts (spreadsheet/template/source image) are intentionally
 
 ---
 
-## 7) CI / “green check” commands
+## 7) Mobile app architecture
+
+### Offline capabilities (Moodle-style)
+The mobile app provides a complete offline learning experience:
+- **Course download**: entire course content (videos, PDFs, SCORM, quiz data) cached to SQLite + device filesystem via `expo-file-system`
+- **Resumable downloads**: `FileSystem.createDownloadResumable` with `resume_data` persisted in SQLite — interrupted downloads resume where they left off
+- **Offline playback**: video (`expo-av`), PDFs, SCORM, quizzes all work without network
+- **Progress sync**: all quiz completions and lesson progress saved locally (`offline_progress`, `offline_quiz_attempts` SQLite tables) and synced when connectivity returns
+- **Background sync**: `expo-background-fetch` + `expo-task-manager` syncs pending progress while the app is closed (iOS: OS-controlled ~15 min minimum; Android: more reliable). Requires real build — does NOT work in Expo Go.
+- **Offline banner**: `useOnlineStatus` hook shows amber banner when device is offline
+
+### Key files
+| File | Purpose |
+|---|---|
+| `src/lib/offlineDB.ts` | SQLite schema, migrations, all CRUD helpers |
+| `src/lib/offlineDownload.ts` | `cacheCourseOffline`, `retryFailedDownloads`, resumable asset downloads |
+| `src/lib/backgroundSync.ts` | `TaskManager.defineTask` (module-level) + `registerBackgroundSyncAsync` |
+| `src/lib/syncQueue.ts` | Queues progress/quiz events for deferred network sync |
+| `src/hooks/useOnlineStatus.ts` | NetInfo-based connectivity state |
+| `src/hooks/useOfflineSync.ts` | Triggers sync on reconnection |
+
+### Navigation structure
+```
+RootNavigator
+├── AuthNavigator      (Login, Register)
+└── MainNavigator (tab bar)
+    ├── DashboardScreen
+    ├── CoursesScreen → CourseDetailScreen → CoursePlayerScreen
+    ├── CertificatesScreen
+    ├── SubscriptionScreen
+    └── ProfileScreen
+```
+
+---
+
+## 8) Deployment
+
+### Server deploy (production)
+
+Default target: `root@173.212.195.88`
+
+```bash
+./deploy-server.sh          # standard deploy
+RESEED=1 ./deploy-server.sh # first deploy — seeds councils + admin
+```
+
+The script:
+1. Packages the repo (excluding `node_modules`, `dist`, `.git`, `apps/mobile/.expo`)
+2. Uploads via `scp`
+3. On server: extracts, preserves `.env` + `apps/mobile/.env`, runs `scripts/deploy.sh` (migrate, build), then `scripts/start.sh` (PM2)
+
+### PM2 processes (4 total)
+
+| Name | What | Port |
+|---|---|---|
+| `zimhealth-api` | Fastify backend | 4000 |
+| `zimhealth-bot` | WhatsApp bot | — |
+| `zimhealth-web` | Vite/Express web frontend | 3000 |
+| `zimhealth-expo` | Expo Metro bundler (`--tunnel`) | ngrok URL |
+
+```bash
+pm2 status
+pm2 logs zimhealth-expo --lines 80 --nostream   # get QR code / tunnel URL
+```
+
+### One-time server setup for mobile
+
+SSH into the server and create the mobile env file:
+
+```bash
+cat > /opt/zimhealth-cpd/apps/mobile/.env << 'EOF'
+EXPO_PUBLIC_API_URL=http://173.212.195.88:4000
+EXPO_PUBLIC_API_URL_IOS=http://173.212.195.88:4000
+EXPO_PUBLIC_API_URL_ANDROID=http://173.212.195.88:4000
+EOF
+```
+
+This file is gitignored and preserved across deploys by the backup/restore logic in `deploy-server.sh`.
+
+---
+
+## 9) CI / “green check” commands
 
 Run the same checks CI runs:
 

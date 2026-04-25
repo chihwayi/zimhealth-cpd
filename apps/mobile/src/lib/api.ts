@@ -1,27 +1,59 @@
+import { Platform } from 'react-native';
 import { storage } from './storage';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
+const REQUEST_TIMEOUT_MS = 15000;
+
+function getBaseUrl() {
+  const platformUrl =
+    Platform.OS === 'ios'
+      ? process.env.EXPO_PUBLIC_API_URL_IOS
+      : Platform.OS === 'android'
+        ? process.env.EXPO_PUBLIC_API_URL_ANDROID
+        : undefined;
+
+  const configured = platformUrl ?? process.env.EXPO_PUBLIC_API_URL;
+
+  if (!configured) {
+    throw new Error('Missing EXPO_PUBLIC_API_URL environment configuration.');
+  }
+
+  return configured;
+}
+
+export const API_BASE_URL = getBaseUrl();
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = await storage.getItem('access_token');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
+  try {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      signal: controller.signal,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { error?: unknown };
-    throw new Error(
-      typeof err.error === 'string' ? err.error : `HTTP ${res.status}`,
-    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { error?: unknown };
+      throw new Error(
+        typeof err.error === 'string' ? err.error : `HTTP ${res.status}`,
+      );
+    }
+
+    return res.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Request timed out connecting to ${API_BASE_URL}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return res.json() as Promise<T>;
 }
 
 export const api = {

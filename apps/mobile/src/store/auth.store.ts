@@ -5,7 +5,7 @@ export interface AuthUser {
   id: string;
   email: string;
   fullName: string;
-  role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'LEARNER';
+  role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER' | 'LEARNER';
   cadre: string | null;
   nczRegistrationNumber: string | null;
   subscriptionTier?: 'FREE' | 'STANDARD' | 'INSTITUTION' | 'DIASPORA';

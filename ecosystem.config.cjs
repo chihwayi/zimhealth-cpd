@@ -44,5 +44,22 @@ module.exports = {
       script: path.join(root, 'scripts', 'web-server.mjs'),
       env_file: path.join(root, '.env'),
     },
+    {
+      // Expo Metro bundler — physical device connects via tunnel URL shown in logs.
+      // Requires apps/mobile/.env to exist on the server with EXPO_PUBLIC_API_URL
+      // set to the server's public IP (e.g. http://173.212.195.88:4000).
+      // View the QR code / tunnel URL with:  pm2 logs zimhealth-expo --lines 50
+      name: 'zimhealth-expo',
+      cwd: path.join(root, 'apps', 'mobile'),
+      script: 'pnpm',
+      args: ['exec', 'expo', 'start', '--tunnel', '--non-interactive'],
+      autorestart: true,
+      max_restarts: 5,
+      restart_delay: 5000,
+      // Expo reads EXPO_PUBLIC_* from apps/mobile/.env automatically.
+      // The env block below is intentionally empty — do not add EXPO_PUBLIC_*
+      // here; set them in apps/mobile/.env on the server instead.
+      env: {},
+    },
   ],
 };

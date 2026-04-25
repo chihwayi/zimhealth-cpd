@@ -29,6 +29,18 @@ export type AppTabParamList = {
   ProfileTab:       undefined;
 };
 
+export type CreatorTabParamList = {
+  CreatorHomeTab:    undefined;
+  CreatorCoursesTab: undefined;
+  CreatorProfileTab: undefined;
+};
+
+export type CouncilTabParamList = {
+  CouncilHomeTab:    undefined;
+  CouncilReviewsTab: undefined;
+  CouncilProfileTab: undefined;
+};
+
 // ─── Screen props ─────────────────────────────────────────────────────────────
 
 export type LoginScreenProps    = NativeStackScreenProps<AuthStackParamList, 'Login'>;

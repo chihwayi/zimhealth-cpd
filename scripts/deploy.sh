@@ -188,3 +188,15 @@ else
 fi
 
 echo "==> Build complete. Run ./scripts/start.sh to launch services."
+echo ""
+echo "─── Expo / Mobile device setup ──────────────────────────────────────────────"
+echo "  Create apps/mobile/.env if it doesn't exist (once per server):"
+echo "    SERVER_IP=\$(hostname -I | awk '{print \$1}')"
+echo "    cat > apps/mobile/.env <<EOF"
+echo "    EXPO_PUBLIC_API_URL=http://\${SERVER_IP}:4000"
+echo "    EXPO_PUBLIC_API_URL_IOS=http://\${SERVER_IP}:4000"
+echo "    EXPO_PUBLIC_API_URL_ANDROID=http://\${SERVER_IP}:4000"
+echo "    EOF"
+echo "  Then ./scripts/start.sh will launch the Expo bundler."
+echo "  Get the tunnel URL with:  pm2 logs zimhealth-expo --lines 80 --nostream"
+echo "─────────────────────────────────────────────────────────────────────────────"

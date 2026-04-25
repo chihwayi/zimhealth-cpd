@@ -49,3 +49,4 @@ demo_files
 twilio
 deploy-server.sh
 run
+deploy-server.sh

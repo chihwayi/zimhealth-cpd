@@ -29,6 +29,16 @@ if [[ ! -f "apps/whatsapp-bot/dist/index.js" ]]; then
   exit 1
 fi
 
+# Expo check — warn if mobile .env is missing (no hard exit; Expo can still start)
+if [[ ! -f "apps/mobile/.env" ]]; then
+  echo "  WARNING: apps/mobile/.env not found."
+  echo "  The zimhealth-expo process will start but the mobile app will not know"
+  echo "  which API to connect to. Create apps/mobile/.env with:"
+  echo "    EXPO_PUBLIC_API_URL=http://$(hostname -I | awk '{print $1}'):4000"
+  echo "    EXPO_PUBLIC_API_URL_IOS=http://$(hostname -I | awk '{print $1}'):4000"
+  echo "    EXPO_PUBLIC_API_URL_ANDROID=http://$(hostname -I | awk '{print $1}'):4000"
+fi
+
 # ── Ensure PM2 is installed ───────────────────────────────────────────────────
 if ! command -v pm2 >/dev/null; then
   echo "==> pm2 not found; installing globally..."
@@ -58,5 +68,10 @@ pm2 status
 
 echo ""
 echo "✓ All ZimHealth services are running."
-echo "  Logs: pm2 logs"
-echo "  Monitor: pm2 monit"
+echo "  Logs (all)   : pm2 logs"
+echo "  Logs (expo)  : pm2 logs zimhealth-expo --lines 80"
+echo "  Monitor      : pm2 monit"
+echo ""
+echo "  To get the Expo tunnel URL / QR code for your physical device:"
+echo "    pm2 logs zimhealth-expo --lines 80 --nostream"
+echo "  Then open Expo Go on your device and scan the QR code."

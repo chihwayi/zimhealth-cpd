@@ -109,8 +109,12 @@ if [[ ! -f "$REMOTE_PATH/.env" ]]; then
   exit 1
 fi
 
-# Backup .env before replacing files
+# Backup .env files before replacing — apps/mobile/.env is gitignored so it
+# is NOT in the archive and would be permanently lost without this backup.
 cp "$REMOTE_PATH/.env" "/tmp/.zimhealth-env-backup"
+[[ -f "$REMOTE_PATH/apps/mobile/.env" ]] \
+  && cp "$REMOTE_PATH/apps/mobile/.env" "/tmp/.zimhealth-mobile-env-backup" \
+  || true
 
 # Replace everything except persistent data
 find "$REMOTE_PATH" -mindepth 1 -maxdepth 1 \
@@ -122,8 +126,12 @@ find "$REMOTE_PATH" -mindepth 1 -maxdepth 1 \
 cp -a "$RELEASE_DIR"/. "$REMOTE_PATH"/
 rm -rf "$RELEASE_DIR"
 
-# Ensure .env is restored (cp -a may have overwritten it)
+# Restore .env files (cp -a overwrites anything that was in the archive)
 cp "/tmp/.zimhealth-env-backup" "$REMOTE_PATH/.env"
+if [[ -f "/tmp/.zimhealth-mobile-env-backup" ]]; then
+  mkdir -p "$REMOTE_PATH/apps/mobile"
+  cp "/tmp/.zimhealth-mobile-env-backup" "$REMOTE_PATH/apps/mobile/.env"
+fi
 
 cd "$REMOTE_PATH"
 chmod +x scripts/*.sh || true

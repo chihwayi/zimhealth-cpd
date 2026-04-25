@@ -3,6 +3,7 @@ import {
   FlatList,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -12,9 +13,13 @@ import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
 import { cacheCourseOffline, shouldWarnForLargeDownload } from '../../lib/offlineDownload';
-import { Badge } from '../../components/ui/Badge';
-import { Card } from '../../components/ui/Card';
+import { getOfflineCourseList, saveOfflineCourseList } from '../../lib/offlineDB';
+import { useModal } from '../../context/ModalContext';
 import type { CoursesListScreenProps } from '../../navigation/types';
+import {
+  BG, SURFACE, SURFACE2, BORDER, BORDER_FOCUS, TEXT, TEXT2, TEXT3,
+  ACCENT, ACCENT_L, ACCENT_BG, WARN,
+} from '../../theme';
 
 type Course = {
   id: string;
@@ -28,30 +33,50 @@ type Course = {
   _count?: { modules: number };
 };
 
-type Enrollment = {
-  courseId: string;
-};
+type Enrollment = { id: string; course: { id: string } };
 
 const CATEGORIES = ['ALL', 'CLINICAL', 'PHARMACOLOGY', 'MATERNAL', 'PAEDIATRICS', 'MENTAL_HEALTH'];
 
-const DIFF_COLOUR: Record<string, 'teal' | 'amber' | 'red'> = {
-  BEGINNER:     'teal',
-  INTERMEDIATE: 'amber',
-  ADVANCED:     'red',
+const DIFF_COLOR: Record<string, string> = {
+  BEGINNER:     '#22c55e',
+  INTERMEDIATE: '#f59e0b',
+  ADVANCED:     '#ef4444',
 };
 
 export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
-  const [search,   setSearch]   = useState('');
+  const { showToast } = useModal();
+  const [search, setSearch] = useState('');
   const [category, setCategory] = useState('ALL');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [preparingOffline, setPreparingOffline] = useState(false);
+  const [usingOfflineCache, setUsingOfflineCache] = useState(false);
 
   const { data: courses, isLoading, refetch } = useQuery({
     queryKey: ['courses', category, search],
-    queryFn:  () => {
+    queryFn: async () => {
       const params = new URLSearchParams({ status: 'PUBLISHED' });
       if (category !== 'ALL') params.set('category', category);
       if (search.trim())      params.set('q', search.trim());
-      return api.get<Course[]>(`/api/courses?${params.toString()}`);
+      try {
+        const data = await api.get<Course[]>(`/api/courses?${params.toString()}`);
+        setUsingOfflineCache(false);
+        if (category === 'ALL' && !search.trim()) {
+          void saveOfflineCourseList(data);
+        }
+        return data;
+      } catch {
+        const cached = await getOfflineCourseList<Course>();
+        if (cached.length > 0) {
+          setUsingOfflineCache(true);
+          return cached.filter((c) => {
+            const matchCat = category === 'ALL' || c.category === category;
+            const matchQ = !search.trim() || c.title.toLowerCase().includes(search.toLowerCase());
+            return matchCat && matchQ;
+          });
+        }
+        setUsingOfflineCache(false);
+        return [];
+      }
     },
   });
 
@@ -60,57 +85,55 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
     queryFn: () => api.get<Enrollment[]>('/api/enrollments'),
   });
 
-  const filtered = courses ?? [];
-
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={['bottom']}>
-      {/* ── Search ── */}
-      <View className="px-4 pt-3 pb-2">
-        <View className="flex-row items-center bg-white border border-slate-200 rounded-2xl px-4 py-3 gap-x-2">
-          <Ionicons name="search-outline" size={18} color="#94a3b8" />
+    <SafeAreaView style={s.safe} edges={['bottom']}>
+      {/* ── Search + offline button ── */}
+      <View style={s.searchWrap}>
+        <View style={[s.searchBar, searchFocused && s.searchBarFocused]}>
+          <Ionicons name="search-outline" size={18} color={TEXT3} />
           <TextInput
-            className="flex-1 text-sm text-slate-900"
+            style={s.searchInput}
             placeholder="Search courses…"
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor={TEXT3}
             value={search}
             onChangeText={setSearch}
             returnKeyType="search"
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
           />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')} hitSlop={8}>
-              <Ionicons name="close-circle" size={18} color="#94a3b8" />
+              <Ionicons name="close-circle" size={18} color={TEXT3} />
             </Pressable>
           )}
         </View>
+
         <Pressable
-          className="mt-3 flex-row items-center justify-center gap-x-2 rounded-2xl border border-primary-200 bg-primary-50 px-4 py-3 disabled:opacity-50"
+          style={[s.offlineBtn, preparingOffline && s.offlineBtnDisabled]}
           disabled={preparingOffline}
           onPress={async () => {
-            const enrolledCourseIds = [...new Set((enrollments ?? []).map((entry) => entry.courseId))];
-            if (enrolledCourseIds.length === 0) {
-              alert('Enroll in a course before preparing an offline pack.');
+            const ids = [...new Set((enrollments ?? []).map((e) => e.course.id))];
+            if (ids.length === 0) {
+              showToast({ message: 'Enroll in a course before preparing an offline pack.', type: 'warning' });
               return;
             }
-
             setPreparingOffline(true);
             try {
               if (await shouldWarnForLargeDownload()) {
-                alert('You are on mobile data. Preparing an offline pack may use a lot of data.');
+                showToast({ message: 'You are on mobile data. Preparing an offline pack may use a lot of data.', type: 'warning', duration: 4000 });
               }
-              for (const enrolledCourseId of enrolledCourseIds) {
-                await cacheCourseOffline(enrolledCourseId);
-              }
-              alert('Offline pack prepared for your enrolled courses.');
+              for (const id of ids) await cacheCourseOffline(id);
+              showToast({ message: 'Offline pack prepared for your enrolled courses.', type: 'success' });
             } catch {
-              alert('Could not prepare the full offline pack. Please try again on Wi-Fi.');
+              showToast({ message: 'Could not prepare the full offline pack. Please try again on Wi-Fi.', type: 'danger' });
             } finally {
               setPreparingOffline(false);
             }
           }}
         >
-          <Ionicons name="cloud-download-outline" size={17} color="#2563eb" />
-          <Text className="text-primary-700 text-sm font-semibold">
-            {preparingOffline ? 'Preparing offline pack…' : 'Prepare offline pack'}
+          <Ionicons name="cloud-download-outline" size={16} color={ACCENT_L} />
+          <Text style={s.offlineBtnText}>
+            {preparingOffline ? 'Preparing…' : 'Offline pack'}
           </Text>
         </Pressable>
       </View>
@@ -119,92 +142,95 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10, gap: 8 }}
       >
-        {CATEGORIES.map((cat) => (
-          <Pressable
-            key={cat}
-            onPress={() => setCategory(cat)}
-            className={`rounded-full px-4 py-2 border
-              ${category === cat
-                ? 'bg-primary-500 border-primary-500'
-                : 'bg-white border-slate-200'}`}
-          >
-            <Text
-              className={`text-xs font-semibold
-                ${category === cat ? 'text-white' : 'text-slate-600'}`}
+        {CATEGORIES.map((cat) => {
+          const active = category === cat;
+          return (
+            <Pressable
+              key={cat}
+              onPress={() => setCategory(cat)}
+              style={[s.chip, active && s.chipActive]}
             >
-              {cat === 'ALL' ? 'All' : cat.replace('_', ' ')}
-            </Text>
-          </Pressable>
-        ))}
+              <Text style={[s.chipText, active && s.chipTextActive]}>
+                {cat === 'ALL' ? 'All' : cat.replace('_', ' ')}
+              </Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
+
+      {usingOfflineCache && (
+        <View style={s.offlineNotice}>
+          <Ionicons name="cloud-offline-outline" size={13} color={WARN} />
+          <Text style={s.offlineNoticeText}>Showing downloaded courses — reconnect for latest</Text>
+        </View>
+      )}
 
       {/* ── List ── */}
       {isLoading ? (
-        <View className="flex-1 px-4 gap-y-3 pt-2">
+        <View style={{ paddingHorizontal: 16, gap: 10, paddingTop: 4 }}>
           {[1, 2, 3].map((i) => (
-            <View key={i} className="h-28 bg-slate-200 rounded-3xl" />
+            <View key={i} style={s.skeleton} />
           ))}
         </View>
       ) : (
         <FlatList
-          data={filtered}
+          data={courses ?? []}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16, gap: 12 }}
+          contentContainerStyle={{ padding: 16, gap: 10 }}
           refreshing={isLoading}
           onRefresh={refetch}
           ListEmptyComponent={
-            <View className="items-center py-16">
-              <Ionicons name="book-outline" size={48} color="#cbd5e1" />
-              <Text className="text-slate-400 text-sm mt-3 text-center">
+            <View style={s.emptyWrap}>
+              <Ionicons name="book-outline" size={48} color={TEXT3} />
+              <Text style={s.emptyText}>
                 No courses found.{'\n'}Try a different search or category.
               </Text>
             </View>
           }
           renderItem={({ item }) => (
             <Pressable
+              style={s.courseCard}
               onPress={() => navigation.navigate('CourseDetail', { courseId: item.id })}
             >
-              <Card className="flex-row gap-x-4 items-start">
-                {/* Icon placeholder */}
-                <View className="h-14 w-14 bg-primary-100 rounded-2xl items-center justify-center shrink-0">
-                  <Ionicons name="document-text" size={24} color="#2563eb" />
-                </View>
+              <View style={s.courseIconWrap}>
+                <Ionicons name="document-text" size={24} color={ACCENT_L} />
+              </View>
 
-                <View className="flex-1">
-                  <Text className="text-sm font-bold text-slate-900 leading-5" numberOfLines={2}>
-                    {item.title}
-                  </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.courseTitle} numberOfLines={2}>{item.title}</Text>
 
-                  <View className="flex-row flex-wrap gap-1.5 mt-2">
-                    <Badge label={item.category} variant="teal" />
-                    <Badge
-                      label={item.difficulty}
-                      variant={DIFF_COLOUR[item.difficulty] ?? 'slate'}
-                    />
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  <View style={s.catTag}>
+                    <Text style={s.catTagText}>{item.category}</Text>
                   </View>
-
-                  <View className="flex-row items-center gap-x-3 mt-2">
-                    <View className="flex-row items-center gap-x-1">
-                      <Ionicons name="star-outline" size={12} color="#94a3b8" />
-                      <Text className="text-xs text-slate-400">{item.cpdPoints} pts</Text>
-                    </View>
-                    <View className="flex-row items-center gap-x-1">
-                      <Ionicons name="time-outline" size={12} color="#94a3b8" />
-                      <Text className="text-xs text-slate-400">{item.estimatedMinutes} min</Text>
-                    </View>
-                    {item._count?.modules != null && (
-                      <View className="flex-row items-center gap-x-1">
-                        <Ionicons name="layers-outline" size={12} color="#94a3b8" />
-                        <Text className="text-xs text-slate-400">{item._count.modules} modules</Text>
-                      </View>
-                    )}
+                  <View style={[s.diffTag, { backgroundColor: `${DIFF_COLOR[item.difficulty] ?? TEXT3}1a` }]}>
+                    <Text style={[s.diffTagText, { color: DIFF_COLOR[item.difficulty] ?? TEXT3 }]}>
+                      {item.difficulty}
+                    </Text>
                   </View>
                 </View>
 
-                <Ionicons name="chevron-forward" size={16} color="#cbd5e1" />
-              </Card>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="star-outline" size={12} color={TEXT3} />
+                    <Text style={s.metaText}>{item.cpdPoints} pts</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="time-outline" size={12} color={TEXT3} />
+                    <Text style={s.metaText}>{item.estimatedMinutes} min</Text>
+                  </View>
+                  {item._count?.modules != null && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="layers-outline" size={12} color={TEXT3} />
+                      <Text style={s.metaText}>{item._count.modules} modules</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              <Ionicons name="chevron-forward" size={16} color={TEXT3} />
             </Pressable>
           )}
         />
@@ -212,3 +238,105 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
     </SafeAreaView>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: BG },
+
+  // Search
+  searchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, gap: 8 },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: SURFACE,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    gap: 10,
+  },
+  searchBarFocused: { borderColor: BORDER_FOCUS, backgroundColor: 'rgba(96,165,250,0.05)' },
+  searchInput: { flex: 1, color: TEXT, fontSize: 14 },
+
+  offlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: ACCENT_BG,
+    borderRadius: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.2)',
+  },
+  offlineBtnDisabled: { opacity: 0.45 },
+  offlineBtnText:     { color: ACCENT_L, fontSize: 13, fontWeight: '600' },
+  offlineNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(245,158,11,0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  offlineNoticeText: { color: '#f59e0b', fontSize: 11, fontWeight: '600', flex: 1 },
+
+  // Chips
+  chip: {
+    borderRadius: 100,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: SURFACE,
+  },
+  chipActive:     { backgroundColor: ACCENT, borderColor: ACCENT },
+  chipText:       { color: TEXT2, fontSize: 12, fontWeight: '600' },
+  chipTextActive: { color: '#fff' },
+
+  // Skeleton
+  skeleton: { height: 90, backgroundColor: SURFACE, borderRadius: 18 },
+
+  // Empty
+  emptyWrap: { alignItems: 'center', paddingVertical: 64 },
+  emptyText: { color: TEXT3, fontSize: 13, marginTop: 12, textAlign: 'center', lineHeight: 20 },
+
+  // Course card
+  courseCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: SURFACE,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 14,
+  },
+  courseIconWrap: {
+    width: 52, height: 52,
+    borderRadius: 16,
+    backgroundColor: ACCENT_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  courseTitle: { color: TEXT, fontSize: 13, fontWeight: '700', lineHeight: 19 },
+  catTag: {
+    backgroundColor: ACCENT_BG,
+    borderRadius: 100,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  catTagText:  { color: ACCENT_L, fontSize: 10, fontWeight: '700' },
+  diffTag: {
+    borderRadius: 100,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  diffTagText: { fontSize: 10, fontWeight: '700' },
+  metaText:    { color: TEXT3, fontSize: 11 },
+});

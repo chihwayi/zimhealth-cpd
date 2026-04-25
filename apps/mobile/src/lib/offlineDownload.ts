@@ -1,7 +1,13 @@
 import NetInfo from '@react-native-community/netinfo';
 import * as FileSystem from 'expo-file-system';
 import { api } from './api';
-import { saveOfflineAsset, saveOfflineModule } from './offlineDB';
+import {
+  getOfflineAsset,
+  saveOfflineAsset,
+  saveOfflineCourseDetail,
+  saveOfflineCourseList,
+  saveOfflineModule,
+} from './offlineDB';
 
 type OfflineSection = {
   id: string;
@@ -25,24 +31,50 @@ async function cacheSectionAsset(section: OfflineSection): Promise<void> {
   if (!/^https?:\/\//i.test(section.content)) return;
 
   const baseRoot = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
-  if (!baseRoot) return;
-
+  if (!baseRoot) throw new Error('No writable directory available on this device.');
   const baseDir = `${baseRoot}zimhealth-assets/`;
   await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true }).catch(() => null);
   const localUri = `${baseDir}${assetFileName(section.content)}`;
 
+  const info = await FileSystem.getInfoAsync(localUri);
+  if (info.exists && (info as { size?: number }).size && (info as { size?: number }).size! > 0) {
+    await saveOfflineAsset(section.content, localUri, 'ready');
+    return;
+  }
+
+  const existing = await getOfflineAsset(section.content);
+  const resumeData = existing?.resumeData;
+
+  const downloadResumable = FileSystem.createDownloadResumable(
+    section.content,
+    localUri,
+    {},
+    undefined,
+    resumeData,
+  );
+
   try {
-    const info = await FileSystem.getInfoAsync(localUri);
-    if (!info.exists) {
-      await FileSystem.downloadAsync(section.content, localUri);
-    }
+    await downloadResumable.downloadAsync();
     await saveOfflineAsset(section.content, localUri, 'ready');
   } catch {
-    await saveOfflineAsset(section.content, localUri, 'failed');
+    try {
+      const pauseState = await downloadResumable.pauseAsync();
+      await saveOfflineAsset(section.content, localUri, 'failed', pauseState.resumeData);
+    } catch {
+      await saveOfflineAsset(section.content, localUri, 'failed');
+    }
   }
 }
 
 export async function cacheCourseOffline(courseId: string): Promise<void> {
+  try {
+    const detail = await api.get<unknown>(`/api/courses/${courseId}`);
+    await saveOfflineCourseDetail(courseId, detail);
+    await saveOfflineCourseList([detail]);
+  } catch {
+    // Non-fatal: modules and assets can still be saved.
+  }
+
   const moduleData = await api.get<OfflineModule[]>(`/api/courses/${courseId}/modules`);
 
   const quizIds = moduleData
@@ -56,21 +88,42 @@ export async function cacheCourseOffline(courseId: string): Promise<void> {
         const quiz = await api.get(`/api/quizzes/${quizId}?offline=1`);
         await saveOfflineModule(`quiz:${quizId}`, quiz);
       } catch {
-        // Keep the rest of the offline pack useful if one quiz cannot be cached.
+        // Non-fatal — the quiz will fall back to server fetch when online.
       }
     }),
   );
 
-  await Promise.all(
-    moduleData
-      .flatMap((mod) => mod.sections ?? [])
-      .map((section) => cacheSectionAsset(section)),
-  );
+  for (const section of moduleData.flatMap((mod) => mod.sections ?? [])) {
+    await cacheSectionAsset(section);
+  }
 
   await Promise.all([
     saveOfflineModule(`course:${courseId}`, moduleData),
     ...moduleData.map((mod) => saveOfflineModule(mod.id, mod)),
   ]);
+}
+
+export async function retryFailedDownloads(courseId: string): Promise<void> {
+  const modules = await import('./offlineDB').then((db) =>
+    db.getOfflineModule<OfflineModule[]>(`course:${courseId}`),
+  );
+  if (!modules) return;
+
+  const sections = modules.flatMap((m) => m.sections ?? []);
+  const toRetry: OfflineSection[] = [];
+
+  for (const section of sections) {
+    if (!['VIDEO', 'DOCUMENT', 'IMAGE'].includes(section.type)) continue;
+    if (!/^https?:\/\//i.test(section.content)) continue;
+    const asset = await getOfflineAsset(section.content);
+    if (!asset || asset.status !== 'ready') {
+      toRetry.push(section);
+    }
+  }
+
+  for (const section of toRetry) {
+    await cacheSectionAsset(section);
+  }
 }
 
 export async function shouldWarnForLargeDownload(): Promise<boolean> {
