@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ZimHealth CPD — Remote Deployment Script (run from your LOCAL machine)
+#
+# SETUP (one-time):
+#   cp scripts/server-auth.example.sh scripts/server-auth.sh
+#   # Fill in your server IP and credentials in scripts/server-auth.sh
+#   cp deploy-server.example.sh deploy-server.sh
+#   chmod +x deploy-server.sh server-switch.sh scripts/server-auth.sh
+#
+# Usage:
+#   ./deploy-server.sh              — standard deploy
+#   RESEED=1 ./deploy-server.sh     — first deploy: seeds councils + admin user
+#
+# Override connection at call time (overrides server-auth.sh defaults):
+#   SERVER="root@other-ip" SSHPASS="pass" ./deploy-server.sh
+# ─────────────────────────────────────────────────────────────────────────────
+
+RESEED="${RESEED:-0}"
+SKIP_DOCKER="${SKIP_DOCKER:-1}"
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ARCHIVE_NAME="zimhealth-cpd-$(date +%Y%m%d-%H%M%S).tar.gz"
+ARCHIVE_PATH="/tmp/${ARCHIVE_NAME}"
+
+# ── SSH / connection config ───────────────────────────────────────────────────
+if [[ ! -f "$ROOT_DIR/scripts/server-auth.sh" ]]; then
+  echo "ERROR: scripts/server-auth.sh not found."
+  echo "  Run: cp scripts/server-auth.example.sh scripts/server-auth.sh"
+  echo "  Then edit scripts/server-auth.sh with your server IP and credentials."
+  exit 1
+fi
+# shellcheck source=scripts/server-auth.sh
+source "$ROOT_DIR/scripts/server-auth.sh"
+
+# ── Sanity-check: warn if .env on the server still has localhost ──────────────
+echo "▶ Checking server .env sanity..."
+ENV_EXISTS=$("${ssh_base[@]}" "$SERVER" "[[ -f \"$REMOTE_PATH/.env\" ]] && echo yes || echo no")
+
+if [[ "$ENV_EXISTS" != "yes" ]]; then
+  echo "ERROR: $REMOTE_PATH/.env does not exist on the server."
+  echo "  Create it first, then re-run this script."
+  exit 1
+fi
+
+APP_HOST_REMOTE=$("${ssh_base[@]}" "$SERVER" \
+  "grep -E '^APP_HOST=' \"$REMOTE_PATH/.env\" | cut -d= -f2- | tr -d '\r'" 2>/dev/null || echo "")
+
+if [[ "$APP_HOST_REMOTE" == "localhost" ]]; then
+  echo "  WARNING: APP_HOST=localhost in server .env — web frontend will use wrong API URL."
+  echo "  Update APP_HOST in $REMOTE_PATH/.env to your server IP or domain."
+fi
+
+# ── Package repo ──────────────────────────────────────────────────────────────
+echo "▶ Packaging repo (excluding node_modules, dist, .git)..."
+COPYFILE_DISABLE=1 COPY_EXTENDED_ATTRIBUTES_DISABLE=1 tar --no-xattrs \
+  --exclude=".git" \
+  --exclude="node_modules" \
+  --exclude="**/node_modules" \
+  --exclude="**/dist" \
+  --exclude="**/.turbo" \
+  --exclude="apps/mobile/.expo" \
+  --exclude=".DS_Store" \
+  -czf "$ARCHIVE_PATH" \
+  -C "$ROOT_DIR" \
+  .
+
+ARCHIVE_SIZE=$(du -sh "$ARCHIVE_PATH" | cut -f1)
+echo "   Archive: $ARCHIVE_PATH ($ARCHIVE_SIZE)"
+
+# ── Upload ────────────────────────────────────────────────────────────────────
+echo "▶ Uploading archive to $SERVER..."
+"${scp_base[@]}" "$ARCHIVE_PATH" "$SERVER:/tmp/$ARCHIVE_NAME"
+
+# ── Remote: extract → build → migrate → (seed) → start ───────────────────────
+echo "▶ Deploying on server..."
+"${ssh_base[@]}" "$SERVER" \
+  REMOTE_PATH="$REMOTE_PATH" \
+  ARCHIVE_NAME="$ARCHIVE_NAME" \
+  SKIP_DOCKER="$SKIP_DOCKER" \
+  RESEED="$RESEED" \
+  bash -s << 'REMOTE_SCRIPT'
+set -euo pipefail
+
+# ── Atomic extract ──────────────────────────────────────────────────────────
+mkdir -p "$REMOTE_PATH"
+RELEASE_DIR="/tmp/zimhealth-cpd-release-$(date +%s)"
+mkdir -p "$RELEASE_DIR"
+tar -xzf "/tmp/$ARCHIVE_NAME" -C "$RELEASE_DIR"
+
+# ── Preserve .env ───────────────────────────────────────────────────────────
+if [[ ! -f "$REMOTE_PATH/.env" ]]; then
+  echo "ERROR: .env missing at $REMOTE_PATH/.env"
+  exit 1
+fi
+
+# Backup .env files before replacing — apps/mobile/.env is gitignored so it
+# is NOT in the archive and would be permanently lost without this backup.
+cp "$REMOTE_PATH/.env" "/tmp/.zimhealth-env-backup"
+[[ -f "$REMOTE_PATH/apps/mobile/.env" ]] \
+  && cp "$REMOTE_PATH/apps/mobile/.env" "/tmp/.zimhealth-mobile-env-backup" \
+  || true
+
+# Replace everything except persistent data
+find "$REMOTE_PATH" -mindepth 1 -maxdepth 1 \
+  ! -name '.env' \
+  ! -name 'uploads' \
+  ! -name 'tmp' \
+  -exec rm -rf {} +
+
+cp -a "$RELEASE_DIR"/. "$REMOTE_PATH"/
+rm -rf "$RELEASE_DIR"
+
+# Restore .env files (cp -a overwrites anything that was in the archive)
+cp "/tmp/.zimhealth-env-backup" "$REMOTE_PATH/.env"
+if [[ -f "/tmp/.zimhealth-mobile-env-backup" ]]; then
+  mkdir -p "$REMOTE_PATH/apps/mobile"
+  cp "/tmp/.zimhealth-mobile-env-backup" "$REMOTE_PATH/apps/mobile/.env"
+fi
+
+cd "$REMOTE_PATH"
+chmod +x scripts/*.sh || true
+
+# ── Build, migrate, seed ─────────────────────────────────────────────────────
+SKIP_DOCKER="$SKIP_DOCKER" RESEED="$RESEED" ./scripts/deploy.sh
+
+# ── Verify outputs ───────────────────────────────────────────────────────────
+test -f backend/dist/app.js \
+  || { echo "ERROR: backend/dist/app.js missing — build failed"; exit 1; }
+test -f apps/whatsapp-bot/dist/index.js \
+  || { echo "ERROR: apps/whatsapp-bot/dist/index.js missing — build failed"; exit 1; }
+
+# ── Start / reload PM2 ──────────────────────────────────────────────────────
+./scripts/start.sh
+
+echo "✓ ZimHealth CPD deployed and running"
+REMOTE_SCRIPT
+
+# ── Cleanup local temp ────────────────────────────────────────────────────────
+echo "▶ Cleaning up local temp archive..."
+rm -f "$ARCHIVE_PATH"
+
+echo ""
+echo "✓ Deployment complete."
+echo "  Server : $SERVER"
+echo "  Path   : $REMOTE_PATH"
+if [[ "$APP_HOST_REMOTE" != "localhost" ]]; then
+  echo "  Web    : http://${APP_HOST_REMOTE}:3000"
+  echo "  API    : http://${APP_HOST_REMOTE}:4000"
+fi
