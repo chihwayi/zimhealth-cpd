@@ -50,3 +50,4 @@ twilio
 deploy-server.sh
 run
 deploy-server.sh
+server-switch.sh

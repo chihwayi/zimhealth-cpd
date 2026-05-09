@@ -16,37 +16,16 @@ set -euo pipefail
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
-SERVER="${SERVER:-root@173.212.195.88}"
-SSH_PORT="${SSH_PORT:-22}"
-SSH_KEY="${SSH_KEY:-}"
-REMOTE_PATH="${REMOTE_PATH:-/opt/zimhealth-cpd}"
 RESEED="${RESEED:-0}"
 SKIP_DOCKER="${SKIP_DOCKER:-1}"
-
-# Default to password auth for this server if no SSH key provided
-if [[ -z "$SSH_KEY" && -z "${SSHPASS:-}" ]]; then
-  export SSHPASS="b-4wB:cpC2i"
-fi
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ARCHIVE_NAME="zimhealth-cpd-$(date +%Y%m%d-%H%M%S).tar.gz"
 ARCHIVE_PATH="/tmp/${ARCHIVE_NAME}"
 
-# ── Build SSH / SCP base command arrays ──────────────────────────────────────
-ssh_base=(ssh -p "$SSH_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15)
-scp_base=(scp -P "$SSH_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15)
-
-if [[ -n "${SSHPASS:-}" ]]; then
-  if ! command -v sshpass >/dev/null; then
-    echo "ERROR: sshpass not found. Install it (macOS: brew install sshpass) or use SSH_KEY."
-    exit 1
-  fi
-  ssh_base=(sshpass -e "${ssh_base[@]}")
-  scp_base=(sshpass -e "${scp_base[@]}")
-elif [[ -n "$SSH_KEY" ]]; then
-  ssh_base+=(-i "$SSH_KEY")
-  scp_base+=(-i "$SSH_KEY")
-fi
+# ── SSH / connection config (shared with server-switch.sh) ───────────────────
+# shellcheck source=scripts/server-auth.sh
+source "$ROOT_DIR/scripts/server-auth.sh"
 
 # ── Sanity-check: warn if .env on the server still has localhost ──────────────
 echo "▶ Checking server .env sanity..."
