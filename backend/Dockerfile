@@ -1,5 +1,9 @@
 # Build from repo root: docker build -f backend/Dockerfile .
 FROM node:20-slim AS build
+# Coolify injects every app-level env var (including NODE_ENV=production) as a
+# build ARG/ENV on every stage — force development here so pnpm still installs
+# devDependencies (turbo, typescript, prisma CLI) needed to build.
+ENV NODE_ENV=development
 RUN corepack enable && corepack prepare pnpm@9 --activate
 WORKDIR /app
 COPY . .
