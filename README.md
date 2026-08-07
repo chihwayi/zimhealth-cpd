@@ -83,12 +83,21 @@ cd apps/mobile && pnpm install && npx expo start
 
 ### Dev Credentials (after seed)
 
-| Role | Email | Password |
-|---|---|---|
-| Admin | admin@zimhealthcpd.co.zw | Admin@1234 |
-| Content Manager | creator@zimhealthcpd.co.zw | Creator@1234 |
-| Council Officer | officer@ncz.co.zw | Ncz@12345 |
-| Learner | grace@zimhealthcpd.co.zw | Learner@1234 |
+All demo accounts share one password: **`Demo@1234`**
+
+| Role | Email |
+|---|---|
+| Admin | admin@zimhealthcpd.co.zw |
+| Content Manager | creator@zimhealthcpd.co.zw |
+| Content Manager (NCZ) | creator.ncz@zimhealthcpd.co.zw |
+| Content Manager (MDPCZ) | creator.mdpcz@zimhealthcpd.co.zw |
+| Content Manager (PCZ) | creator.pcz@zimhealthcpd.co.zw |
+| NCZ Officer | officer@ncz.co.zw |
+| Council Officer | officer@council.co.zw |
+| Learner | grace@zimhealthcpd.co.zw |
+| Learner | chipo@zimhealthcpd.co.zw |
+| Learner (MDPCZ) | learner.mdpcz@zimhealthcpd.co.zw |
+| Learner (PCZ) | learner.pcz@zimhealthcpd.co.zw |
 
 ---
 

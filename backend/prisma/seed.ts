@@ -15,6 +15,9 @@ import bcrypt from 'bcryptjs';
 
 const db = new PrismaClient();
 
+// Single shared password across every seeded demo account (all roles).
+const DEMO_PASSWORD = 'Demo@1234';
+
 async function main() {
   console.log('Seeding database...');
 
@@ -192,7 +195,7 @@ async function main() {
   });
 
   // ─── 1. Admin user ──────────────────────────────────────────────────────────
-  const adminPassword = await bcrypt.hash('Admin@1234', 12);
+  const adminPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
   const admin = await db.user.upsert({
     where: { email: 'admin@zimhealthcpd.co.zw' },
     update: {},
@@ -207,7 +210,7 @@ async function main() {
   console.log('✅ Admin user:', admin.email);
 
   // ─── 2. Content Manager ─────────────────────────────────────────────────────
-  const creatorPassword = await bcrypt.hash('Creator@1234', 12);
+  const creatorPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
   const creator = await db.user.upsert({
     where: { email: 'creator@zimhealthcpd.co.zw' },
     update: {},
@@ -222,7 +225,7 @@ async function main() {
   console.log('✅ Content Manager:', creator.email);
 
   // ─── 2b. Council-specific creators (demo) ───────────────────────────────────
-  const councilCreatorPassword = await bcrypt.hash('Creator@1234', 12);
+  const councilCreatorPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
   const councilCreators = await Promise.all([
     db.user.upsert({
       where: { email: 'creator.ncz@zimhealthcpd.co.zw' },
@@ -267,7 +270,7 @@ async function main() {
   console.log('✅ Council creators:', councilCreators.map((u) => u.email).join(', '));
 
   // ─── 3. NCZ Officer ─────────────────────────────────────────────────────────
-  const nczPassword = await bcrypt.hash('Ncz@12345', 12);
+  const nczPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
   const ncz = await db.user.upsert({
     where: { email: 'officer@ncz.co.zw' },
     update: { councilId: nczCouncil.id, professionalTitle: 'Council Officer' },
@@ -284,7 +287,7 @@ async function main() {
   console.log('✅ NCZ Officer:', ncz.email);
 
   // ─── 3b. Council Officer (generic role; same portal) ────────────────────────
-  const councilOfficerPassword = await bcrypt.hash('Council@12345', 12);
+  const councilOfficerPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
   const councilOfficer = await db.user.upsert({
     where: { email: 'officer@council.co.zw' },
     update: { councilId: nczCouncil.id, professionalTitle: 'Council Officer' },
@@ -301,7 +304,7 @@ async function main() {
   console.log('✅ Council Officer:', councilOfficer.email);
 
   // ─── 4. Sample learners ─────────────────────────────────────────────────────
-  const learnerPassword = await bcrypt.hash('Learner@1234', 12);
+  const learnerPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
   const learners = await Promise.all([
     db.user.upsert({
       where: { email: 'grace@zimhealthcpd.co.zw' },
@@ -539,17 +542,17 @@ async function main() {
 
   console.log('✅ Sample course and CPD data seeded');
   console.log('\n🎉 Seed complete!\n');
-  console.log('Dev credentials:');
-  console.log('  Admin:    admin@zimhealthcpd.co.zw / Admin@1234');
-  console.log('  Creator:  creator@zimhealthcpd.co.zw / Creator@1234');
-  console.log('  NCZ:      officer@ncz.co.zw / Ncz@12345');
-  console.log('  Council:  officer@council.co.zw / Council@12345');
-  console.log('  Learner:  grace@zimhealthcpd.co.zw / Learner@1234');
-  console.log('  Learner (MDPCZ): learner.mdpcz@zimhealthcpd.co.zw / Learner@1234');
-  console.log('  Learner (PCZ):   learner.pcz@zimhealthcpd.co.zw / Learner@1234');
-  console.log('  Creator (NCZ):   creator.ncz@zimhealthcpd.co.zw / Creator@1234');
-  console.log('  Creator (MDPCZ): creator.mdpcz@zimhealthcpd.co.zw / Creator@1234');
-  console.log('  Creator (PCZ):   creator.pcz@zimhealthcpd.co.zw / Creator@1234');
+  console.log(`Dev credentials (all use password: ${DEMO_PASSWORD}):`);
+  console.log('  Admin:    admin@zimhealthcpd.co.zw');
+  console.log('  Creator:  creator@zimhealthcpd.co.zw');
+  console.log('  NCZ:      officer@ncz.co.zw');
+  console.log('  Council:  officer@council.co.zw');
+  console.log('  Learner:  grace@zimhealthcpd.co.zw');
+  console.log('  Learner (MDPCZ): learner.mdpcz@zimhealthcpd.co.zw');
+  console.log('  Learner (PCZ):   learner.pcz@zimhealthcpd.co.zw');
+  console.log('  Creator (NCZ):   creator.ncz@zimhealthcpd.co.zw');
+  console.log('  Creator (MDPCZ): creator.mdpcz@zimhealthcpd.co.zw');
+  console.log('  Creator (PCZ):   creator.pcz@zimhealthcpd.co.zw');
 }
 
 main()
