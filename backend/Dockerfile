@@ -4,6 +4,10 @@ FROM node:20-slim AS build
 # build ARG/ENV on every stage — force development here so pnpm still installs
 # devDependencies (turbo, typescript, prisma CLI) needed to build.
 ENV NODE_ENV=development
+# Without openssl present, Prisma's postinstall can't detect the libssl
+# version and defaults to the wrong query engine target (1.1.x) — which then
+# fails to load at runtime against the image's actual openssl 3.0.x.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@9 --activate
 WORKDIR /app
 COPY . .
