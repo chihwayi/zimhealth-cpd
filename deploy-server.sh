@@ -3,6 +3,16 @@ set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ZimHealth CPD — Remote Deployment Script (run from your LOCAL machine)
+#
+# DEPRECATED as of docs/sprints/00-deployment-reconciliation.md (2026-09-11).
+# Production now runs on Coolify (Contabo box 31.220.84.245) as apps
+# "zimhealth-api"/"zimhealth-web", deployed straight from this repo's
+# backend/Dockerfile and apps/web/Dockerfile, with a GitHub webhook wired for
+# auto-deploy on push to main. This script's target (173.212.195.88) is a
+# separate, older server — port 22/80 are still open there, but password auth
+# now fails (rejected/disabled), so its current state is unconfirmed and it
+# should be treated as retired. Do not use this script to deploy; use
+# git push to main (auto-deploys) or the Coolify UI/API instead.
 # ─────────────────────────────────────────────────────────────────────────────
 #
 # Default target: root@173.212.195.88 (password auth, SKIP_DOCKER=1)
