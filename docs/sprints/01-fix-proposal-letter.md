@@ -1,5 +1,7 @@
 # Sprint 01 — Fix the proposal letter
 
+**Status: MOSTLY DONE (2026-09-11).** `docs/proposal-source.md` created as the editable source; curriculum reworded to "roadmap" framing; multi-council disclosure paragraph added; NCZ sync section reworded to describe it as ready-pending-endpoint; WhatsApp section strengthened (accurate claim). `.docx` regenerated from the corrected source. **One decision still needs a human:** the `$10` pricing claim was left as-is with an HTML comment (`docs/proposal-source.md`, "User Pricing" section) flagging that it doesn't match the live `$5` STANDARD tier — either raise the code price or lower the letter's figure before sending. Do not send the letter until that's resolved.
+
 **Track:** Docs only, no code. **Priority:** P0. **Depends on:** nothing.
 
 ## Goal
