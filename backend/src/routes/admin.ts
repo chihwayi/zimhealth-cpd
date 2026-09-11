@@ -35,7 +35,7 @@ const UpdateSystemConfigSchema = z.object({
 
 const SUBSCRIPTION_PRICING = [
   { tier: 'FREE', priceUsd: 0, label: 'Free learner access' },
-  { tier: 'STANDARD', priceUsd: 5, label: 'Standard annual subscription' },
+  { tier: 'STANDARD', priceUsd: 10, label: 'Standard annual subscription' },
   { tier: 'INSTITUTION', priceUsd: 99, label: 'Institution seat bundle' },
   { tier: 'DIASPORA', priceUsd: 15, label: 'Diaspora annual subscription' },
 ];

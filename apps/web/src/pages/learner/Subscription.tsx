@@ -16,7 +16,7 @@ const PRICING: Array<{
   {
     tier: 'STANDARD',
     title: 'Standard',
-    price: '$5 / year',
+    price: '$10 / year',
     features: ['Full web course library', 'AI Tutor on WhatsApp', 'Certificates', 'WhatsApp CPD + web CPD'],
   },
   {

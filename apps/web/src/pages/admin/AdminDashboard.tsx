@@ -2246,7 +2246,7 @@ function VouchersSection() {
                     onChange={(e) => setForm((f) => ({ ...f, tier: e.target.value as 'STANDARD' | 'DIASPORA' }))}
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
                   >
-                    <option value="STANDARD">Standard ($5/yr value)</option>
+                    <option value="STANDARD">Standard ($10/yr value)</option>
                     <option value="DIASPORA">Diaspora ($15/yr value)</option>
                   </select>
                 </div>

@@ -1,6 +1,6 @@
 # Sprint 01 — Fix the proposal letter
 
-**Status: MOSTLY DONE (2026-09-11).** `docs/proposal-source.md` created as the editable source; curriculum reworded to "roadmap" framing; multi-council disclosure paragraph added; NCZ sync section reworded to describe it as ready-pending-endpoint; WhatsApp section strengthened (accurate claim). `.docx` regenerated from the corrected source. **One decision still needs a human:** the `$10` pricing claim was left as-is with an HTML comment (`docs/proposal-source.md`, "User Pricing" section) flagging that it doesn't match the live `$5` STANDARD tier — either raise the code price or lower the letter's figure before sending. Do not send the letter until that's resolved.
+**Status: DONE (2026-09-11).** `docs/proposal-source.md` created as the editable source; curriculum reworded to "roadmap" framing; multi-council disclosure paragraph added; NCZ sync section reworded to describe it as ready-pending-endpoint; WhatsApp section strengthened (accurate claim). `.docx` regenerated from the corrected source. **Pricing resolved:** user decided to keep $10/year and raise the code to match, rather than lower the letter — `backend/src/services/payments.ts` (`getTierAmountUSD`), `backend/src/routes/admin.ts` (`SUBSCRIPTION_PRICING`), `apps/web/src/pages/learner/Subscription.tsx`, and `apps/web/src/pages/admin/AdminDashboard.tsx` all updated from $5 to $10 for the STANDARD tier. Letter and system now agree.
 
 **Track:** Docs only, no code. **Priority:** P0. **Depends on:** nothing.
 

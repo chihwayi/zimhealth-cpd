@@ -97,11 +97,6 @@ a sustainable revenue stream for the Council.
 current fee on the MyCPD platform to avoid imposing an extra financial
 burden on practitioners).
 
-<!-- TODO(human-decision): platform currently charges $5/yr for the
-STANDARD tier, not $10. Either raise the STANDARD tier price to $10
-before this letter goes out, or lower this figure to $5 to match the
-live system -- do not send this letter until one of the two is true. -->
-
 **Included Services:** Unlimited access to all general and specialty
 modules, WhatsApp learning access, instant certificate generation, and
 automated point sync with NCZ.

@@ -7,7 +7,7 @@ type PaidTier = Exclude<SubscriptionTier, 'FREE'>;
 type Gateway = 'paynow' | 'stripe' | 'voucher';
 
 function getTierAmountUSD(tier: PaidTier): number {
-  if (tier === 'STANDARD') return 5;
+  if (tier === 'STANDARD') return 10;
   if (tier === 'DIASPORA') return 15;
   // Defensive: keep type-safe future tiers from silently passing
   throw new Error(`Unsupported tier: ${tier}`);
