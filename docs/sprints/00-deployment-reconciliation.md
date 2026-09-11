@@ -1,5 +1,7 @@
 # Sprint 00 — Deployment reconciliation (Coolify)
 
+**Status: DONE (2026-09-11).** Auto-deploy webhooks wired and verified live (real push → real rebuild → confirmed serving traffic), `zimhealth-bot` deployed to Coolify (dry-run safe, healthy at `/health`), `deploy-server.sh` marked deprecated in-repo, `coolify-infra/README.md` updated with accurate state. One follow-up not done: confirm whether the Postgres backing `DATABASE_URL` is a Coolify-managed `/databases/postgresql` resource — not yet checked, low priority.
+
 **Track:** Infra. **Priority:** P0 — do first. **Depends on:** nothing.
 
 **Correction (2026-09-11):** an earlier draft of this sprint assumed the Coolify project was an empty placeholder and the app was still served from an old PM2+rsync box. That was wrong — verified directly against the live Coolify API and the live URL:
