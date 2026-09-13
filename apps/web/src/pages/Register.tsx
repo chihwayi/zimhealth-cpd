@@ -11,6 +11,8 @@ type Council = {
   id: string;
   name: string;
   acronym: string;
+  countryCode: string;
+  countryName: string;
   requiredPoints: number;
   renewalMonth: number;
   renewalDay: number;
@@ -25,6 +27,7 @@ export default function Register() {
   const [accountType, setAccountType] = useState<'LEARNER' | 'CREATOR'>('LEARNER');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [countryCode, setCountryCode] = useState('');
   const [councilId, setCouncilId] = useState('');
   const [professionalTitle, setProfessionalTitle] = useState('');
   const [registrationNumber, setRegistrationNumber] = useState('');
@@ -39,6 +42,15 @@ export default function Register() {
   });
 
   const councils = useMemo(() => councilsQuery.data?.councils ?? [], [councilsQuery.data?.councils]);
+  const countries = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const c of councils) seen.set(c.countryCode, c.countryName);
+    return Array.from(seen.entries()).map(([code, name]) => ({ code, name }));
+  }, [councils]);
+  const councilsInCountry = useMemo(
+    () => (countryCode ? councils.filter((c) => c.countryCode === countryCode) : []),
+    [councils, countryCode],
+  );
   const selectedCouncil = useMemo(() => councils.find((c) => c.id === councilId) ?? null, [councilId, councils]);
   const titles = selectedCouncil?.allowedTitles ?? [];
 
@@ -213,6 +225,27 @@ export default function Register() {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Country" htmlFor="country">
+                  <select
+                    id="country"
+                    value={countryCode}
+                    onChange={(e) => {
+                      setCountryCode(e.target.value);
+                      setCouncilId('');
+                      setProfessionalTitle('');
+                    }}
+                    required
+                    className="field-input bg-white"
+                  >
+                    <option value="">{councilsQuery.isLoading ? 'Loading countries...' : 'Select your country'}</option>
+                    {countries.map((country) => (
+                      <option key={country.code} value={country.code}>
+                        {country.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
                 <Field label="Council" htmlFor="council">
                   <select
                     id="council"
@@ -222,10 +255,11 @@ export default function Register() {
                       setProfessionalTitle('');
                     }}
                     required
-                    className="field-input bg-white"
+                    disabled={!countryCode}
+                    className="field-input bg-white disabled:bg-slate-100 disabled:text-slate-400"
                   >
-                    <option value="">{councilsQuery.isLoading ? 'Loading councils...' : 'Select your council'}</option>
-                    {councils.map((council) => (
+                    <option value="">{!countryCode ? 'Choose country first' : 'Select your council'}</option>
+                    {councilsInCountry.map((council) => (
                       <option key={council.id} value={council.id}>
                         {council.acronym} - {council.name}
                       </option>
@@ -233,6 +267,7 @@ export default function Register() {
                   </select>
                 </Field>
 
+                <div className="sm:col-span-2">
                 <Field label={accountType === 'CREATOR' ? 'Creator title (optional)' : 'Professional title'} htmlFor="professionalTitle">
                   <select
                     id="professionalTitle"
@@ -258,6 +293,7 @@ export default function Register() {
                         ))}
                   </select>
                 </Field>
+                </div>
               </div>
 
               {accountType === 'LEARNER' && (

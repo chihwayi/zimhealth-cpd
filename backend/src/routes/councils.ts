@@ -11,6 +11,8 @@ const CreateCouncilSchema = z.object({
   name: z.string().min(3).max(200),
   acronym: z.string().min(2).max(12),
   slug: z.string().min(3).max(200).optional(),
+  countryCode: z.string().length(2).default('ZW'),
+  countryName: z.string().min(2).max(100).default('Zimbabwe'),
   requiredPoints: z.number().int().min(1).max(500).default(12),
   renewalMonth: z.number().int().min(1).max(12).default(12),
   renewalDay: z.number().int().min(1).max(31).default(31),
@@ -38,6 +40,8 @@ router.get('/', async (_req, res) => {
         name: true,
         slug: true,
         acronym: true,
+        countryCode: true,
+        countryName: true,
         requiredPoints: true,
         renewalMonth: true,
         renewalDay: true,
@@ -61,6 +65,8 @@ router.get('/all', requireAuth, requireRole('ADMIN'), async (_req, res) => {
         name: true,
         slug: true,
         acronym: true,
+        countryCode: true,
+        countryName: true,
         requiredPoints: true,
         renewalMonth: true,
         renewalDay: true,
@@ -86,6 +92,8 @@ router.post('/', requireAuth, requireRole('ADMIN'), async (req, res) => {
         name: data.name.trim(),
         acronym,
         slug,
+        countryCode: data.countryCode.toUpperCase(),
+        countryName: data.countryName.trim(),
         requiredPoints: data.requiredPoints,
         renewalMonth: data.renewalMonth,
         renewalDay: data.renewalDay,
@@ -98,6 +106,8 @@ router.post('/', requireAuth, requireRole('ADMIN'), async (req, res) => {
         name: true,
         slug: true,
         acronym: true,
+        countryCode: true,
+        countryName: true,
         requiredPoints: true,
         renewalMonth: true,
         renewalDay: true,
@@ -115,6 +125,8 @@ router.post('/', requireAuth, requireRole('ADMIN'), async (req, res) => {
 });
 
 const UpdateCouncilSchema = z.object({
+  countryCode: z.string().length(2).optional(),
+  countryName: z.string().min(2).max(100).optional(),
   requiredPoints: z.number().int().min(1).max(500).optional(),
   renewalMonth: z.number().int().min(1).max(12).optional(),
   renewalDay: z.number().int().min(1).max(31).optional(),
@@ -129,12 +141,17 @@ router.patch('/:id', requireAuth, requireRole('ADMIN'), async (req, res) => {
     const data = UpdateCouncilSchema.parse(req.body);
     const updated = await db.council.update({
       where: { id: req.params.id },
-      data,
+      data: {
+        ...data,
+        countryCode: data.countryCode?.toUpperCase(),
+      },
       select: {
         id: true,
         name: true,
         slug: true,
         acronym: true,
+        countryCode: true,
+        countryName: true,
         requiredPoints: true,
         renewalMonth: true,
         renewalDay: true,

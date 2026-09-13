@@ -169,6 +169,10 @@ model Council {
   name               String
   slug               String   @unique
   acronym            String   @unique
+  // ISO 3166-1 alpha-2 (e.g. "ZW", "ZM", "NA") — enables country-scoped
+  // council selection as the platform expands beyond Zimbabwe.
+  countryCode        String   @default("ZW")
+  countryName        String   @default("Zimbabwe")
   requiredPoints     Int      @default(12)
   renewalMonth       Int      @default(12)
   renewalDay         Int      @default(31)
@@ -183,6 +187,7 @@ model Council {
 
   @@index([isActive])
   @@index([name])
+  @@index([countryCode])
 }
 
 model Course {

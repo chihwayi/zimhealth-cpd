@@ -41,6 +41,8 @@ export interface Council {
   name: string;
   slug: string;
   acronym: string;
+  countryCode: string;
+  countryName: string;
   requiredPoints: number;
   renewalMonth: number;
   renewalDay: number;
