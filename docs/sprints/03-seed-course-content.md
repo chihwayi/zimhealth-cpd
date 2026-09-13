@@ -1,5 +1,7 @@
 # Sprint 03 — Seed real course content
 
+**Status: DONE (2026-09-13).** 15 new courses seeded (16 total, up from 1), covering all 12 specialty tracks with 2 modules + a 3-question quiz each, defined in `backend/prisma/seed-courses.ts` and invoked from `seed.ts`. Zimbabwe-only (targets NCZ + MDPCZ) per the pan-African pivot decision not to invent content for countries without a real council yet ([[project_pan_african_pivot]]-equivalent note). Verified idempotent (seed re-run twice, no duplicates/errors), every quiz question has exactly one correct option (automated sweep across all 16 quizzes), and the whole thing was run against **production** via `docker exec` into the live backend container (`npx ts-node prisma/seed.ts`) — no new migration needed since Sprint 02 already added the `specialtyTrack` column. Confirmed live: `publishedCourses: 16` via `/api/admin/stats`, filtering by track works for a real learner account, and a full enrollment on a new course succeeded end-to-end. Content quality note: generic WHO/ICN-level guidance only, no invented dosages/clinical thresholds, per the safety guidance in this file's original scope section.
+
 **Track:** Content. **Priority:** P0. **Depends on:** Sprint 02 (specialty taxonomy must exist).
 
 ## Goal
