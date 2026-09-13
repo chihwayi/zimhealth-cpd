@@ -13,6 +13,7 @@ import {
   ActivityType,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { seedSpecialtyCourses } from './seed-courses';
 
 const db = new PrismaClient();
 
@@ -558,6 +559,15 @@ async function main() {
   });
 
   console.log('✅ Sample course and CPD data seeded');
+
+  // ─── 6. Specialty-track course library (Zimbabwe-only for now) ─────────────
+  await seedSpecialtyCourses({
+    db,
+    creatorId: creator.id,
+    nczCouncilId: nczCouncil.id,
+    mdpczCouncilId: mdpczCouncil.id,
+    reviewerId: ncz.id,
+  });
   console.log('\n🎉 Seed complete!\n');
   console.log(`Dev credentials (all use password: ${DEMO_PASSWORD}):`);
   console.log('  Admin:    admin@zimhealthcpd.co.zw');
