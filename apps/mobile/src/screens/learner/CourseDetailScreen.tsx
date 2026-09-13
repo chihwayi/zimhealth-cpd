@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
-import { cacheCourseOffline, retryFailedDownloads, shouldWarnForLargeDownload } from '../../lib/offlineDownload';
+import { cacheCourseContent, cacheCourseOffline, retryFailedDownloads, shouldWarnForLargeDownload } from '../../lib/offlineDownload';
 import { getCourseDownloadStatus, getOfflineCourseDetail, saveOfflineCourseDetail } from '../../lib/offlineDB';
 import { useModal } from '../../context/ModalContext';
 import type { CourseDetailScreenProps } from '../../navigation/types';
@@ -78,6 +78,10 @@ export default function CourseDetailScreen({ route, navigation }: CourseDetailSc
     mutationFn: () => api.post<Enrollment>(`/api/courses/${courseId}/enroll`, {}),
     onSuccess: (newEnrollment) => {
       queryClient.invalidateQueries({ queryKey: ['enrollments-mine'] });
+      // Cache module/quiz text immediately so the course is readable and
+      // quizzable offline right away — heavy media stays an opt-in download
+      // (the "Download for offline use" button below) to protect data plans.
+      void cacheCourseContent(courseId).then(() => refetchDownloadStatus());
       navigation.navigate('CoursePlayer', { enrollmentId: newEnrollment.id, courseId });
     },
   });

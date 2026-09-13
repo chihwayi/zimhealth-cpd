@@ -13,7 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
 import { cacheCourseOffline, shouldWarnForLargeDownload } from '../../lib/offlineDownload';
-import { getOfflineCourseList, saveOfflineCourseList } from '../../lib/offlineDB';
+import { getCourseDownloadStatus, getOfflineCourseList, saveOfflineCourseList } from '../../lib/offlineDB';
 import { useModal } from '../../context/ModalContext';
 import type { CoursesListScreenProps } from '../../navigation/types';
 import {
@@ -83,6 +83,17 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
   const { data: enrollments } = useQuery({
     queryKey: ['enrollments-mine'],
     queryFn: () => api.get<Enrollment[]>('/api/enrollments'),
+  });
+
+  const { data: offlineStatusByCourse } = useQuery({
+    queryKey: ['offline-status-map', enrollments?.map((e) => e.course.id).join(',')],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        (enrollments ?? []).map(async (e) => [e.course.id, await getCourseDownloadStatus(e.course.id)] as const),
+      );
+      return Object.fromEntries(entries) as Record<string, 'downloaded' | 'partial' | 'not_downloaded'>;
+    },
+    enabled: !!enrollments && enrollments.length > 0,
   });
 
   return (
@@ -210,6 +221,18 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
                       {item.difficulty}
                     </Text>
                   </View>
+                  {offlineStatusByCourse?.[item.id] === 'downloaded' && (
+                    <View style={[s.diffTag, { backgroundColor: 'rgba(34,197,94,0.12)', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                      <Ionicons name="cloud-done-outline" size={11} color="#22c55e" />
+                      <Text style={[s.diffTagText, { color: '#22c55e' }]}>Available offline</Text>
+                    </View>
+                  )}
+                  {offlineStatusByCourse?.[item.id] === 'partial' && (
+                    <View style={[s.diffTag, { backgroundColor: 'rgba(245,158,11,0.12)', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                      <Ionicons name="cloud-outline" size={11} color={WARN} />
+                      <Text style={[s.diffTagText, { color: WARN }]}>Partially offline</Text>
+                    </View>
+                  )}
                 </View>
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8 }}>

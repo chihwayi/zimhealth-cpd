@@ -66,13 +66,17 @@ async function cacheSectionAsset(section: OfflineSection): Promise<void> {
   }
 }
 
-export async function cacheCourseOffline(courseId: string): Promise<void> {
+// Text/JSON-only caching: course detail, modules, section text, and quiz
+// questions. Cheap (no binary downloads), safe to run automatically on
+// enrollment so reading and quiz-taking work offline immediately, without
+// waiting for the learner to opt into the full media download below.
+export async function cacheCourseContent(courseId: string): Promise<OfflineModule[]> {
   try {
     const detail = await api.get<unknown>(`/api/courses/${courseId}`);
     await saveOfflineCourseDetail(courseId, detail);
     await saveOfflineCourseList([detail]);
   } catch {
-    // Non-fatal: modules and assets can still be saved.
+    // Non-fatal: modules can still be saved even if the detail fetch fails.
   }
 
   const moduleData = await api.get<OfflineModule[]>(`/api/courses/${courseId}/modules`);
@@ -93,14 +97,23 @@ export async function cacheCourseOffline(courseId: string): Promise<void> {
     }),
   );
 
-  for (const section of moduleData.flatMap((mod) => mod.sections ?? [])) {
-    await cacheSectionAsset(section);
-  }
-
   await Promise.all([
     saveOfflineModule(`course:${courseId}`, moduleData),
     ...moduleData.map((mod) => saveOfflineModule(mod.id, mod)),
   ]);
+
+  return moduleData;
+}
+
+// Full offline pack: text content (above) plus binary assets (video/image/
+// document). Data-cost-sensitive, so this stays an explicit opt-in via the
+// "Download for offline use" button — never triggered automatically.
+export async function cacheCourseOffline(courseId: string): Promise<void> {
+  const moduleData = await cacheCourseContent(courseId);
+
+  for (const section of moduleData.flatMap((mod) => mod.sections ?? [])) {
+    await cacheSectionAsset(section);
+  }
 }
 
 export async function retryFailedDownloads(courseId: string): Promise<void> {
