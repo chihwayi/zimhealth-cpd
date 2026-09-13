@@ -31,7 +31,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { toast } from '../../components/ui/Toast';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { CPDCategory, ContentType, Difficulty, Language } from '@zimhealth/types';
+import { CPDCategory, ContentType, Difficulty, Language, SpecialtyTrack } from '@zimhealth/types';
 import clsx from 'clsx';
 
 const courseSchema = z.object({
@@ -48,7 +48,7 @@ const courseSchema = z.object({
   targetTitles: z.array(z.string()).default([]),
   tags: z.array(z.string()).default([]),
   thumbnailUrl: z.string().url().optional().or(z.literal('')),
-  specialtyArea: z.string().max(100).optional(),
+  specialtyTrack: z.nativeEnum(SpecialtyTrack).optional(),
   accreditationBody: z.string().max(200).optional(),
 });
 
@@ -122,7 +122,7 @@ const DEFAULT_VALUES: CourseFormData = {
   targetTitles: [],
   tags: [],
   thumbnailUrl: '',
-  specialtyArea: '',
+  specialtyTrack: undefined,
   accreditationBody: '',
 };
 
@@ -237,7 +237,7 @@ export default function CourseBuilder() {
       targetTitles: course.targetTitles ?? [],
       tags: course.tags ?? [],
       thumbnailUrl: course.thumbnailUrl ?? '',
-      specialtyArea: course.specialtyArea ?? '',
+      specialtyTrack: course.specialtyTrack ?? undefined,
       accreditationBody: course.accreditationBody ?? '',
     });
   }, [course, reset]);
@@ -1362,12 +1362,16 @@ export default function CourseBuilder() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">Specialty Area <span className="text-slate-400 font-normal">(optional)</span></label>
-                  <input
-                    {...register('specialtyArea')}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                    placeholder="e.g. ICU, Paediatrics, Maternal Health"
-                  />
+                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">Specialty Track <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <select
+                    {...register('specialtyTrack')}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                  >
+                    <option value="">None</option>
+                    {Object.values(SpecialtyTrack).map((value) => (
+                      <option key={value} value={value}>{formatLabel(value)}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

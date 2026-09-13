@@ -7,6 +7,15 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { BookOpen } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../../store/auth.store';
+import { SpecialtyTrack } from '@zimhealth/types';
+
+function formatSpecialtyTrack(value: string) {
+  return value
+    .toLowerCase()
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
 
 type CourseSummary = {
   id: string;
@@ -55,6 +64,7 @@ export default function CoursesPage() {
   const user = useAuthStore((state) => state.user);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
+  const [specialtyTrack, setSpecialtyTrack] = useState('');
   const [difficulty, setDifficulty] = useState('');
   const [page, setPage] = useState(1);
   const [view, setView] = useState<ViewMode>('grid');
@@ -64,11 +74,12 @@ export default function CoursesPage() {
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     if (category) params.set('category', category);
+    if (specialtyTrack) params.set('specialtyTrack', specialtyTrack);
     if (difficulty) params.set('difficulty', difficulty);
     params.set('page', String(page));
     params.set('limit', '12');
     return params.toString();
-  }, [search, category, difficulty, page]);
+  }, [search, category, specialtyTrack, difficulty, page]);
 
   const { data, isLoading, error } = useQuery<CoursesResponse>({
     queryKey: ['courses', queryString],
@@ -80,11 +91,12 @@ export default function CoursesPage() {
     [data?.courses, sort],
   );
 
-  const activeFiltersCount = [search, category, difficulty].filter(Boolean).length;
+  const activeFiltersCount = [search, category, specialtyTrack, difficulty].filter(Boolean).length;
 
   function clearFilters() {
     setSearch('');
     setCategory('');
+    setSpecialtyTrack('');
     setDifficulty('');
     setPage(1);
   }
@@ -138,6 +150,23 @@ export default function CoursesPage() {
               <option value="MANAGEMENT">Management</option>
               <option value="ETHICS">Ethics</option>
               <option value="RESEARCH">Research</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="course-specialty-track" className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Specialty Track
+            </label>
+            <select
+              id="course-specialty-track"
+              value={specialtyTrack}
+              onChange={(e) => { setPage(1); setSpecialtyTrack(e.target.value); }}
+              className="mt-2 w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+            >
+              <option value="">All tracks</option>
+              {Object.values(SpecialtyTrack).map((value) => (
+                <option key={value} value={value}>{formatSpecialtyTrack(value)}</option>
+              ))}
             </select>
           </div>
 
@@ -234,6 +263,14 @@ export default function CoursesPage() {
                 <span className="flex items-center gap-1.5 bg-primary-50 text-primary-700 text-xs font-medium px-3 py-1 rounded-full">
                   {category.charAt(0) + category.slice(1).toLowerCase()}
                   <button onClick={() => { setCategory(''); setPage(1); }} aria-label="Remove category filter">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {specialtyTrack && (
+                <span className="flex items-center gap-1.5 bg-primary-50 text-primary-700 text-xs font-medium px-3 py-1 rounded-full">
+                  {formatSpecialtyTrack(specialtyTrack)}
+                  <button onClick={() => { setSpecialtyTrack(''); setPage(1); }} aria-label="Remove specialty track filter">
                     <X size={11} />
                   </button>
                 </span>

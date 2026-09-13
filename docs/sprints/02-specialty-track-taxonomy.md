@@ -1,5 +1,7 @@
 # Sprint 02 — Specialty track taxonomy
 
+**Status: DONE (2026-09-11).** `SpecialtyTrack` enum added to `backend/prisma/schema.prisma`, `Course.specialtyArea` (free text) replaced with `Course.specialtyTrack` (enum), migration `20260913201816_add_specialty_track` created, applied locally and to production (verified via direct SQL, `psql -U zimhealth`), and backfilled the one seeded course to `GENERAL_REFRESHER`. API filter (`GET /api/courses?specialtyTrack=`), create/update Zod validation, and web filter UI (course browse sidebar + creator's CourseBuilder form) all wired and type-checked clean. WhatsApp bot needed no changes (course menu doesn't group by specialty). **Discovered along the way:** the production Postgres is not a Coolify-managed `/databases/postgresql` resource — it's a plain container (`qonae42f76yioqdanlmotglw`) reachable via `docker exec ... psql -U zimhealth -d zimhealth`, same access pattern as vaultstream's DB in `coolify-infra/README.md`.
+
 **Track:** Content model (Prisma + backend + web filters). **Priority:** P0. **Depends on:** nothing.
 
 ## Goal

@@ -1,0 +1,10 @@
+-- CreateEnum
+CREATE TYPE "SpecialtyTrack" AS ENUM ('MIDWIFERY', 'NURSING_EDUCATION', 'NURSING_ADMINISTRATION', 'OPERATING_THEATRE', 'MENTAL_HEALTH', 'PEDIATRIC', 'GENERAL_REFRESHER', 'NURSING_RESEARCH', 'DATA_ANALYTICS', 'HEALTH_INFORMATICS', 'DATA_PROTECTION', 'ENTREPRENEURSHIP');
+
+-- AlterTable
+ALTER TABLE "Course" DROP COLUMN "specialtyArea",
+ADD COLUMN     "specialtyTrack" "SpecialtyTrack";
+
+-- CreateIndex
+CREATE INDEX "Course_specialtyTrack_idx" ON "Course"("specialtyTrack");
+

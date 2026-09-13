@@ -46,6 +46,21 @@ enum CPDCategory {
   RESEARCH
 }
 
+enum SpecialtyTrack {
+  MIDWIFERY
+  NURSING_EDUCATION
+  NURSING_ADMINISTRATION
+  OPERATING_THEATRE
+  MENTAL_HEALTH
+  PEDIATRIC
+  GENERAL_REFRESHER
+  NURSING_RESEARCH
+  DATA_ANALYTICS
+  HEALTH_INFORMATICS
+  DATA_PROTECTION
+  ENTREPRENEURSHIP
+}
+
 enum Difficulty {
   FOUNDATION
   INTERMEDIATE
@@ -182,7 +197,7 @@ model Course {
   targetCadres       String[]
   targetCouncilIds   String[]     @default([])
   targetTitles       String[]     @default([])
-  specialtyArea      String?
+  specialtyTrack     SpecialtyTrack?
   difficulty         Difficulty   @default(FOUNDATION)
   language           Language     @default(ENGLISH)
   // Legacy field: council-specific points now live in CouncilCourseReview.points.
@@ -213,6 +228,7 @@ model Course {
   @@index([status])
   @@index([creatorId])
   @@index([category])
+  @@index([specialtyTrack])
 }
 
 model CouncilCourseReview {

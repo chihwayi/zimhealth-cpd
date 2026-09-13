@@ -1,5 +1,20 @@
 import { z } from 'zod';
 
+export const SPECIALTY_TRACKS = [
+  'MIDWIFERY',
+  'NURSING_EDUCATION',
+  'NURSING_ADMINISTRATION',
+  'OPERATING_THEATRE',
+  'MENTAL_HEALTH',
+  'PEDIATRIC',
+  'GENERAL_REFRESHER',
+  'NURSING_RESEARCH',
+  'DATA_ANALYTICS',
+  'HEALTH_INFORMATICS',
+  'DATA_PROTECTION',
+  'ENTREPRENEURSHIP',
+] as const;
+
 export const CreateCourseSchema = z.object({
   title: z.string().min(3).max(100),
   subtitle: z.string().max(200).optional(),
@@ -9,7 +24,7 @@ export const CreateCourseSchema = z.object({
   targetCadres: z.array(z.string()).default([]),
   targetCouncilIds: z.array(z.string()).default([]),
   targetTitles: z.array(z.string()).default([]),
-  specialtyArea: z.string().max(100).optional(),
+  specialtyTrack: z.enum(SPECIALTY_TRACKS).optional(),
   difficulty: z.enum(['FOUNDATION', 'INTERMEDIATE', 'ADVANCED']).default('FOUNDATION'),
   language: z.enum(['ENGLISH', 'SHONA', 'NDEBELE']).default('ENGLISH'),
   // Council assigns final CPD points per council at approval time.

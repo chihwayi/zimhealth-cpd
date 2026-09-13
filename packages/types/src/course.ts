@@ -12,6 +12,21 @@ export enum CPDCategory {
   RESEARCH = 'RESEARCH',
 }
 
+export enum SpecialtyTrack {
+  MIDWIFERY = 'MIDWIFERY',
+  NURSING_EDUCATION = 'NURSING_EDUCATION',
+  NURSING_ADMINISTRATION = 'NURSING_ADMINISTRATION',
+  OPERATING_THEATRE = 'OPERATING_THEATRE',
+  MENTAL_HEALTH = 'MENTAL_HEALTH',
+  PEDIATRIC = 'PEDIATRIC',
+  GENERAL_REFRESHER = 'GENERAL_REFRESHER',
+  NURSING_RESEARCH = 'NURSING_RESEARCH',
+  DATA_ANALYTICS = 'DATA_ANALYTICS',
+  HEALTH_INFORMATICS = 'HEALTH_INFORMATICS',
+  DATA_PROTECTION = 'DATA_PROTECTION',
+  ENTREPRENEURSHIP = 'ENTREPRENEURSHIP',
+}
+
 export enum Difficulty {
   FOUNDATION = 'FOUNDATION',
   INTERMEDIATE = 'INTERMEDIATE',
@@ -51,7 +66,7 @@ export interface Course {
   targetCadres: string[];
   targetCouncilIds: string[];
   targetTitles: string[];
-  specialtyArea?: string;
+  specialtyTrack?: SpecialtyTrack;
   difficulty: Difficulty;
   language: Language;
   cpdPoints: number;

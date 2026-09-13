@@ -7,6 +7,7 @@ import {
   CPDCategory,
   Difficulty,
   Language,
+  SpecialtyTrack,
   ContentType,
   QuestionType,
   ActivityType,
@@ -407,6 +408,7 @@ async function main() {
     update: {
       targetCouncilIds: [nczCouncil.id, mdpczCouncil.id],
       targetTitles: ['Registered General Nurse', 'Registered Midwife', 'Clinical Officer'],
+      specialtyTrack: SpecialtyTrack.GENERAL_REFRESHER,
     },
     create: {
       id: 'course-seed-001',
@@ -418,7 +420,7 @@ async function main() {
       targetCadres: ['NURSE', 'MIDWIFE', 'CLINICAL_OFFICER'],
       targetCouncilIds: [nczCouncil.id, mdpczCouncil.id],
       targetTitles: ['Registered General Nurse', 'Registered Midwife', 'Clinical Officer'],
-      specialtyArea: 'Infection Control',
+      specialtyTrack: SpecialtyTrack.GENERAL_REFRESHER,
       difficulty: Difficulty.FOUNDATION,
       language: Language.ENGLISH,
       // Council-specific points now come from CouncilCourseReview.
