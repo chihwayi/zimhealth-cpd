@@ -24,6 +24,37 @@ async function getCouncilRequiredPoints(councilId: string | null): Promise<numbe
   return council?.requiredPoints ?? 12;
 }
 
+const VALID_CADRES = ['NURSE', 'MIDWIFE', 'PHARMACIST', 'CLINICAL_OFFICER', 'LAB_TECH'];
+
+/**
+ * Resolves the effective councilId/cadre filters for a compliance report request.
+ * Admins may target any council via ?councilId=; non-admins are locked to their own
+ * council and get a 403 if they try to request a different one.
+ */
+async function resolveComplianceFilters(
+  req: AuthRequest,
+): Promise<{ councilId: string | null; cadre: string | undefined } | { error: number; message: string }> {
+  const requestedCouncilId = typeof req.query.councilId === 'string' ? req.query.councilId : undefined;
+  const officerCouncilId = await getOfficerCouncilId(req);
+
+  let councilId: string | null;
+  if (req.user?.role === 'ADMIN') {
+    councilId = requestedCouncilId ?? null;
+  } else {
+    if (requestedCouncilId && requestedCouncilId !== officerCouncilId) {
+      return { error: 403, message: 'This council belongs to another officer.' };
+    }
+    councilId = officerCouncilId;
+  }
+
+  const cadre = typeof req.query.cadre === 'string' ? req.query.cadre : undefined;
+  if (cadre && !VALID_CADRES.includes(cadre)) {
+    return { error: 400, message: 'Invalid cadre filter.' };
+  }
+
+  return { councilId, cadre };
+}
+
 const UpdateOwnCouncilSchema = z.object({
   requiredPoints: z.number().int().min(1).max(500).optional(),
   renewalMonth: z.number().int().min(1).max(12).optional(),
@@ -499,10 +530,13 @@ router.get(
   async (req: AuthRequest, res) => {
     try {
     const year = parseInt((req.query.year as string) ?? String(new Date().getFullYear()), 10);
-    const councilId = await getOfficerCouncilId(req);
+    const filters = await resolveComplianceFilters(req);
+    if ('error' in filters) return res.status(filters.error).json({ error: filters.message });
+    const { councilId, cadre } = filters;
     const requiredPoints = await getCouncilRequiredPoints(councilId);
     const learnerWhere: any = { role: 'LEARNER', isActive: true };
     if (councilId) learnerWhere.councilId = councilId;
+    if (cadre) learnerWhere.cadre = cadre;
     const totalLearners = await db.user.count({ where: learnerWhere });
     const learners = await db.user.findMany({
       where: learnerWhere,
@@ -519,6 +553,15 @@ router.get(
       : [];
 
     const compliantCount = cpdTotals.filter((record) => (record._sum.pointsEarned ?? 0) >= requiredPoints).length;
+
+    await db.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: 'COMPLIANCE_REPORT_GENERATED',
+        entityType: 'ComplianceReport',
+        meta: { councilId, cadre: cadre ?? null, cycleYear: year, format: 'json', rowCount: totalLearners },
+      },
+    });
 
     return res.json({
       year,
@@ -539,10 +582,14 @@ router.get(
   async (req: AuthRequest, res) => {
     try {
     const year = parseInt((req.query.year as string) ?? String(new Date().getFullYear()), 10);
-    const councilId = await getOfficerCouncilId(req);
+    const format = req.query.format === 'json' ? 'json' : 'csv';
+    const filters = await resolveComplianceFilters(req);
+    if ('error' in filters) return res.status(filters.error).json({ error: filters.message });
+    const { councilId, cadre } = filters;
     const requiredPoints = await getCouncilRequiredPoints(councilId);
     const learnerWhere: any = { role: 'LEARNER', isActive: true };
     if (councilId) learnerWhere.councilId = councilId;
+    if (cadre) learnerWhere.cadre = cadre;
     const learners = await db.user.findMany({
       where: learnerWhere,
       select: {
@@ -560,29 +607,75 @@ router.get(
     });
 
     const learnerIds = learners.map((learner) => learner.id);
-    const cpdTotals = learnerIds.length
-      ? await db.cPDRecord.groupBy({
-          by: ['learnerId'],
-          where: { learnerId: { in: learnerIds }, cycleYear: year },
-          _sum: { pointsEarned: true },
-        })
-      : [];
+    const [cpdTotals, syncRecords] = await Promise.all([
+      learnerIds.length
+        ? db.cPDRecord.groupBy({
+            by: ['learnerId'],
+            where: { learnerId: { in: learnerIds }, cycleYear: year },
+            _sum: { pointsEarned: true },
+          })
+        : Promise.resolve([]),
+      learnerIds.length
+        ? db.cPDRecord.findMany({
+            where: { learnerId: { in: learnerIds }, cycleYear: year },
+            select: { learnerId: true, nczSyncStatus: true },
+          })
+        : Promise.resolve([]),
+    ]);
     const pointsMap = Object.fromEntries(
       cpdTotals.map((record) => [record.learnerId, record._sum.pointsEarned ?? 0]),
     );
 
+    const syncStatusMap = new Map<string, string>();
+    const statusPriority = ['FAILED', 'BLOCKED_MISSING_NCZ', 'PENDING', 'SYNCED'];
+    for (const record of syncRecords) {
+      const current = syncStatusMap.get(record.learnerId);
+      if (!current || statusPriority.indexOf(record.nczSyncStatus) < statusPriority.indexOf(current)) {
+        syncStatusMap.set(record.learnerId, record.nczSyncStatus);
+      }
+    }
+
+    const reportRows = learners.map((learner) => ({
+      name: learner.fullName,
+      council: learner.council?.acronym ?? '',
+      registrationNumber: learner.registrationNumber ?? learner.nczRegistrationNumber ?? '',
+      cadre: learner.cadre ?? learner.professionalTitle ?? '',
+      institution: learner.institution ?? '',
+      province: learner.province ?? '',
+      pointsEarned: pointsMap[learner.id] ?? 0,
+      pointsRequired: requiredPoints,
+      compliant: (pointsMap[learner.id] ?? 0) >= requiredPoints,
+      syncStatus: syncStatusMap.get(learner.id) ?? 'NONE',
+      cycleYear: year,
+    }));
+
+    await db.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: 'COMPLIANCE_REPORT_GENERATED',
+        entityType: 'ComplianceReport',
+        meta: { councilId, cadre: cadre ?? null, cycleYear: year, format, rowCount: reportRows.length },
+      },
+    });
+
+    if (format === 'json') {
+      return res.json({ year, rows: reportRows });
+    }
+
     const rows = [
-      ['Name', 'Council', 'Registration Number', 'Professional Title', 'Institution', 'Province', 'CPD Points', 'Compliant', 'Year'],
-      ...learners.map((learner) => [
-        learner.fullName,
-        learner.council?.acronym ?? '',
-        learner.registrationNumber ?? learner.nczRegistrationNumber ?? '',
-        learner.professionalTitle ?? learner.cadre ?? '',
-        learner.institution ?? '',
-        learner.province ?? '',
-        String(pointsMap[learner.id] ?? 0),
-        (pointsMap[learner.id] ?? 0) >= requiredPoints ? 'Yes' : 'No',
-        String(year),
+      ['Name', 'Council', 'Registration Number', 'Cadre', 'Institution', 'Province', 'CPD Points', 'Points Required', 'Compliant', 'Sync Status', 'Year'],
+      ...reportRows.map((row) => [
+        row.name,
+        row.council,
+        row.registrationNumber,
+        row.cadre,
+        row.institution,
+        row.province,
+        String(row.pointsEarned),
+        String(row.pointsRequired),
+        row.compliant ? 'Yes' : 'No',
+        row.syncStatus,
+        String(row.cycleYear),
       ]),
     ];
 
@@ -591,7 +684,7 @@ router.get(
       .join('\n');
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="ncz-compliance-${year}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="council-compliance-${year}.csv"`);
     return res.send(csv);
     } catch {
       return res.status(500).json({ error: 'Export failed' });

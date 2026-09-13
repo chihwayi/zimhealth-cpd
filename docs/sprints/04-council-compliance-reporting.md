@@ -1,5 +1,7 @@
 # Sprint 04 — Council compliance reporting
 
+**Status: DONE (2026-09-14).** Discovered most of this sprint's scope already existed under `/api/council/compliance` and `/api/council/export/csv` (`backend/src/routes/ncz.ts`, mounted at `/api/council` primary + `/api/ncz` alias) and `apps/web/src/pages/council/CouncilDashboard.tsx`'s Reports tab — built earlier without being tracked against this sprint file. Closed the remaining gaps instead of duplicating the endpoints under `/api/reports/*`: added `cadre` filter, explicit `councilId` override for `ADMIN` (with a 403 for non-admins requesting another council), `format=json` alongside the existing CSV, `nczSyncStatus` + points-required columns in the export, and a `COMPLIANCE_REPORT_GENERATED` `AuditLog` entry per pull (who, council, cadre, cycle year, format, row count). Web Reports tab gained year/cadre filter dropdowns wired to both the summary cards and the CSV download. Renamed the CSV filename from `ncz-compliance-*.csv` to `council-compliance-*.csv` per the pan-African pivot (country-neutral naming, no new NCZ-specific code). Added `backend/src/routes/council.compliance.test.ts` (403 cross-council on both endpoints, CSV shape, cadre filtering, audit log row created) — full `pnpm test` suite passes (36/36). Verified live locally end-to-end (login as `officer@council.co.zw`, filtered CSV/JSON export, confirmed `AuditLog` rows).
+
 **Track:** Backend + Web. **Priority:** P0. **Depends on:** nothing (can run parallel to 02/03).
 
 ## Goal

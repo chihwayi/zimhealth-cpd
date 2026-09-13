@@ -211,10 +211,21 @@ function formatDateTime(value: string): string {
   });
 }
 
-function buildCsvUrl(): string {
+function buildCsvUrl(year: number, cadre: string): string {
   const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
-  return `${baseUrl}/api/council/export/csv`;
+  const params = new URLSearchParams({ year: String(year) });
+  if (cadre) params.set('cadre', cadre);
+  return `${baseUrl}/api/council/export/csv?${params.toString()}`;
 }
+
+const REPORT_CADRE_OPTIONS = [
+  { value: '', label: 'All cadres' },
+  { value: 'NURSE', label: 'Nurse' },
+  { value: 'MIDWIFE', label: 'Midwife' },
+  { value: 'PHARMACIST', label: 'Pharmacist' },
+  { value: 'CLINICAL_OFFICER', label: 'Clinical Officer' },
+  { value: 'LAB_TECH', label: 'Lab Technician' },
+];
 
 export default function CouncilDashboard() {
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -231,6 +242,12 @@ export default function CouncilDashboard() {
   const [page, setPage] = useState(1);
   const [selectedLearner, setSelectedLearner] = useState<Learner | null>(null);
   const [savingCouncil, setSavingCouncil] = useState(false);
+  const [reportYear, setReportYear] = useState(new Date().getFullYear());
+  const [reportCadre, setReportCadre] = useState('');
+  const reportYearOptions = useMemo(() => {
+    const current = new Date().getFullYear();
+    return [current, current - 1, current - 2];
+  }, []);
 
   const meQuery = useQuery({
     queryKey: ['auth-me'],
@@ -281,8 +298,11 @@ export default function CouncilDashboard() {
   });
 
   const complianceQuery = useQuery<ComplianceData>({
-    queryKey: ['council-compliance'],
-    queryFn: () => api.get('/api/council/compliance'),
+    queryKey: ['council-compliance', reportYear, reportCadre],
+    queryFn: () =>
+      api.get(
+        `/api/council/compliance?year=${reportYear}${reportCadre ? `&cadre=${reportCadre}` : ''}`,
+      ),
   });
 
   const learnerCountLabel = useMemo(() => {
@@ -309,7 +329,7 @@ export default function CouncilDashboard() {
     }
 
     try {
-      const res = await fetch(buildCsvUrl(), {
+      const res = await fetch(buildCsvUrl(reportYear, reportCadre), {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -323,7 +343,7 @@ export default function CouncilDashboard() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${String(councilAcronym).toLowerCase()}-compliance-${new Date().getFullYear()}.csv`;
+      link.download = `${String(councilAcronym).toLowerCase()}-compliance-${reportYear}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -642,21 +662,45 @@ export default function CouncilDashboard() {
             <div>
               <h2 className="text-base font-semibold text-slate-900">Compliance Reports</h2>
               <p className="text-sm text-slate-500 mt-1">
-                Export the current compliance register and use the summary cards above for reporting.
+                Filter by cycle year and cadre, then export the compliance register for annual re-registration.
               </p>
             </div>
-            <button
-              onClick={handleExportCsv}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-            >
-              <Download size={16} />
-              Export CSV
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={reportYear}
+                onChange={(e) => setReportYear(Number(e.target.value))}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700"
+              >
+                {reportYearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={reportCadre}
+                onChange={(e) => setReportCadre(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700"
+              >
+                {REPORT_CADRE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleExportCsv}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+              >
+                <Download size={16} />
+                Export CSV
+              </button>
+            </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
             <p className="text-sm text-slate-700">
-              The CSV export includes learner name, council registration number, professional title, institution, province,
-              current CPD points, compliance status, and reporting year.
+              The CSV export includes learner name, council registration number, cadre, institution, province,
+              current CPD points, points required, compliance status, council sync status, and reporting year.
             </p>
           </div>
         </div>
