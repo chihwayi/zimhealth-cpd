@@ -3,6 +3,7 @@ import type { BotSession } from '../sessionManager';
 import { saveSession } from '../sessionManager';
 import { sendMessage } from '../whatsapp/transport';
 import { TEMPLATES } from '../templates';
+import { detectCountryFromPhone } from '../utils/phoneCountry';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const BOT_SECRET = process.env.BOT_SECRET ?? '';
@@ -12,6 +13,30 @@ const botHeaders = {
   'Content-Type': 'application/json',
   'x-bot-secret': BOT_SECRET,
 };
+
+type CouncilOption = { id: string; name: string; acronym: string; countryCode: string };
+
+// Country detected from the nurse's own WhatsApp number — no need to ask.
+// If multiple councils exist in that country, we still ask which one (a
+// country can have several regulatory councils, e.g. Zimbabwe's NCZ/PCZ/
+// MDPCZ), but never ask the nurse to pick a country by hand.
+async function getCouncilsForPhone(phone: string): Promise<CouncilOption[]> {
+  const country = detectCountryFromPhone(phone);
+  if (!country) return [];
+  try {
+    const res = await fetch(`${API_URL}/api/councils`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { councils: CouncilOption[] };
+    return data.councils.filter((c) => c.countryCode === country);
+  } catch {
+    return [];
+  }
+}
+
+function councilPicker(options: CouncilOption[]): string {
+  const lines = options.map((c, i) => `${i + 1}️⃣ ${c.acronym} - ${c.name}`).join('\n');
+  return `Which council are you registered with?\n\n${lines}\n\n_Reply with a number (1–${options.length})._`;
+}
 
 // ─── Cadre options displayed during registration ──────────────────────────────
 const CADRE_OPTIONS = [
@@ -79,6 +104,49 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
       return;
     }
     rs.cadre = CADRE_OPTIONS[idx].key;
+
+    // Country is inferred from the WhatsApp number itself — never asked.
+    const councils = await getCouncilsForPhone(msg.from.replace('whatsapp:', ''));
+    if (councils.length === 1) {
+      rs.councilId = councils[0].id;
+      rs.councilLabel = `${councils[0].acronym} - ${councils[0].name}`;
+      rs.step = 'NCZ';
+      await saveSession(session);
+      await sendMessage(
+        msg.from,
+        `What is your *council registration number*?\n\n_Reply *skip* if you don't have one yet._`,
+      );
+      return;
+    }
+    if (councils.length > 1) {
+      rs.councilOptions = councils.map((c) => ({ id: c.id, label: `${c.acronym} - ${c.name}` }));
+      rs.step = 'COUNCIL';
+      await saveSession(session);
+      await sendMessage(msg.from, councilPicker(councils));
+      return;
+    }
+    // No council mapped for this number's country yet — proceed without one;
+    // an admin can assign it later once that country's council is onboarded.
+    rs.step = 'NCZ';
+    await saveSession(session);
+    await sendMessage(
+      msg.from,
+      `What is your *council registration number*?\n\n_Reply *skip* if you don't have one yet._`,
+    );
+    return;
+  }
+
+  // ── COUNCIL step: pick regulatory council (only asked when a country has more than one) ──
+  if (rs.step === 'COUNCIL') {
+    const options = rs.councilOptions ?? [];
+    const idx = parseInt(text, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= options.length) {
+      await sendMessage(msg.from, `Please reply with a number between 1 and ${options.length}.`);
+      return;
+    }
+    rs.councilId = options[idx].id;
+    rs.councilLabel = options[idx].label;
+    delete rs.councilOptions;
     rs.step = 'NCZ';
     await saveSession(session);
     await sendMessage(
@@ -108,9 +176,10 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
     await saveSession(session);
 
     const cadreName = CADRE_OPTIONS.find((c) => c.key === rs.cadre)?.label ?? rs.cadre;
+    const councilLine = rs.councilLabel ? `\n🏛️ Council: *${rs.councilLabel}*` : '';
     await sendMessage(
       msg.from,
-      `📋 *Review your details:*\n\n👤 Name: *${rs.fullName}*\n🏥 Cadre: *${cadreName}*\n🔖 Registration No: *${rs.nczRegistrationNumber ?? 'Not provided'}*\n🏨 Workplace: *${rs.institution}*\n\nReply *yes* to confirm and create your account, or *no* to start over.`,
+      `📋 *Review your details:*\n\n👤 Name: *${rs.fullName}*\n🏥 Cadre: *${cadreName}*${councilLine}\n🔖 Registration No: *${rs.nczRegistrationNumber ?? 'Not provided'}*\n🏨 Workplace: *${rs.institution}*\n\nReply *yes* to confirm and create your account, or *no* to start over.`,
     );
     return;
   }
@@ -136,6 +205,7 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
         phone,
         fullName: rs.fullName,
         cadre: rs.cadre,
+        councilId: rs.councilId,
         nczRegistrationNumber: rs.nczRegistrationNumber,
         institution: rs.institution,
       };

@@ -242,10 +242,11 @@ router.get('/lookup', requireBotSecret, async (req, res) => {
 // ─── POST /api/bot/register ───────────────────────────────────────────────────
 // Create a WhatsApp-only account (phone is the auth factor — verified by Twilio)
 router.post('/register', requireBotSecret, async (req, res) => {
-  const { phone, fullName, cadre, nczRegistrationNumber, institution, province } = req.body as {
+  const { phone, fullName, cadre, councilId, nczRegistrationNumber, institution, province } = req.body as {
     phone?: string;
     fullName?: string;
     cadre?: string;
+    councilId?: string;
     nczRegistrationNumber?: string;
     institution?: string;
     province?: string;
@@ -270,6 +271,7 @@ router.post('/register', requireBotSecret, async (req, res) => {
         fullName,
         phone,
         cadre: cadre as any,
+        councilId: councilId || null,
         nczRegistrationNumber: nczRegistrationNumber || null,
         institution: institution || null,
         province: province || null,
