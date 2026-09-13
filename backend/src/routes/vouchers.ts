@@ -32,7 +32,8 @@ function generateVoucherCode(): string {
 }
 
 // Generate `count` unique codes. Retries on the rare collision.
-async function generateUniqueCodes(count: number): Promise<string[]> {
+// Exported for reuse by backend/src/routes/institutions.ts — do not duplicate.
+export async function generateUniqueCodes(count: number): Promise<string[]> {
   const codes = new Set<string>();
   while (codes.size < count) {
     codes.add(generateVoucherCode());
@@ -61,10 +62,14 @@ async function generateUniqueCodes(count: number): Promise<string[]> {
 const CreateBatchSchema = z.object({
   name:        z.string().min(2).max(100),
   sponsorName: z.string().min(2).max(100),
-  tier:        z.enum(['STANDARD', 'DIASPORA']),
+  tier:        z.enum(['STANDARD', 'DIASPORA', 'INSTITUTION']),
   count:       z.number().int().min(1).max(5000),
   expiresAt:   z.string().datetime().optional(),
   notes:       z.string().max(500).optional(),
+  // Email of an existing user to designate as the institution's dashboard
+  // contact (resolved server-side so the admin UI doesn't need a separate
+  // user-lookup step) — see backend/src/routes/institutions.ts.
+  institutionContactEmail: z.string().email().optional(),
 });
 
 // ── Admin: list batches ───────────────────────────────────────────────────────
@@ -119,6 +124,13 @@ router.post('/batches', requireAuth, requireRole('ADMIN'), async (req: AuthReque
   try {
     const data = CreateBatchSchema.parse(req.body);
 
+    let institutionContactId: string | null = null;
+    if (data.institutionContactEmail) {
+      const contact = await db.user.findUnique({ where: { email: data.institutionContactEmail }, select: { id: true } });
+      if (!contact) return res.status(400).json({ error: 'No user found with that institution contact email.' });
+      institutionContactId = contact.id;
+    }
+
     const codes = await generateUniqueCodes(data.count);
 
     const batch = await db.voucherBatch.create({
@@ -130,13 +142,14 @@ router.post('/batches', requireAuth, requireRole('ADMIN'), async (req: AuthReque
         expiresAt:   data.expiresAt ? new Date(data.expiresAt) : null,
         notes:       data.notes ?? null,
         createdById: req.user!.id,
+        institutionContactId,
         vouchers: {
           createMany: {
             data: codes.map((code) => ({ code, tier: data.tier as SubscriptionTier })),
           },
         },
       },
-      select: { id: true, name: true, sponsorName: true, tier: true, totalCount: true, createdAt: true },
+      select: { id: true, name: true, sponsorName: true, tier: true, totalCount: true, createdAt: true, institutionContactId: true },
     });
 
     await db.auditLog.create({

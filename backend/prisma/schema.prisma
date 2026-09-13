@@ -176,6 +176,7 @@ model User {
   auditLogs        AuditLog[]
   councilCourseReviewsReviewed CouncilCourseReview[] @relation("CouncilCourseReviewedBy")
   voucherBatchesCreated        VoucherBatch[]         @relation("VoucherBatchCreator")
+  voucherBatchesAdministered   VoucherBatch[]         @relation("VoucherBatchInstitutionContact")
   vouchersRedeemed             Voucher[]              @relation("VoucherRedeemer")
   issuesReported                IssueReport[]         @relation("IssueReporter")
   issuesAssigned                IssueReport[]         @relation("IssueAssignee")
@@ -556,6 +557,11 @@ model VoucherBatch {
   totalCount  Int              // number of codes generated in this batch
   createdById String
   createdBy   User             @relation("VoucherBatchCreator", fields: [createdById], references: [id])
+  // Non-admin user (e.g. an institution's HR/training contact) who can view
+  // this batch's roster without being a global ADMIN. Set by the admin who
+  // creates the batch on the institution's behalf — see Sprint 07.
+  institutionContactId String?
+  institutionContact    User?   @relation("VoucherBatchInstitutionContact", fields: [institutionContactId], references: [id])
   expiresAt   DateTime?        // optional: all codes in batch expire at this date
   notes       String?          // internal notes for admin
   createdAt   DateTime         @default(now())
@@ -563,12 +569,17 @@ model VoucherBatch {
 
   @@index([createdById])
   @@index([createdAt])
+  @@index([institutionContactId])
 }
 
 model Voucher {
   id           String           @id @default(cuid())
   code         String           @unique  // e.g. "ZHCPD-A3K7-V9MQ-B4NP"
   batchId      String
+  // Pre-assigned invitee, set by a bulk institution invite before redemption
+  // (Sprint 07) — lets the roster show pending invitees, not just redeemed ones.
+  inviteeEmail String?
+  inviteePhone String?
   batch        VoucherBatch     @relation(fields: [batchId], references: [id])
   tier         SubscriptionTier
   redeemedById String?

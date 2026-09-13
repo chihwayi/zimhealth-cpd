@@ -2094,10 +2094,11 @@ function VouchersSection() {
   const [form, setForm] = useState({
     name: '',
     sponsorName: '',
-    tier: 'STANDARD' as 'STANDARD' | 'DIASPORA',
+    tier: 'STANDARD' as 'STANDARD' | 'DIASPORA' | 'INSTITUTION',
     count: 100,
     expiresAt: '',
     notes: '',
+    institutionContactEmail: '',
   });
 
   const batchesQuery = useQuery<{ batches: VoucherBatch[] }>({
@@ -2118,12 +2119,13 @@ function VouchersSection() {
         count: Number(form.count),
         expiresAt: form.expiresAt || undefined,
         notes: form.notes || undefined,
+        institutionContactEmail: form.institutionContactEmail || undefined,
       }),
     onSuccess: (data) => {
       toast.success(`Generated ${data.count} voucher codes for "${form.name}".`);
       qc.invalidateQueries({ queryKey: ['admin-voucher-batches'] });
       setShowGenerate(false);
-      setForm({ name: '', sponsorName: '', tier: 'STANDARD', count: 100, expiresAt: '', notes: '' });
+      setForm({ name: '', sponsorName: '', tier: 'STANDARD', count: 100, expiresAt: '', notes: '', institutionContactEmail: '' });
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Generation failed'),
   });
@@ -2243,11 +2245,12 @@ function VouchersSection() {
                   <label className="block text-xs font-medium text-slate-700 mb-1">Subscription tier *</label>
                   <select
                     value={form.tier}
-                    onChange={(e) => setForm((f) => ({ ...f, tier: e.target.value as 'STANDARD' | 'DIASPORA' }))}
+                    onChange={(e) => setForm((f) => ({ ...f, tier: e.target.value as 'STANDARD' | 'DIASPORA' | 'INSTITUTION' }))}
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
                   >
                     <option value="STANDARD">Standard ($10/yr value)</option>
                     <option value="DIASPORA">Diaspora ($15/yr value)</option>
+                    <option value="INSTITUTION">Institution ($99/yr value)</option>
                   </select>
                 </div>
                 <div>
@@ -2277,6 +2280,24 @@ function VouchersSection() {
                 />
                 <p className="text-xs text-slate-400 mt-1">Leave blank for no expiry.</p>
               </div>
+              {form.tier === 'INSTITUTION' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Institution contact email (optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={form.institutionContactEmail}
+                    onChange={(e) => setForm((f) => ({ ...f, institutionContactEmail: e.target.value }))}
+                    placeholder="hr-lead@hospital.org (must already have a ZimHealth account)"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">
+                    This person gets access to the institution dashboard to invite staff and view compliance — without
+                    being a system admin.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Internal notes (optional)</label>
                 <textarea

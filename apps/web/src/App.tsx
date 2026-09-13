@@ -30,6 +30,7 @@ const CreatorAnalytics = lazy(() => import('./pages/creator/Analytics'));
 const MediaLibrary = lazy(() => import('./pages/creator/MediaLibrary'));
 const CouncilDashboard = lazy(() => import('./pages/council/CouncilDashboard'));
 const Helpdesk = lazy(() => import('./pages/admin/Helpdesk'));
+const InstitutionDashboard = lazy(() => import('./pages/institution/InstitutionDashboard'));
 
 const Loader = () => (
   <main className="flex min-h-[50vh] flex-col items-center justify-center px-4" aria-busy="true">
@@ -264,6 +265,17 @@ export default function App() {
             <ProtectedRoute allowedRoles={['NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN']}>
               <AppShell>
                 <CouncilDashboard />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/institution"
+          element={
+            <ProtectedRoute allowedRoles={['LEARNER', 'CONTENT_MANAGER', 'NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN']}>
+              <AppShell>
+                <InstitutionDashboard />
               </AppShell>
             </ProtectedRoute>
           }

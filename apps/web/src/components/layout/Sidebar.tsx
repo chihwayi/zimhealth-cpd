@@ -129,7 +129,11 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
   const navItems =
     user.role === 'HELPDESK'
       ? baseNavItems
-      : [...baseNavItems, { to: '/report-issue', icon: AlertTriangle, label: 'Report an issue' }];
+      : [
+          ...baseNavItems,
+          { to: '/institution', icon: Building2, label: 'My Institution' },
+          { to: '/report-issue', icon: AlertTriangle, label: 'Report an issue' },
+        ];
   const isCouncilRole = user.role === 'NCZ_OFFICER' || user.role === 'COUNCIL_OFFICER';
   const isAdmin = user.role === 'ADMIN';
 
