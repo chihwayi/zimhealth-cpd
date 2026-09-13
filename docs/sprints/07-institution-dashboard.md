@@ -1,5 +1,7 @@
 # Sprint 07 — Institution bulk-enrollment dashboard
 
+**Status: DONE (2026-09-14).** `Voucher` gained `inviteeEmail`/`inviteePhone`, `VoucherBatch` gained an optional `institutionContactId` (resolved from an email an admin enters, no separate lookup UI needed). New `/api/institutions/{my-batches,:id/roster,:id/invite}` endpoints, access-checked to the batch's creator/institution contact/ADMIN (403 otherwise). Invite assigns existing spare codes rather than minting past `totalCount` — a real bug caught during local testing and fixed before shipping. Web page at `/institution` (roster table + invite form), reachable from every role's sidebar since the institution contact can be any registered user, not just admins. New `institutions.test.ts` (6/6 passing); full suite 41/42 (1 pre-existing unrelated flake, same as Sprint 04). Verified end-to-end both locally and live in production: created an INSTITUTION-tier batch as admin with a contact set by email, invited staff as that non-admin contact, confirmed the roster showed the invitee before redemption, and confirmed a 403 for an unrelated user.
+
 **Track:** Backend + Web. **Priority:** P1. **Depends on:** nothing.
 
 ## Goal
