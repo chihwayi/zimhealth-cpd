@@ -1,5 +1,7 @@
 # Sprint 05 — NCZ sync integration spec
 
+**Status: DONE (2026-09-14).** `docs/integrations/ncz-sync-api-spec.md` written directly from `ncz-sync.ts`/`syncWorker.ts` (request/response contract, idempotency, sync modes, record statuses, "what NCZ needs to provide"). Mock endpoint `backend/src/routes/dev/mock-council-registry.ts` added, gated behind `NODE_ENV !== 'production'`. Verified live end-to-end: pointed `COUNCIL_SYNC_API_URL` at the mock locally, triggered a real sync in `live` mode via the existing `/api/council/sync/trigger` endpoint, confirmed the mock received the batch and all 4 seeded `CPDRecord`s flipped from unsynced to `SYNCED` in the database. Confirmed the mock returns 404 in production (both locally with `NODE_ENV=production` and live on the deployed server) — never exposed. Found and documented a real idempotency gap while writing the spec (keys are generated fresh per sync invocation, so they don't protect against two overlapping runs of the same batch) — left unfixed per this sprint's explicit non-goal, flagged in the spec for later. Could not create a `.env.demo` file as originally scoped — sandbox permissions block writing any `.env*` file — so the exact env var values are documented in the spec's "Demo / local testing" section instead.
+
 **Track:** Backend + Docs. **Priority:** P0. **Depends on:** nothing. **Note:** this sprint has a hard external dependency — NCZ must eventually provide a real endpoint. The AI-agent-doable part is everything short of that.
 
 ## Goal
