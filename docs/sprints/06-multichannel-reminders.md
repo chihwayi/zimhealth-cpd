@@ -1,5 +1,7 @@
 # Sprint 06 — Multi-channel reminders
 
+**Status: DONE (2026-09-14).** Added SMS (Twilio, `TWILIO_SMS_FROM`) and email (extracted shared `backend/src/lib/email.ts`, reusing the SMTP setup from password reset) alongside the existing WhatsApp reminder. Same dry-run-if-no-credentials pattern across all three. Skips email for WhatsApp-bot placeholder addresses. Per-channel outcome logged to `AuditLog` per learner per cycle. Verified locally with a stubbed AI response (local Anthropic key was invalid) — SMS dry-ran cleanly with no throw, WhatsApp/email both attempted real sends against locally-configured (if stale) credentials, confirming the live-vs-dry-run branch works correctly; audit log entries captured all three channel outcomes. Deployed and confirmed live: login and the (now-shared) password-reset email path both still work correctly post-refactor.
+
 **Track:** Backend. **Priority:** P1. **Depends on:** nothing.
 
 ## Goal
