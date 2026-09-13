@@ -28,6 +28,7 @@ const contentTypes = {
   '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
 };
 
 function safeJoin(base, reqPath) {
@@ -56,8 +57,14 @@ const server = http.createServer((req, res) => {
   const contentType = contentTypes[ext] ?? 'application/octet-stream';
   res.setHeader('Content-Type', contentType);
 
-  // Reasonable caching for assets, but not HTML
-  if (filePath.endsWith('.html')) {
+  // PWA bootstrap files keep a stable filename across deploys (unlike hashed
+  // /assets/*), so caching them immutably strands clients on a stale service
+  // worker that keeps referencing deleted hashed bundles after a redeploy.
+  const fileName = path.basename(filePath);
+  const isPwaBootstrapFile =
+    fileName === 'sw.js' || fileName === 'registerSW.js' || ext === '.webmanifest';
+
+  if (filePath.endsWith('.html') || isPwaBootstrapFile) {
     res.setHeader('Cache-Control', 'no-cache');
   } else {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
