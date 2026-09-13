@@ -25,6 +25,7 @@ import botRouter from './routes/bot';
 import aiRouter from './routes/ai';
 import telemetryRouter from './routes/telemetry';
 import issuesRouter from './routes/issues';
+import mockCouncilRegistryRouter from './routes/dev/mock-council-registry';
 import { scheduleDailySync } from './jobs/syncWorker';
 import recommendationsRouter from './routes/recommendations';
 import { scheduleRenewalReminders } from './jobs/notificationWorker';
@@ -154,6 +155,13 @@ app.use('/api/bot', botRouter);
 app.use('/api/issues', issuesRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api', telemetryRouter);
+
+// Dev/demo-only mock of a council's registration system, for exercising the
+// full CPD sync flow without a real council partner API — see
+// docs/integrations/ncz-sync-api-spec.md. Never mounted in production.
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/dev/mock-council-registry', mockCouncilRegistryRouter);
+}
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'zimhealth-api', timestamp: new Date().toISOString() });
