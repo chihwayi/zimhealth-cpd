@@ -21,7 +21,7 @@ import {
 import { requireAuth } from '../middleware/auth.middleware';
 import jwt from 'jsonwebtoken';
 import { randomBytes, createHash } from 'crypto';
-import nodemailer from 'nodemailer';
+import { sendEmail } from '../lib/email';
 
 const router: ExpressRouter = Router();
 
@@ -202,38 +202,11 @@ router.post('/logout', async (req, res) => {
 });
 
 async function sendPasswordResetEmail(toEmail: string, resetUrl: string): Promise<void> {
-  const smtpUrl = process.env.SMTP_URL;
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-
-  if (!smtpUrl && !(smtpHost && smtpPort && smtpUser && smtpPass)) {
-    console.log('[Auth] Password reset link (SMTP_URL not set):', resetUrl);
-    return;
-  }
-
-  const transporter = smtpUrl
-    ? nodemailer.createTransport(smtpUrl)
-    : nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
-  const from =
-    process.env.MAIL_FROM ??
-    (process.env.FROM_EMAIL ? `ZimHealth CPD <${process.env.FROM_EMAIL}>` : undefined) ??
-    'ZimHealth CPD <no-reply@example.com>';
-  await transporter.sendMail({
-    from,
-    to: toEmail,
-    subject: 'Reset your ZimHealth password',
-    text: `You requested a password reset.\n\nOpen this link to set a new password:\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
-  });
+  await sendEmail(
+    toEmail,
+    'Reset your ZimHealth password',
+    `You requested a password reset.\n\nOpen this link to set a new password:\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
+  );
 }
 
 // POST /api/auth/forgot-password

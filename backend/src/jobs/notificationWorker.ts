@@ -3,6 +3,7 @@ import { db } from '../lib/db';
 import { getLearnerCPDSummary } from '../services/cpd-engine';
 import { AIClient, SYSTEM_PROMPTS, type AIProviderConfig } from '@zimhealth/ai-client';
 import { logger } from '../lib/logger';
+import { sendEmail, isRealEmail } from '../lib/email';
 import twilio from 'twilio';
 
 export const notificationQueue = new Bull('notifications', {
@@ -57,6 +58,20 @@ async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
   await client.messages.create({ from, to: toFormatted, body });
 }
 
+async function sendSmsMessage(to: string, body: string): Promise<void> {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_SMS_FROM;
+
+  if (!sid || !token || !from) {
+    logger.info('[notificationWorker] SMS reminder dry run - no Twilio SMS credentials', { to, body });
+    return;
+  }
+
+  const client = twilio(sid, token);
+  await client.messages.create({ from, to, body });
+}
+
 notificationQueue.process('renewal-reminder', async () => {
   const today = new Date();
   const yearEnd = new Date(today.getFullYear(), 11, 31);
@@ -68,8 +83,8 @@ notificationQueue.process('renewal-reminder', async () => {
   }
 
   const learners = await db.user.findMany({
-    where: { role: 'LEARNER', isActive: true, phone: { not: null } },
-    select: { id: true, fullName: true, phone: true, cadre: true },
+    where: { role: 'LEARNER', isActive: true },
+    select: { id: true, fullName: true, phone: true, email: true, cadre: true },
   });
 
   let sent = 0;
@@ -81,11 +96,12 @@ notificationQueue.process('renewal-reminder', async () => {
       if (summary.percentComplete >= 100) continue;
 
       const pointsNeeded = Math.max(0, summary.requiredPoints - summary.totalPoints);
-      const prompt = `Write a WhatsApp reminder message for this health professional:
-Name: ${learner.fullName.split(' ')[0]}
+      const firstName = learner.fullName.split(' ')[0];
+      const prompt = `Write a short reminder message for this health professional:
+Name: ${firstName}
 Days until CPD renewal deadline: ${daysLeft}
 CPD points still needed: ${pointsNeeded}
-Under 80 words. Warm and motivating. End with "Reply 1 to start learning."`;
+Under 80 words. Warm and motivating. End with "Reply 1 to start learning." (or, for email, "Log in to start learning.")`;
 
       const message = await ai.complete(prompt, {
         systemPrompt: SYSTEM_PROMPTS.REMINDER_WRITER,
@@ -93,8 +109,52 @@ Under 80 words. Warm and motivating. End with "Reply 1 to start learning."`;
         temperature: 0.7,
       });
 
-      await sendWhatsAppMessage(learner.phone!, message);
-      sent += 1;
+      const channelResults: Record<string, 'sent' | 'failed' | 'skipped'> = {};
+
+      if (learner.phone) {
+        try {
+          await sendWhatsAppMessage(learner.phone, message);
+          channelResults.whatsapp = 'sent';
+        } catch (err) {
+          channelResults.whatsapp = 'failed';
+          logger.warn('Reminder WhatsApp send failed', { learnerId: learner.id, error: String(err) });
+        }
+
+        try {
+          await sendSmsMessage(learner.phone, message);
+          channelResults.sms = 'sent';
+        } catch (err) {
+          channelResults.sms = 'failed';
+          logger.warn('Reminder SMS send failed', { learnerId: learner.id, error: String(err) });
+        }
+      } else {
+        channelResults.whatsapp = 'skipped';
+        channelResults.sms = 'skipped';
+      }
+
+      if (isRealEmail(learner.email)) {
+        try {
+          await sendEmail(learner.email, `Your CPD renewal is in ${daysLeft} days`, message.replace('Reply 1 to start learning.', 'Log in to start learning.'));
+          channelResults.email = 'sent';
+        } catch (err) {
+          channelResults.email = 'failed';
+          logger.warn('Reminder email send failed', { learnerId: learner.id, error: String(err) });
+        }
+      } else {
+        channelResults.email = 'skipped';
+      }
+
+      await db.auditLog.create({
+        data: {
+          userId: learner.id,
+          action: 'RENEWAL_REMINDER_SENT',
+          entityType: 'User',
+          entityId: learner.id,
+          meta: { daysLeft, pointsNeeded, ...channelResults },
+        },
+      });
+
+      if (Object.values(channelResults).includes('sent')) sent += 1;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn('Failed to send reminder', { learnerId: learner.id, error: message });
