@@ -290,6 +290,35 @@ router.post('/register', requireBotSecret, async (req, res) => {
   }
 });
 
+// ─── POST /api/bot/issues ──────────────────────────────────────────────────────
+// Lets a nurse report a bug/issue directly from WhatsApp; helpdesk triages via
+// GET/PATCH /api/issues.
+const BotCreateIssueSchema = z.object({
+  phone: z.string().min(5),
+  title: z.string().min(3).max(150),
+  description: z.string().min(5).max(2000),
+});
+
+router.post('/issues', requireBotSecret, async (req, res) => {
+  try {
+    const data = BotCreateIssueSchema.parse(req.body);
+    const reporter = await db.user.findUnique({ where: { phone: data.phone }, select: { id: true } });
+    const issue = await db.issueReport.create({
+      data: {
+        reporterId: reporter?.id,
+        reporterContact: reporter ? undefined : data.phone,
+        title: data.title,
+        description: data.description,
+        source: 'WHATSAPP',
+      },
+    });
+    res.status(201).json({ id: issue.id });
+  } catch (err: any) {
+    if (err?.name === 'ZodError') return res.status(400).json({ error: err.errors });
+    res.status(500).json({ error: 'Could not submit issue report' });
+  }
+});
+
 // ─── POST /api/bot/analytics/ai-tutor ─────────────────────────────────────────
 // Bot-only analytics + audit trail for AI tutor interactions.
 const AiTutorAnalyticsSchema = z.object({

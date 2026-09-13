@@ -9,6 +9,7 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import VerifyCertificatePage from './pages/VerifyCertificate';
+import ReportIssue from './pages/ReportIssue';
 import { useAuthStore } from './store/auth.store';
 
 // Lazy-load all portals
@@ -28,6 +29,7 @@ const QuizBuilder = lazy(() => import('./pages/creator/QuizBuilder'));
 const CreatorAnalytics = lazy(() => import('./pages/creator/Analytics'));
 const MediaLibrary = lazy(() => import('./pages/creator/MediaLibrary'));
 const CouncilDashboard = lazy(() => import('./pages/council/CouncilDashboard'));
+const Helpdesk = lazy(() => import('./pages/admin/Helpdesk'));
 
 const Loader = () => (
   <main className="flex min-h-[50vh] flex-col items-center justify-center px-4" aria-busy="true">
@@ -78,6 +80,17 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify/:uuid" element={<VerifyCertificatePage />} />
         <Route path="/" element={<Landing />} />
+
+        <Route
+          path="/report-issue"
+          element={
+            <ProtectedRoute allowedRoles={['LEARNER', 'CONTENT_MANAGER', 'NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN', 'HELPDESK']}>
+              <AppShell>
+                <ReportIssue />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
 
         {/* Learner */}
         <Route
@@ -251,6 +264,17 @@ export default function App() {
             <ProtectedRoute allowedRoles={['NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN']}>
               <AppShell>
                 <CouncilDashboard />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/helpdesk"
+          element={
+            <ProtectedRoute allowedRoles={['HELPDESK', 'ADMIN']}>
+              <AppShell>
+                <Helpdesk />
               </AppShell>
             </ProtectedRoute>
           }

@@ -4,6 +4,7 @@ export enum Role {
   NCZ_OFFICER = 'NCZ_OFFICER',
   COUNCIL_OFFICER = 'COUNCIL_OFFICER',
   LEARNER = 'LEARNER',
+  HELPDESK = 'HELPDESK',
 }
 
 export enum Cadre {

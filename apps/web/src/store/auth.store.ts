@@ -5,7 +5,7 @@ interface AuthUser {
   id: string;
   email: string;
   fullName: string;
-  role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER' | 'LEARNER';
+  role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER' | 'LEARNER' | 'HELPDESK';
   subscriptionTier?: string;
   subscriptionExpiresAt?: string;
   avatarUrl?: string;

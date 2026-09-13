@@ -11,7 +11,8 @@ export type BotState =
   | 'AI_TUTOR'
   | 'PAYMENT'
   | 'BROWSE'
-  | 'AWAITING_REGISTRATION';
+  | 'AWAITING_REGISTRATION'
+  | 'REPORT_ISSUE';
 
 export interface BotCourseOption {
   id: string;

@@ -304,6 +304,21 @@ async function main() {
   });
   console.log('✅ Council Officer:', councilOfficer.email);
 
+  // ─── 3c. Helpdesk (triages issue reports from web/mobile/WhatsApp) ──────────
+  const helpdeskPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
+  const helpdesk = await db.user.upsert({
+    where: { email: 'helpdesk@zimhealthcpd.co.zw' },
+    update: {},
+    create: {
+      email: 'helpdesk@zimhealthcpd.co.zw',
+      passwordHash: helpdeskPassword,
+      fullName: 'Helpdesk Support',
+      role: Role.HELPDESK,
+      isApproved: true,
+    },
+  });
+  console.log('✅ Helpdesk:', helpdesk.email);
+
   // ─── 4. Sample learners ─────────────────────────────────────────────────────
   const learnerPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
   const learners = await Promise.all([
@@ -549,6 +564,7 @@ async function main() {
   console.log('  Creator:  creator@zimhealthcpd.co.zw');
   console.log('  NCZ:      officer@ncz.co.zw');
   console.log('  Council:  officer@council.co.zw');
+  console.log('  Helpdesk: helpdesk@zimhealthcpd.co.zw');
   console.log('  Learner:  grace@zimhealthcpd.co.zw');
   console.log('  Learner (MDPCZ): learner.mdpcz@zimhealthcpd.co.zw');
   console.log('  Learner (PCZ):   learner.pcz@zimhealthcpd.co.zw');

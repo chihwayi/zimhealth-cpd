@@ -9,6 +9,7 @@ import { handlePoints } from './handlers/pointsHandler';
 import { handleAiTutor } from './handlers/aiTutor';
 import { handlePayment } from './handlers/paymentHandler';
 import { handleRegistration } from './handlers/registrationHandler';
+import { handleReportIssue } from './handlers/issueHandler';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const BOT_SECRET = process.env.BOT_SECRET ?? '';
@@ -114,10 +115,13 @@ export async function routeMessage(msg: IncomingMessage): Promise<void> {
     case 'PAYMENT':
       await handlePayment(msg, session);
       break;
+    case 'REPORT_ISSUE':
+      await handleReportIssue(msg, session);
+      break;
     default:
       // If user is not registered and tries to access the menu, prompt them to register
-      if (!session.userId && !['2', '4', '6'].includes(msg.body.trim())) {
-        // Options 2 (AI tutor), 4 (is for AI tutor in menu), 6 (help) are free; rest require account
+      if (!session.userId && !['2', '4', '6', '7'].includes(msg.body.trim())) {
+        // Options 2 (AI tutor), 4 (is for AI tutor in menu), 6 (help), 7 (report an issue) are free; rest require account
         // Actually menu '4' is AI tutor — let that through
         // For learning (1), points (3), subscribe (5): require account
         if (['1', '3', '5'].includes(msg.body.trim())) {

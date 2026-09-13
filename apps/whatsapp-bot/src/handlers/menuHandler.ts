@@ -7,6 +7,7 @@ import { handleLearn } from './learnHandler';
 import { handlePoints } from './pointsHandler';
 import { handleAiTutor } from './aiTutor';
 import { handlePayment } from './paymentHandler';
+import { handleReportIssue } from './issueHandler';
 
 export async function handleMenu(msg: IncomingMessage, session: BotSession): Promise<void> {
   const text = msg.body.trim();
@@ -45,6 +46,14 @@ export async function handleMenu(msg: IncomingMessage, session: BotSession): Pro
       break;
     case '6':
       await sendMessage(msg.from, TEMPLATES.HELP);
+      break;
+    case '7':
+      session.state = 'REPORT_ISSUE';
+      await saveSession(session);
+      await sendMessage(
+        msg.from,
+        `🛠️ *Report an issue*\n\nDescribe the problem you're facing (app, web, or WhatsApp) in one message. Our support team will follow up.\n\nReply *cancel* to go back.`,
+      );
       break;
     default:
       await sendMessage(msg.from, TEMPLATES.MAIN_MENU);

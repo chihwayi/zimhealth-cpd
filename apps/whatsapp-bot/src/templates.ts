@@ -11,6 +11,7 @@ Reply with a number:
 4️⃣ Ask a clinical question
 5️⃣ Subscribe / upgrade
 6️⃣ Help
+7️⃣ Report an issue
 
 _Reply STOP to pause notifications_`,
 

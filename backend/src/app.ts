@@ -24,6 +24,7 @@ import creatorRouter from './routes/creator';
 import botRouter from './routes/bot';
 import aiRouter from './routes/ai';
 import telemetryRouter from './routes/telemetry';
+import issuesRouter from './routes/issues';
 import { scheduleDailySync } from './jobs/syncWorker';
 import recommendationsRouter from './routes/recommendations';
 import { scheduleRenewalReminders } from './jobs/notificationWorker';
@@ -150,6 +151,7 @@ app.use('/api/councils', councilsRouter);
 app.use('/api/creator', creatorRouter);
 app.use('/api', recommendationsRouter);
 app.use('/api/bot', botRouter);
+app.use('/api/issues', issuesRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api', telemetryRouter);
 

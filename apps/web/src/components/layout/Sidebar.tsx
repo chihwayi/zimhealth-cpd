@@ -17,6 +17,8 @@ import {
   Wand2,
   X,
   LogOut,
+  AlertTriangle,
+  MessageSquareWarning,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import clsx from 'clsx';
@@ -60,12 +62,17 @@ const ADMIN_NAV = [
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ];
 
+const HELPDESK_NAV = [
+  { to: '/helpdesk', icon: MessageSquareWarning, label: 'Issue Reports' },
+];
+
 const NAV_BY_ROLE: Record<string, typeof LEARNER_NAV> = {
   LEARNER: LEARNER_NAV,
   CONTENT_MANAGER: CREATOR_NAV,
   NCZ_OFFICER: COUNCIL_NAV,
   COUNCIL_OFFICER: COUNCIL_NAV,
   ADMIN: ADMIN_NAV,
+  HELPDESK: HELPDESK_NAV,
 };
 
 const ROLE_ACCENT: Record<string, string> = {
@@ -74,6 +81,7 @@ const ROLE_ACCENT: Record<string, string> = {
   NCZ_OFFICER: 'border-blue-500',
   COUNCIL_OFFICER: 'border-blue-500',
   ADMIN: 'border-rose-600',
+  HELPDESK: 'border-amber-500',
 };
 
 const ROLE_ACTIVE: Record<string, string> = {
@@ -82,6 +90,7 @@ const ROLE_ACTIVE: Record<string, string> = {
   NCZ_OFFICER: 'bg-white/10 text-white border-l-2 border-blue-400',
   COUNCIL_OFFICER: 'bg-white/10 text-white border-l-2 border-blue-400',
   ADMIN: 'bg-rose-50 text-rose-700 border-l-2 border-rose-600',
+  HELPDESK: 'bg-amber-50 text-amber-700 border-l-2 border-amber-500',
 };
 
 const ROLE_AVATAR: Record<string, string> = {
@@ -90,6 +99,7 @@ const ROLE_AVATAR: Record<string, string> = {
   NCZ_OFFICER: 'bg-blue-500/20 text-blue-300',
   COUNCIL_OFFICER: 'bg-blue-500/20 text-blue-300',
   ADMIN: 'bg-rose-100 text-rose-700',
+  HELPDESK: 'bg-amber-100 text-amber-700',
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -98,6 +108,7 @@ const ROLE_LABEL: Record<string, string> = {
   NCZ_OFFICER: 'Council Officer',
   COUNCIL_OFFICER: 'Council Officer',
   ADMIN: 'System Admin',
+  HELPDESK: 'Helpdesk',
 };
 
 interface SidebarProps {
@@ -114,7 +125,11 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
   const navigate = useNavigate();
   if (!user) return null;
 
-  const navItems = NAV_BY_ROLE[user.role] ?? LEARNER_NAV;
+  const baseNavItems = NAV_BY_ROLE[user.role] ?? LEARNER_NAV;
+  const navItems =
+    user.role === 'HELPDESK'
+      ? baseNavItems
+      : [...baseNavItems, { to: '/report-issue', icon: AlertTriangle, label: 'Report an issue' }];
   const isCouncilRole = user.role === 'NCZ_OFFICER' || user.role === 'COUNCIL_OFFICER';
   const isAdmin = user.role === 'ADMIN';
 
