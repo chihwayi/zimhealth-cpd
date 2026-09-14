@@ -1,5 +1,9 @@
 # Sprint 09 — Shona/Ndebele localization
 
+**Status: DONE (2026-09-14)** — Shipped a broader mechanism than originally scoped, per the pan-African pivot (`new-direction`): instead of hardcoding Shona/Ndebele UI strings, built a dynamic `LanguagePack` system (`backend/src/routes/locales.ts`) — an admin downloads a fill-in-the-blank CSV template (built from `@zimhealth/i18n`'s baseline English keys), translates it in a spreadsheet, and uploads CSV/JSON/XLSX via the new Admin → Languages page; it's live for every client immediately via `GET /api/locales/:code`, no rebuild required. `i18next` wired into both web (sidebar + login language switcher) and mobile (bottom-sheet switcher in both learner and role profile screens, via a custom i18next backend reusing the existing `api` client). Selection persists (localStorage on web, SecureStore on mobile).
+Also completed the original content-tagging scope: web course browse page has a Language filter (English/Shona/Ndebele) against the existing `Course.language` field; WhatsApp bot registration now asks for a language preference (`User.language`, new field + migration) and the bot's course menu prioritizes matching-language courses without hard-excluding others.
+Caveat: admin/creator/council back-office UI stays English-only (non-goal, as originally scoped) — only learner-facing chrome (nav, auth, common actions) is translated so far; more UI strings can be added to `@zimhealth/i18n`'s baseline over time without any architecture change.
+
 **Track:** Content + Web (+ mobile/WhatsApp bot if time allows). **Priority:** P2. **Depends on:** Sprint 03 (content should exist before translating it).
 
 ## Goal
