@@ -28,6 +28,7 @@ import {
   Plus,
   ChevronRight,
   ChevronLeft,
+  Languages,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -231,6 +232,7 @@ const ADMIN_SECTIONS = [
   { key: 'analytics', label: 'Analytics', path: '/admin/analytics', icon: BarChart2 },
   { key: 'payments', label: 'Payments', path: '/admin/payments', icon: CreditCard },
   { key: 'vouchers', label: 'Vouchers', path: '/admin/vouchers', icon: Ticket },
+  { key: 'languages', label: 'Languages', path: '/admin/languages', icon: Languages },
   { key: 'council-sync', label: 'Council Sync', path: '/admin/council-sync', icon: RefreshCw },
   { key: 'audit', label: 'Audit Log', path: '/admin/audit', icon: ShieldAlert },
   { key: 'release', label: 'Release Readiness', path: '/admin/release', icon: ClipboardCheck },
@@ -326,6 +328,7 @@ export default function AdminDashboard() {
       {section === 'settings' && <SettingsSection />}
       {section === 'payments' && <PaymentsSection />}
       {section === 'vouchers' && <VouchersSection />}
+      {section === 'languages' && <LanguagesSection />}
       {section === 'council-sync' && <CouncilSyncSection />}
     </div>
   );
@@ -2562,6 +2565,269 @@ function VouchersSection() {
                 )}
               </div>
             )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Languages Section ────────────────────────────────────────────────────────
+
+interface LanguagePackRow {
+  id: string;
+  code: string;
+  name: string;
+  countryCodes: string[];
+  isActive: boolean;
+  keyCount: number;
+  createdAt: string;
+  updatedAt: string;
+  uploadedBy: { fullName: string; email: string } | null;
+}
+
+function LanguagesSection() {
+  const qc = useQueryClient();
+  const token = useAuthStore((s) => s.accessToken);
+  const [showUpload, setShowUpload] = useState(false);
+  const [form, setForm] = useState({ code: '', name: '', countryCodes: '' });
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const packsQuery = useQuery<{ packs: LanguagePackRow[] }>({
+    queryKey: ['admin-language-packs'],
+    queryFn: () => api.get('/api/locales/all/admin'),
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ code, isActive }: { code: string; isActive: boolean }) =>
+      api.patch(`/api/locales/${code}`, { isActive }),
+    onSuccess: () => {
+      toast.success('Language pack updated.');
+      qc.invalidateQueries({ queryKey: ['admin-language-packs'] });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not update language pack.'),
+  });
+
+  async function downloadTemplate() {
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+      const response = await fetch(`${baseUrl}/api/locales/template.csv`);
+      if (!response.ok) throw new Error(`Download failed (${response.status})`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'zimhealth-translation-template.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Download failed');
+    }
+  }
+
+  async function handleUpload() {
+    if (!token) {
+      toast.error('You must be logged in as an admin.');
+      return;
+    }
+    if (!file || !form.code.trim() || !form.name.trim()) {
+      toast.error('Language code, display name, and a translation file are all required.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+      const body = new FormData();
+      body.append('code', form.code.trim().toLowerCase());
+      body.append('name', form.name.trim());
+      if (form.countryCodes.trim()) body.append('countryCodes', form.countryCodes.trim());
+      body.append('file', file);
+
+      const res = await fetch(`${baseUrl}/api/locales`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body,
+      });
+
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: unknown };
+        throw new Error(typeof errBody.error === 'string' ? errBody.error : `Upload failed (${res.status})`);
+      }
+
+      const data = (await res.json()) as { code: string; name: string; keyCount: number };
+      toast.success(`Uploaded "${data.name}" (${data.keyCount} translated strings).`);
+      setShowUpload(false);
+      setForm({ code: '', name: '', countryCodes: '' });
+      setFile(null);
+      qc.invalidateQueries({ queryKey: ['admin-language-packs'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const packs = packsQuery.data?.packs ?? [];
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 md:p-8">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-xl md:text-2xl font-black tracking-tight text-slate-900">Languages</h2>
+            <p className="text-sm text-slate-600 mt-2 max-w-2xl leading-relaxed">
+              Add a new language to the app without any code changes. Download the translation template,
+              fill in the blanks in a spreadsheet or text editor, then upload it here — it goes live for
+              every learner immediately. English ships built-in and isn't managed here.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={downloadTemplate}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Download size={16} />
+              Download template
+            </button>
+            <button
+              onClick={() => setShowUpload(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700"
+            >
+              <Plus size={16} />
+              Upload language
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {showUpload && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Upload Language Pack</h3>
+              <button onClick={() => setShowUpload(false)} className="text-slate-400 hover:text-slate-700">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Language code *</label>
+                  <input
+                    value={form.code}
+                    onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                    placeholder="e.g. sn, nd, fr"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Display name *</label>
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Shona, Ndebele"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Country codes (optional)</label>
+                <input
+                  value={form.countryCodes}
+                  onChange={(e) => setForm((f) => ({ ...f, countryCodes: e.target.value }))}
+                  placeholder="e.g. ZW"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                />
+                <p className="text-xs text-slate-400 mt-1">Comma-separated ISO country codes. Used to prioritize this language for learners in those countries.</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <label className="block text-sm font-semibold text-slate-900 mb-1.5">Translation file *</label>
+                <input
+                  type="file"
+                  accept=".csv,.json,.xlsx,.xls"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-primary-700"
+                />
+                <p className="mt-2 text-xs text-slate-500">CSV, JSON, or Excel (.xlsx/.xls) — download the template above to get the exact format.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowUpload(false)}
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleUpload()}
+                disabled={uploading || !file || !form.code.trim() || !form.name.trim()}
+                className="flex-1 rounded-xl bg-primary-600 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-40"
+              >
+                {uploading ? 'Uploading…' : 'Upload'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h3 className="text-base font-semibold text-slate-900">Installed Languages</h3>
+          <p className="text-sm text-slate-500 mt-0.5">English is always available and is not shown here.</p>
+        </div>
+
+        {packsQuery.isLoading ? (
+          <div className="p-6 space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-16 rounded-xl bg-slate-100 animate-pulse" />
+            ))}
+          </div>
+        ) : packsQuery.isError ? (
+          <div className="p-6">
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Could not load language packs.
+            </div>
+          </div>
+        ) : packs.length === 0 ? (
+          <EmptyState
+            icon={<Languages size={28} />}
+            title="No languages uploaded yet"
+            description="Download the template, translate it, and upload it to add the first language."
+          />
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {packs.map((pack) => (
+              <div key={pack.id} className="px-6 py-4 flex items-start justify-between gap-4 flex-wrap">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-slate-900">{pack.name}</p>
+                    <span className="font-mono text-xs text-slate-500">{pack.code}</span>
+                    <Badge variant={pack.isActive ? 'success' : 'default'}>
+                      {pack.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                    {pack.countryCodes.map((cc) => (
+                      <Badge key={cc} variant="info">{cc}</Badge>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {pack.keyCount} translated strings · Uploaded by {pack.uploadedBy?.fullName ?? 'unknown'} · {formatDate(pack.updatedAt)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleMutation.mutate({ code: pack.code, isActive: !pack.isActive })}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  {pack.isActive ? 'Deactivate' : 'Activate'}
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>
