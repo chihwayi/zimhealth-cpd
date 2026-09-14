@@ -90,8 +90,8 @@ const NAV_BY_ROLE: Record<string, typeof LEARNER_NAV> = {
 const ROLE_ACCENT: Record<string, string> = {
   LEARNER: 'border-primary-500',
   CONTENT_MANAGER: 'border-violet-500',
-  NCZ_OFFICER: 'border-blue-500',
-  COUNCIL_OFFICER: 'border-blue-500',
+  NCZ_OFFICER: 'border-cyan-500',
+  COUNCIL_OFFICER: 'border-cyan-500',
   ADMIN: 'border-rose-600',
   HELPDESK: 'border-amber-500',
 };
@@ -99,8 +99,8 @@ const ROLE_ACCENT: Record<string, string> = {
 const ROLE_ACTIVE: Record<string, string> = {
   LEARNER: 'bg-white/10 text-white border-l-2 border-primary-400',
   CONTENT_MANAGER: 'bg-violet-50 text-violet-700 border-l-2 border-violet-500',
-  NCZ_OFFICER: 'bg-white/10 text-white border-l-2 border-blue-400',
-  COUNCIL_OFFICER: 'bg-white/10 text-white border-l-2 border-blue-400',
+  NCZ_OFFICER: 'bg-white/10 text-white border-l-2 border-cyan-400',
+  COUNCIL_OFFICER: 'bg-white/10 text-white border-l-2 border-cyan-400',
   ADMIN: 'bg-rose-50 text-rose-700 border-l-2 border-rose-600',
   HELPDESK: 'bg-amber-50 text-amber-700 border-l-2 border-amber-500',
 };
@@ -108,8 +108,8 @@ const ROLE_ACTIVE: Record<string, string> = {
 const ROLE_AVATAR: Record<string, string> = {
   LEARNER: 'bg-primary-500/20 text-primary-300',
   CONTENT_MANAGER: 'bg-violet-100 text-violet-700',
-  NCZ_OFFICER: 'bg-blue-500/20 text-blue-300',
-  COUNCIL_OFFICER: 'bg-blue-500/20 text-blue-300',
+  NCZ_OFFICER: 'bg-cyan-500/20 text-cyan-300',
+  COUNCIL_OFFICER: 'bg-cyan-500/20 text-cyan-300',
   ADMIN: 'bg-rose-100 text-rose-700',
   HELPDESK: 'bg-amber-100 text-amber-700',
 };
@@ -164,7 +164,7 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
       className={clsx(
         'relative w-72 sm:w-80 md:w-60 flex-shrink-0 min-h-dvh flex flex-col',
         isDarkSidebar
-          ? 'bg-[#030c1a] text-white'
+          ? 'bg-[#150a26] text-white'
           : isAdmin
             ? 'bg-gradient-to-b from-rose-50 via-white to-white text-slate-900'
             : 'bg-white text-slate-900',
@@ -174,7 +174,7 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
     >
       {/* Subtle gradient overlay for dark sidebars */}
       {isDarkSidebar && (
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(59,130,246,0.12),transparent_60%),radial-gradient(circle_at_80%_10%,rgba(251,191,36,0.06),transparent_40%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(124,58,237,0.16),transparent_60%),radial-gradient(circle_at_80%_10%,rgba(249,115,22,0.08),transparent_40%)]" />
       )}
 
       {/* Logo + role accent */}

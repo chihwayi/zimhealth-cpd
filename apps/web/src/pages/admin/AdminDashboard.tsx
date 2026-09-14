@@ -241,7 +241,7 @@ const ADMIN_SECTIONS = [
 ] as const;
 
 const ROLE_OPTIONS = ['ALL', 'ADMIN', 'CONTENT_MANAGER', 'NCZ_OFFICER', 'COUNCIL_OFFICER', 'LEARNER'] as const;
-const PIE_COLOURS = ['#e11d48', '#3b82f6', '#2563eb', '#f59e0b'];
+const PIE_COLOURS = ['#e11d48', '#7c3aed', '#0891b2', '#f59e0b'];
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('en-ZW', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -1460,7 +1460,7 @@ function AnalyticsSection() {
               <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
               <YAxis stroke="#64748b" fontSize={12} allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="points" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="points" fill="#7c3aed" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

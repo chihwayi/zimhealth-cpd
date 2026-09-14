@@ -23,19 +23,19 @@ export function AppShell({ children }: Props) {
   }, [location.pathname]);
 
   return (
-    <div className={isCouncilRole ? 'relative flex min-h-dvh bg-[#030c1a]' : 'relative flex min-h-dvh bg-slate-100'}>
+    <div className={isCouncilRole ? 'relative flex min-h-dvh bg-[#150a26]' : 'relative flex min-h-dvh bg-slate-100'}>
       {isCouncilRole ? (
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(124,58,237,0.18),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(249,115,22,0.12),transparent_40%)]" />
       ) : isAdmin ? (
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(244,63,94,0.10),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(14,165,233,0.10),transparent_45%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(244,63,94,0.10),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(124,58,237,0.10),transparent_45%)]" />
       ) : (
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.08),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.06),transparent_45%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(124,58,237,0.06),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(249,115,22,0.06),transparent_45%)]" />
       )}
       {/* Desktop sidebar */}
       <Sidebar className="hidden md:flex" />
 
       {/* Mobile: top bar + drawer sidebar */}
-      <header className={`md:hidden fixed top-0 left-0 right-0 z-40 backdrop-blur border-b ${isCouncilRole || (!isAdmin && !isCouncilRole) ? 'bg-[#030c1a]/90 border-white/10' : 'bg-white/80 border-slate-200'}`}>
+      <header className={`md:hidden fixed top-0 left-0 right-0 z-40 backdrop-blur border-b ${isCouncilRole || (!isAdmin && !isCouncilRole) ? 'bg-[#150a26]/90 border-white/10' : 'bg-white/80 border-slate-200'}`}>
         <div className="h-14 px-4 flex items-center gap-3">
           <button
             type="button"

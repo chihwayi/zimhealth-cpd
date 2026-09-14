@@ -38,7 +38,7 @@ export default function CertificatesPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Hero */}
-      <div className="relative bg-gradient-to-br from-[#030c1a] via-[#0d1f3c] to-[#0a1628] overflow-hidden">
+      <div className="relative bg-gradient-to-br from-[#150a26] via-[#2e1065] to-[#1a0f2e] overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_85%,rgba(59,130,246,0.20),transparent_55%),radial-gradient(circle_at_85%_15%,rgba(251,191,36,0.08),transparent_45%)]" />
         <div className="relative max-w-4xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between gap-4 flex-wrap">

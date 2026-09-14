@@ -118,15 +118,15 @@ export default function Register() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#030c1a] text-[#0a1628] relative flex items-center justify-center p-4">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
-      <div className="absolute left-8 top-12 hidden h-48 w-48 rounded-full border border-blue-200/80 lg:block" />
+    <main className="min-h-screen overflow-hidden bg-[#150a26] text-[#0a1628] relative flex items-center justify-center p-4">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(124,58,237,0.20),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(249,115,22,0.14),transparent_40%)]" />
+      <div className="absolute left-8 top-12 hidden h-48 w-48 rounded-full border border-violet-200/80 lg:block" />
       <div className="absolute bottom-8 right-12 hidden h-64 w-64 rounded-[4rem] bg-white/40 rotate-12 lg:block" />
 
       <div className="relative grid w-full max-w-6xl grid-cols-1 overflow-hidden rounded-[2rem] border border-white/80 bg-white/85 shadow-2xl backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="relative hidden min-h-[720px] flex-col justify-between overflow-hidden bg-slate-950 p-10 text-white lg:flex">
-          <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(59,130,246,0.35),_transparent_45%),radial-gradient(circle_at_80%_20%,_rgba(251,191,36,0.24),_transparent_30%)]" />
-          <div className="pointer-events-none absolute -left-20 -bottom-20 h-[280px] w-[280px] rounded-full bg-teal-400/10 blur-3xl" />
+        <section className="relative hidden min-h-[720px] flex-col justify-between overflow-hidden bg-[#150a26] p-10 text-white lg:flex">
+          <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(124,58,237,0.40),_transparent_45%),radial-gradient(circle_at_80%_20%,_rgba(249,115,22,0.28),_transparent_30%)]" />
+          <div className="pointer-events-none absolute -left-20 -bottom-20 h-[280px] w-[280px] rounded-full bg-orange-400/10 blur-3xl" />
           <div className="relative">
             <div className="mb-8">
               <Logo theme="dark" size="lg" />
@@ -145,7 +145,7 @@ export default function Register() {
               {[...PANEL_HIGHLIGHTS, ...PANEL_HIGHLIGHTS].map(([title, body], i) => (
                 <div key={`${title}-${i}`} className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
                   <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Sparkles size={15} className="text-blue-300" />
+                    <Sparkles size={15} className="text-orange-300" />
                     {title}
                   </div>
                   <p className="mt-1 text-xs text-slate-300">{body}</p>
@@ -160,7 +160,7 @@ export default function Register() {
             <div className="mb-5 flex justify-center lg:hidden">
               <Logo theme="light" size="lg" />
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-blue-800">
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-violet-800">
               <BadgeCheck size={14} />
               Account setup
             </div>
@@ -343,14 +343,14 @@ export default function Register() {
               </div>
             )}
 
-            <button type="submit" disabled={loading || councilsQuery.isLoading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 py-4 text-sm font-black text-white shadow-xl shadow-slate-300 transition-all hover:-translate-y-0.5 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={loading || councilsQuery.isLoading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#150a26] py-4 text-sm font-black text-white shadow-xl shadow-slate-300 transition-all hover:-translate-y-0.5 hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50">
               {loading ? <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <UserPlus size={17} />}
               {loading ? 'Creating your account...' : 'Create council-aware account'}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-slate-500">
-            Already have an account? <Link to="/login" className="font-bold text-emerald-700 hover:underline">Sign in</Link>
+            Already have an account? <Link to="/login" className="font-bold text-violet-700 hover:underline">Sign in</Link>
           </p>
         </section>
       </div>

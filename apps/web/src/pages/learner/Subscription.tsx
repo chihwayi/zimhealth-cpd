@@ -72,7 +72,7 @@ export default function SubscriptionPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Hero */}
-      <div className="relative bg-gradient-to-br from-[#030c1a] via-[#0d1f3c] to-[#0a1628] overflow-hidden">
+      <div className="relative bg-gradient-to-br from-[#150a26] via-[#2e1065] to-[#1a0f2e] overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(59,130,246,0.18),transparent_55%),radial-gradient(circle_at_85%_15%,rgba(251,191,36,0.10),transparent_45%)]" />
         <div className="relative max-w-5xl mx-auto px-6 py-8">
           <h1 className="text-3xl font-black text-white">Subscription</h1>

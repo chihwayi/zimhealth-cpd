@@ -29,7 +29,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <main className="min-h-screen bg-[#030c1a] text-[#0a1628] relative flex items-center justify-center p-4 overflow-hidden">
+    <main className="min-h-screen bg-[#150a26] text-[#0a1628] relative flex items-center justify-center p-4 overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
       <div className="w-full max-w-md">
         <header className="text-center mb-8">

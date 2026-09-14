@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { api } from '../lib/api';
-import { LanguageSwitcher } from '../components/ui/LanguageSwitcher';
 import { Logo } from '../components/brand/Logo';
 
 const ROLE_REDIRECT: Record<string, string> = {
@@ -74,30 +73,31 @@ export default function Login() {
   }
 
   return (
-    <main className="min-h-screen bg-[#030c1a] text-[#0a1628] relative flex items-center justify-center p-4 overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
-      <div className="pointer-events-none absolute -left-32 -bottom-32 h-[360px] w-[360px] rounded-full bg-blue-500/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 -top-24 h-[300px] w-[300px] rounded-full bg-teal-400/10 blur-3xl" />
+    <main className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden bg-gradient-to-br from-[#2e1065] via-[#6d28d9] to-[#ea580c]">
+      {/* Sunrise gradient mesh — violet-to-amber, the new brand signature */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(255,255,255,0.16),transparent_45%),radial-gradient(circle_at_85%_80%,rgba(249,115,22,0.35),transparent_50%),radial-gradient(circle_at_80%_10%,rgba(251,191,36,0.18),transparent_40%)]" />
+      <div className="pointer-events-none absolute -left-32 -bottom-32 h-[380px] w-[380px] rounded-full bg-fuchsia-400/20 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 -top-24 h-[320px] w-[320px] rounded-full bg-orange-300/25 blur-3xl" />
+
       <div className="w-full max-w-md relative">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex justify-center mb-6">
           <Link to="/" className="inline-flex">
-            <Logo theme="dark" size="md" />
+            <Logo theme="dark" size="lg" />
           </Link>
-          <LanguageSwitcher dark />
         </div>
 
         {/* Brand */}
         <header className="text-center mb-8">
-          <p className="text-sm font-medium tracking-wide uppercase text-blue-300/80 letter-spacing-widest">
+          <p className="text-sm font-bold tracking-wide uppercase text-white/90">
             Continuing Professional Development
           </p>
-          <p className="mt-1 text-white/50 text-xs">
+          <p className="mt-1 text-white/70 text-xs">
             For health professionals across Central &amp; Southern Africa
           </p>
         </header>
 
-        <section className="bg-white/85 backdrop-blur rounded-2xl border border-white/15 shadow-2xl shadow-black/20 p-8">
-          <h2 className="text-lg font-semibold text-slate-900 mb-6">{t('auth.welcomeBack')}</h2>
+        <section className="bg-white rounded-[1.75rem] shadow-2xl shadow-indigo-950/40 p-8">
+          <h2 className="text-xl font-black text-slate-900 mb-6">{t('auth.welcomeBack')}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             {notice && (
@@ -108,7 +108,7 @@ export default function Login() {
             )}
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label htmlFor="email" className="block text-sm font-semibold text-slate-800 mb-1.5">
                 {t('auth.email')}
               </label>
               <input
@@ -120,17 +120,17 @@ export default function Login() {
                 required
                 placeholder="you@example.com"
                 aria-invalid={Boolean(error)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-shadow placeholder:text-slate-400"
+                className="w-full px-3.5 py-3 rounded-xl border-2 border-violet-100 text-sm focus:outline-none focus:ring-4 focus:ring-violet-100 focus:border-violet-500 transition-all placeholder:text-slate-400"
               />
             </div>
 
             {/* Password */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label htmlFor="password" className="text-sm font-medium text-slate-700">
+                <label htmlFor="password" className="text-sm font-semibold text-slate-800">
                   {t('auth.password')}
                 </label>
-                <a href="/forgot-password" className="text-xs text-primary-700 hover:underline">
+                <a href="/forgot-password" className="text-xs font-semibold text-orange-600 hover:text-orange-700 hover:underline">
                   {t('auth.forgotPassword')}
                 </a>
               </div>
@@ -144,12 +144,12 @@ export default function Login() {
                   required
                   placeholder="••••••••"
                   aria-invalid={Boolean(error)}
-                  className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-shadow placeholder:text-slate-400"
+                  className="w-full px-3.5 py-3 pr-11 rounded-xl border-2 border-violet-100 text-sm focus:outline-none focus:ring-4 focus:ring-violet-100 focus:border-violet-500 transition-all placeholder:text-slate-400"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-violet-600 transition-colors"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -169,7 +169,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary-700 text-white font-semibold py-3 rounded-xl hover:bg-primary-800 active:bg-primary-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm text-sm"
+              className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-orange-500 text-white font-bold py-3.5 rounded-xl hover:from-violet-700 hover:to-orange-600 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-violet-900/20 text-sm"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -177,21 +177,24 @@ export default function Login() {
                   Signing in…
                 </span>
               ) : (
-                t('auth.login')
+                <>
+                  {t('auth.login')}
+                  <ArrowRight size={16} />
+                </>
               )}
             </button>
           </form>
 
           <p className="text-center text-sm text-slate-500 mt-6">
             {t('auth.dontHaveAccount')}{' '}
-            <a href="/register" className="text-primary-700 hover:underline font-medium">
+            <a href="/register" className="text-orange-600 hover:text-orange-700 hover:underline font-bold">
               Register here
             </a>
           </p>
         </section>
 
         {/* Footer */}
-        <footer className="text-center text-xs text-white/35 mt-6">
+        <footer className="text-center text-xs text-white/60 mt-6">
           Central and Southern African CPD Hub · Learn. Earn. Advance.
         </footer>
       </div>

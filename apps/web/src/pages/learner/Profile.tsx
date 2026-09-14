@@ -165,7 +165,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Hero */}
-      <div className="relative bg-gradient-to-br from-[#030c1a] via-[#0d1f3c] to-[#0a1628] overflow-hidden">
+      <div className="relative bg-gradient-to-br from-[#150a26] via-[#2e1065] to-[#1a0f2e] overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(59,130,246,0.18),transparent_55%),radial-gradient(circle_at_85%_15%,rgba(251,191,36,0.08),transparent_45%)]" />
         <div className="relative max-w-2xl mx-auto px-6 py-8">
           <div className="flex items-center gap-5">
@@ -182,7 +182,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={avatarUploading}
-                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary-500 ring-2 ring-[#030c1a] flex items-center justify-center hover:bg-primary-400 transition-colors disabled:opacity-50"
+                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary-500 ring-2 ring-[#150a26] flex items-center justify-center hover:bg-primary-400 transition-colors disabled:opacity-50"
               >
                 {avatarUploading ? (
                   <Loader2 size={12} className="text-white animate-spin" />

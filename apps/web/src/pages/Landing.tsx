@@ -62,11 +62,11 @@ export default function Landing() {
   }, {});
 
   return (
-    <main className="min-h-screen bg-[#030c1a] text-white overflow-x-hidden">
+    <main className="min-h-screen bg-[#150a26] text-white overflow-x-hidden">
       {/* Ambient background — no static hero image, just soft animated light */}
       <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute -left-40 -top-32 h-[420px] w-[420px] rounded-full bg-blue-500/10 blur-3xl animate-pulse" style={{ animationDuration: '8s' }} />
-        <div className="absolute right-0 top-1/3 h-[380px] w-[380px] rounded-full bg-teal-400/10 blur-3xl animate-pulse" style={{ animationDuration: '10s' }} />
+        <div className="absolute -left-40 -top-32 h-[420px] w-[420px] rounded-full bg-violet-500/15 blur-3xl animate-pulse" style={{ animationDuration: '8s' }} />
+        <div className="absolute right-0 top-1/3 h-[380px] w-[380px] rounded-full bg-orange-400/10 blur-3xl animate-pulse" style={{ animationDuration: '10s' }} />
         <div className="absolute left-1/4 bottom-0 h-[320px] w-[320px] rounded-full bg-amber-400/5 blur-3xl" />
       </div>
 
@@ -82,7 +82,7 @@ export default function Landing() {
           </Link>
           <Link
             to="/register"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-white text-slate-950 px-4 py-2 text-sm font-bold hover:bg-blue-50 transition-colors shadow-lg shadow-black/20"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white text-slate-950 px-4 py-2 text-sm font-bold hover:bg-violet-50 transition-colors shadow-lg shadow-black/20"
           >
             Get started
             <ArrowRight size={14} />
@@ -92,7 +92,7 @@ export default function Landing() {
 
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-5 pb-16 pt-8 sm:px-8 sm:pt-14">
-        <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/25 bg-blue-400/10 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-200">
+        <div className="inline-flex items-center gap-2 rounded-full border border-violet-400/25 bg-violet-400/10 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-200">
           <Globe2 size={13} />
           One platform, every council
         </div>
@@ -101,7 +101,7 @@ export default function Landing() {
           className="mt-6 max-w-2xl text-[2.4rem] leading-[1.1] sm:text-5xl sm:leading-[1.08]"
           style={{ fontFamily: '"DM Serif Display", ui-serif, Georgia, serif' }}
         >
-          CPD built for <span className="text-blue-300">Africa&apos;s</span> health workforce
+          CPD built for <span className="text-orange-300">Africa&apos;s</span> health workforce
         </h1>
         <p className="mt-5 max-w-xl text-[15px] leading-7 text-white/60">
           Earn continuing professional development points, renew your licence, and grow clinical
@@ -111,7 +111,7 @@ export default function Landing() {
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
           <Link
             to="/register"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-500 px-6 py-4 text-sm font-black text-white shadow-xl shadow-blue-900/30 transition-colors"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 hover:bg-violet-500 px-6 py-4 text-sm font-black text-white shadow-xl shadow-violet-900/30 transition-colors"
           >
             Create your account
             <ArrowRight size={16} />
@@ -143,7 +143,7 @@ export default function Landing() {
                     <span
                       key={c.id}
                       title={c.name}
-                      className="inline-flex items-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black tracking-wide text-blue-200"
+                      className="inline-flex items-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black tracking-wide text-violet-200"
                     >
                       {c.acronym}
                     </span>
@@ -163,7 +163,7 @@ export default function Landing() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map((f) => (
             <div key={f.title} className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/15 text-blue-300">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
                 <f.icon size={18} />
               </div>
               <div className="mt-4 text-sm font-bold text-white/90">{f.title}</div>
@@ -175,7 +175,7 @@ export default function Landing() {
 
       {/* How it works */}
       <section className="mx-auto max-w-6xl px-5 pb-16 sm:px-8">
-        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-200">
+        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-200">
           <Sparkles size={13} />
           How it works
         </div>
@@ -192,11 +192,11 @@ export default function Landing() {
 
       {/* Closing CTA */}
       <section className="mx-auto max-w-6xl px-5 pb-16 sm:px-8">
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-blue-600/20 via-white/5 to-teal-500/10 p-8 sm:p-10">
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-violet-600/20 via-white/5 to-orange-500/10 p-8 sm:p-10">
           <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-bold text-white/90">
-                <BookOpen size={16} className="text-blue-300" />
+                <BookOpen size={16} className="text-violet-300" />
                 Ready when you are
               </div>
               <p className="mt-2 max-w-md text-sm text-white/55">
@@ -205,7 +205,7 @@ export default function Landing() {
             </div>
             <Link
               to="/register"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white text-slate-950 px-6 py-3.5 text-sm font-black hover:bg-blue-50 transition-colors shadow-xl shadow-black/20 flex-shrink-0"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white text-slate-950 px-6 py-3.5 text-sm font-black hover:bg-violet-50 transition-colors shadow-xl shadow-black/20 flex-shrink-0"
             >
               Create free account
               <ArrowRight size={16} />

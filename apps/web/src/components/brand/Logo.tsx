@@ -10,8 +10,8 @@ export function LogoMark({ className }: LogoMarkProps) {
     <svg viewBox="0 0 40 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
         <linearGradient id="cpdhub-logo-grad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#3b82f6" />
-          <stop offset="1" stopColor="#14b8a6" />
+          <stop stopColor="#7c3aed" />
+          <stop offset="1" stopColor="#f97316" />
         </linearGradient>
       </defs>
       <rect width="40" height="40" rx="11" fill="url(#cpdhub-logo-grad)" />
@@ -50,7 +50,7 @@ const SIZE_TEXT: Record<NonNullable<LogoProps['size']>, string> = {
 // tight (e.g. a collapsed sidebar rail).
 export function Logo({ variant = 'full', theme = 'dark', size = 'md', className }: LogoProps) {
   const textColor = theme === 'dark' ? 'text-white' : 'text-slate-900';
-  const accentColor = theme === 'dark' ? 'text-blue-300' : 'text-primary-600';
+  const accentColor = theme === 'dark' ? 'text-accent-400' : 'text-primary-600';
 
   return (
     <span className={`inline-flex items-center gap-2.5 ${className ?? ''}`}>

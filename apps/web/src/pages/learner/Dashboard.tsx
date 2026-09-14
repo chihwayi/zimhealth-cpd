@@ -119,7 +119,7 @@ export default function LearnerDashboard() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Hero banner */}
-      <div className="relative bg-gradient-to-br from-[#030c1a] via-[#0d1f3c] to-[#0a1628] overflow-hidden">
+      <div className="relative bg-gradient-to-br from-[#150a26] via-[#2e1065] to-[#1a0f2e] overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(59,130,246,0.20),transparent_55%),radial-gradient(circle_at_80%_15%,rgba(251,191,36,0.10),transparent_45%)]" />
         <div className="relative max-w-7xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between gap-6 flex-wrap">
@@ -146,7 +146,7 @@ export default function LearnerDashboard() {
                   value={cpd?.percentComplete ?? 0}
                   label={`${cpd?.totalPoints ?? 0}`}
                   sublabel={`/ ${cpd?.requiredPoints ?? 12} pts`}
-                  color={isCpdComplete ? '#22c55e' : isUrgent ? '#f59e0b' : '#3b82f6'}
+                  color={isCpdComplete ? '#22c55e' : isUrgent ? '#f59e0b' : '#7c3aed'}
                 />
               )}
               {isCpdComplete && (
