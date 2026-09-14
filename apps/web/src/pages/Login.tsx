@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { api } from '../lib/api';
+import { LanguageSwitcher } from '../components/ui/LanguageSwitcher';
 
 const ROLE_REDIRECT: Record<string, string> = {
   ADMIN: '/admin',
@@ -14,6 +16,7 @@ const ROLE_REDIRECT: Record<string, string> = {
 };
 
 export default function Login() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -73,6 +76,10 @@ export default function Login() {
     <main className="min-h-screen bg-[#030c1a] text-[#0a1628] relative flex items-center justify-center p-4 overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
       <div className="w-full max-w-md">
+        <div className="flex justify-end mb-4">
+          <LanguageSwitcher dark />
+        </div>
+
         {/* Brand */}
         <header className="text-center mb-8">
           <div className="flex justify-center mb-5">
@@ -87,7 +94,7 @@ export default function Login() {
         </header>
 
         <section className="bg-white/85 backdrop-blur rounded-2xl border border-white/15 shadow-2xl shadow-black/20 p-8">
-          <h2 className="text-lg font-semibold text-slate-900 mb-6">Sign in to your account</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-6">{t('auth.welcomeBack')}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             {notice && (
@@ -99,7 +106,7 @@ export default function Login() {
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
-                Email address
+                {t('auth.email')}
               </label>
               <input
                 id="email"
@@ -118,10 +125,10 @@ export default function Login() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label htmlFor="password" className="text-sm font-medium text-slate-700">
-                  Password
+                  {t('auth.password')}
                 </label>
                 <a href="/forgot-password" className="text-xs text-primary-700 hover:underline">
-                  Forgot password?
+                  {t('auth.forgotPassword')}
                 </a>
               </div>
               <div className="relative">
@@ -167,13 +174,13 @@ export default function Login() {
                   Signing in…
                 </span>
               ) : (
-                'Sign in'
+                t('auth.login')
               )}
             </button>
           </form>
 
           <p className="text-center text-sm text-slate-500 mt-6">
-            Don't have an account?{' '}
+            {t('auth.dontHaveAccount')}{' '}
             <a href="/register" className="text-primary-700 hover:underline font-medium">
               Register here
             </a>

@@ -20,17 +20,26 @@ import {
   AlertTriangle,
   MessageSquareWarning,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth.store';
+import { LanguageSwitcher } from '../ui/LanguageSwitcher';
 import clsx from 'clsx';
 
-const LEARNER_NAV = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/courses', icon: BookOpen, label: 'Browse Courses' },
-  { to: '/my-learning', icon: ClipboardList, label: 'My Learning' },
-  { to: '/points', icon: Award, label: 'My Points' },
-  { to: '/certificates', icon: FileCheck, label: 'Certificates' },
-  { to: '/subscription', icon: CreditCard, label: 'Subscription' },
-  { to: '/profile', icon: User, label: 'Profile' },
+interface NavItem {
+  to: string;
+  icon: typeof LayoutDashboard;
+  label: string;
+  i18nKey?: string;
+}
+
+const LEARNER_NAV: NavItem[] = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', i18nKey: 'nav.dashboard' },
+  { to: '/courses', icon: BookOpen, label: 'Browse Courses', i18nKey: 'nav.browseCourses' },
+  { to: '/my-learning', icon: ClipboardList, label: 'My Learning', i18nKey: 'nav.myLearning' },
+  { to: '/points', icon: Award, label: 'My Points', i18nKey: 'nav.myPoints' },
+  { to: '/certificates', icon: FileCheck, label: 'Certificates', i18nKey: 'nav.certificates' },
+  { to: '/subscription', icon: CreditCard, label: 'Subscription', i18nKey: 'nav.subscription' },
+  { to: '/profile', icon: User, label: 'Profile', i18nKey: 'nav.profile' },
 ];
 
 const CREATOR_NAV = [
@@ -123,16 +132,17 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   if (!user) return null;
 
   const baseNavItems = NAV_BY_ROLE[user.role] ?? LEARNER_NAV;
-  const navItems =
+  const navItems: NavItem[] =
     user.role === 'HELPDESK'
       ? baseNavItems
       : [
           ...baseNavItems,
-          { to: '/institution', icon: Building2, label: 'My Institution' },
-          { to: '/report-issue', icon: AlertTriangle, label: 'Report an issue' },
+          { to: '/institution', icon: Building2, label: 'My Institution', i18nKey: 'nav.myInstitution' },
+          { to: '/report-issue', icon: AlertTriangle, label: 'Report an issue', i18nKey: 'nav.reportIssue' },
         ];
   const isCouncilRole = user.role === 'NCZ_OFFICER' || user.role === 'COUNCIL_OFFICER';
   const isAdmin = user.role === 'ADMIN';
@@ -200,7 +210,7 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
 
       {/* Nav items */}
       <nav className="relative flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ to, icon: Icon, label }) => {
+        {navItems.map(({ to, icon: Icon, label, i18nKey }) => {
           const active = isActiveLink(to);
           return (
             <Link
@@ -219,7 +229,7 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
               )}
             >
               <Icon size={18} />
-              {label}
+              {i18nKey ? t(i18nKey) : label}
             </Link>
           );
         })}
@@ -244,6 +254,10 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
           </div>
         </div>
 
+        <div className="mt-3">
+          <LanguageSwitcher dark={isDarkSidebar} />
+        </div>
+
         <button
           type="button"
           onClick={() => {
@@ -251,14 +265,14 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
             navigate('/login', { replace: true });
           }}
           className={clsx(
-            'mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+            'mt-2 w-full inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
             isDarkSidebar
               ? 'border border-white/15 bg-white/8 text-white/80 hover:bg-white/15 hover:text-white'
               : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
           )}
         >
           <LogOut size={16} />
-          Logout
+          {t('common.logout')}
         </button>
       </div>
     </aside>
