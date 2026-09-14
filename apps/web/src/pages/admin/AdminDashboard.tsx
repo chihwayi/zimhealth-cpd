@@ -2377,7 +2377,7 @@ function VouchersSection() {
                     type="email"
                     value={form.institutionContactEmail}
                     onChange={(e) => setForm((f) => ({ ...f, institutionContactEmail: e.target.value }))}
-                    placeholder="hr-lead@hospital.org (must already have a ZimHealth account)"
+                    placeholder="hr-lead@hospital.org (must already have an account)"
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
                   />
                   <p className="text-xs text-slate-400 mt-1">

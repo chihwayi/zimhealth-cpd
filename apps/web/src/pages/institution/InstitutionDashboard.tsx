@@ -93,7 +93,7 @@ export default function InstitutionDashboard() {
         <Building2 className="mx-auto text-slate-300" size={40} />
         <h1 className="text-lg font-bold text-slate-900 mt-3">No institution batches yet</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Ask your ZimHealth CPD administrator to set up a sponsored batch for your organization and assign you as the
+          Ask your CPD Hub administrator to set up a sponsored batch for your organization and assign you as the
           institution contact.
         </p>
       </div>

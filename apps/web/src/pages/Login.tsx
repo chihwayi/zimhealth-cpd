@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { api } from '../lib/api';
 import { LanguageSwitcher } from '../components/ui/LanguageSwitcher';
+import { Logo } from '../components/brand/Logo';
 
 const ROLE_REDIRECT: Record<string, string> = {
   ADMIN: '/admin',
@@ -75,21 +76,23 @@ export default function Login() {
   return (
     <main className="min-h-screen bg-[#030c1a] text-[#0a1628] relative flex items-center justify-center p-4 overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(251,191,36,0.10),transparent_40%)]" />
-      <div className="w-full max-w-md">
-        <div className="flex justify-end mb-4">
+      <div className="pointer-events-none absolute -left-32 -bottom-32 h-[360px] w-[360px] rounded-full bg-blue-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 -top-24 h-[300px] w-[300px] rounded-full bg-teal-400/10 blur-3xl" />
+      <div className="w-full max-w-md relative">
+        <div className="flex items-center justify-between mb-6">
+          <Link to="/" className="inline-flex">
+            <Logo theme="dark" size="md" />
+          </Link>
           <LanguageSwitcher dark />
         </div>
 
         {/* Brand */}
         <header className="text-center mb-8">
-          <div className="flex justify-center mb-5">
-            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-14 w-auto max-w-[240px] object-contain" />
-          </div>
           <p className="text-sm font-medium tracking-wide uppercase text-blue-300/80 letter-spacing-widest">
             Continuing Professional Development
           </p>
           <p className="mt-1 text-white/50 text-xs">
-            For Zimbabwe's health professionals
+            For health professionals across Central &amp; Southern Africa
           </p>
         </header>
 
@@ -188,8 +191,8 @@ export default function Login() {
         </section>
 
         {/* Footer */}
-        <footer className="text-center text-xs text-slate-400 mt-6">
-          ZimHealth CPD · Zimbabwe · Learn. Earn. Advance.
+        <footer className="text-center text-xs text-white/35 mt-6">
+          Central and Southern African CPD Hub · Learn. Earn. Advance.
         </footer>
       </div>
     </main>

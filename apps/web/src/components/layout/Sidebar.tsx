@@ -24,6 +24,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth.store';
 import { LanguageSwitcher } from '../ui/LanguageSwitcher';
+import { Logo } from '../brand/Logo';
 import clsx from 'clsx';
 
 interface NavItem {
@@ -181,15 +182,8 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <div className="min-w-0">
-              <img
-                src="/brand-zimhealthcpd.png"
-                alt="ZimHealth CPD"
-                className={clsx(
-                  'h-9 w-auto max-w-[160px] object-contain',
-                  isDarkSidebar ? 'brightness-110' : '',
-                )}
-              />
-              <div className={clsx('text-xs mt-0.5 truncate', isDarkSidebar ? 'text-white/60' : 'text-slate-500')}>
+              <Logo theme={isDarkSidebar ? 'dark' : 'light'} size="sm" />
+              <div className={clsx('text-xs mt-1.5 truncate', isDarkSidebar ? 'text-white/60' : 'text-slate-500')}>
                 {ROLE_LABEL[user.role]}
               </div>
             </div>

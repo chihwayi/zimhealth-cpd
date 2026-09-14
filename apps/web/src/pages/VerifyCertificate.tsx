@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
-import { ShieldCheck, Award, BookOpen, AlertCircle } from 'lucide-react';
+import { ShieldCheck, BookOpen, AlertCircle } from 'lucide-react';
 import { api } from '../lib/api';
+import { Logo } from '../components/brand/Logo';
 
 type VerifyResponse = {
   certificateUuid: string;
@@ -28,10 +29,7 @@ export default function VerifyCertificatePage() {
         {/* Brand header */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
-            <div className="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center">
-              <Award size={12} className="text-white" />
-            </div>
-            <span className="text-sm font-semibold text-slate-800">ZimHealth CPD</span>
+            <Logo theme="light" size="sm" />
           </div>
         </div>
 
@@ -46,7 +44,7 @@ export default function VerifyCertificatePage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">Certificate Verification</h1>
-                <p className="text-xs text-slate-500 mt-0.5">Official ZimHealth CPD record</p>
+                <p className="text-xs text-slate-500 mt-0.5">Official CPD Hub record</p>
               </div>
             </div>
 
@@ -143,9 +141,9 @@ export default function VerifyCertificatePage() {
           {/* Footer */}
           <div className="bg-slate-50 border-t border-slate-100 px-8 py-4 flex items-center justify-between">
             <Link to="/login" className="text-xs text-slate-500 hover:text-primary-600 hover:underline">
-              ← Back to ZimHealth
+              ← Back to CPD Hub
             </Link>
-            <span className="text-xs text-slate-400">Powered by ZimHealth CPD · Zimbabwe</span>
+            <span className="text-xs text-slate-400">Powered by the Central and Southern African CPD Hub</span>
           </div>
         </div>
       </div>

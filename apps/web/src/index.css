@@ -20,3 +20,21 @@
     @apply w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 placeholder:text-slate-400;
   }
 }
+
+/* Slow, seamless auto-scroll for the auth-page feature rail — the list is
+   rendered twice back-to-back and scrolls exactly 50% before looping. */
+@keyframes auth-rail-scroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+.auth-rail {
+  animation: auth-rail-scroll 22s linear infinite;
+}
+.auth-rail:hover {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-rail {
+    animation: none;
+  }
+}

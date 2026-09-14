@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { AlertCircle, Mail, ArrowLeft } from 'lucide-react';
 import { api } from '../lib/api';
 import { toast } from '../components/ui/Toast';
+import { Logo } from '../components/brand/Logo';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -33,7 +34,7 @@ export default function ForgotPassword() {
       <div className="w-full max-w-md">
         <header className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-14 w-auto max-w-[240px] object-contain" />
+            <Logo theme="dark" size="lg" />
           </div>
           <h1 className="text-2xl font-bold text-white mt-2">Reset your password</h1>
           <p className="text-white/60 mt-1 text-sm">We’ll email you a link to set a new password.</p>

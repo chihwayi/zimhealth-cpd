@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Menu } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
+import { Logo } from '../brand/Logo';
 
 interface Props {
   children: ReactNode;
@@ -45,7 +46,7 @@ export function AppShell({ children }: Props) {
             <Menu size={18} />
           </button>
           <div className="flex items-center gap-2 min-w-0">
-            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-8 w-auto max-w-[150px] object-contain brightness-110" />
+            <Logo theme={isAdmin ? 'light' : 'dark'} size="sm" />
           </div>
         </div>
       </header>

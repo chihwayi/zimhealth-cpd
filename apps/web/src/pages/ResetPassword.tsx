@@ -5,6 +5,7 @@ import { AlertCircle, Eye, EyeOff, KeyRound, ArrowLeft } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 import { toast } from '../components/ui/Toast';
+import { Logo } from '../components/brand/Logo';
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
@@ -54,7 +55,7 @@ export default function ResetPassword() {
       <div className="w-full max-w-md">
         <header className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-14 w-auto max-w-[240px] object-contain" />
+            <Logo theme="dark" size="lg" />
           </div>
           <h1 className="text-2xl font-bold text-white mt-2">Set a new password</h1>
           <p className="text-white/60 mt-1 text-sm">Choose a strong password you’ll remember.</p>

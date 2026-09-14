@@ -6,6 +6,15 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, BadgeCheck, Building2, Eye, EyeOff, Sparkles, UserPlus, Wand2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
+import { Logo } from '../components/brand/Logo';
+
+const PANEL_HIGHLIGHTS: Array<[string, string]> = [
+  ['Council-aware learning', 'No unrelated course noise after registration.'],
+  ['Automatic renewal target', 'Required points come from your council rules.'],
+  ['Ready for mobile', 'The same profile powers the app and WhatsApp flows.'],
+  ['Works across the region', 'Every country keeps its own council, its own nurses.'],
+  ['Offline-friendly', 'Download modules and sync your progress later.'],
+];
 
 type Council = {
   id: string;
@@ -117,9 +126,10 @@ export default function Register() {
       <div className="relative grid w-full max-w-6xl grid-cols-1 overflow-hidden rounded-[2rem] border border-white/80 bg-white/85 shadow-2xl backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">
         <section className="relative hidden min-h-[720px] flex-col justify-between overflow-hidden bg-slate-950 p-10 text-white lg:flex">
           <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(59,130,246,0.35),_transparent_45%),radial-gradient(circle_at_80%_20%,_rgba(251,191,36,0.24),_transparent_30%)]" />
+          <div className="pointer-events-none absolute -left-20 -bottom-20 h-[280px] w-[280px] rounded-full bg-teal-400/10 blur-3xl" />
           <div className="relative">
             <div className="mb-8">
-              <img src="/brand-zimhealthcpd.png" alt="ZimHealth CPD" className="h-12 w-auto max-w-[200px] object-contain brightness-110" />
+              <Logo theme="dark" size="lg" />
             </div>
             <h1 className="mt-8 max-w-md text-5xl font-black leading-[0.95] tracking-tight">
               One CPD home for every health council.
@@ -129,35 +139,32 @@ export default function Register() {
             </p>
           </div>
 
-          <div className="relative grid gap-3">
-            {[
-              ['Council-aware learning', 'No unrelated course noise after registration.'],
-              ['Automatic renewal target', 'Required points come from your council rules.'],
-              ['Ready for mobile', 'The same profile will power app and WhatsApp flows.'],
-            ].map(([title, body]) => (
-              <div key={title} className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <Sparkles size={15} className="text-blue-300" />
-                  {title}
+          {/* Auto-scrolling feature rail — replaces the old static panel */}
+          <div className="relative h-[220px] overflow-hidden [mask-image:linear-gradient(to_bottom,transparent,black_15%,black_85%,transparent)]">
+            <div className="auth-rail grid gap-3">
+              {[...PANEL_HIGHLIGHTS, ...PANEL_HIGHLIGHTS].map(([title, body], i) => (
+                <div key={`${title}-${i}`} className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Sparkles size={15} className="text-blue-300" />
+                    {title}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-300">{body}</p>
                 </div>
-                <p className="mt-1 text-xs text-slate-300">{body}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
 
         <section className="p-6 sm:p-10">
           <header className="mb-8">
-            <img
-              src="/logo.png"
-              alt="ZimHealth CPD"
-              className="mx-auto mb-4 w-full max-w-xs h-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 p-2 lg:hidden"
-            />
+            <div className="mb-5 flex justify-center lg:hidden">
+              <Logo theme="light" size="lg" />
+            </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-blue-800">
               <BadgeCheck size={14} />
               Account setup
             </div>
-            <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950">Create your ZimHealth account</h2>
+            <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950">Create your account</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
               Choose learner registration or create a course creator account (admin approval required).
             </p>

@@ -14,9 +14,9 @@ export default defineConfig({
       devOptions: { enabled: false },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'ZimHealth CPD',
-        short_name: 'ZimHealth',
-        description: 'Continuing Professional Development for Zimbabwe Healthcare Professionals',
+        name: 'Central and Southern African CPD Hub',
+        short_name: 'CPD Hub',
+        description: 'Continuing Professional Development for Central and Southern Africa\'s healthcare professionals',
         theme_color: '#14b8a6',
         background_color: '#f8fafc',
         display: 'standalone',
