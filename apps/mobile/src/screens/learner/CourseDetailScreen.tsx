@@ -37,7 +37,7 @@ type CourseDetail = {
 type Enrollment = {
   id: string;
   completedAt: string | null;
-  courseId: string;
+  course: { id: string };
 };
 
 export default function CourseDetailScreen({ route, navigation }: CourseDetailScreenProps) {
@@ -73,7 +73,7 @@ export default function CourseDetailScreen({ route, navigation }: CourseDetailSc
     queryFn: () => api.get<Enrollment[]>('/api/enrollments'),
   });
 
-  const enrollment = enrollments?.find((e) => e.courseId === courseId);
+  const enrollment = enrollments?.find((e) => e.course.id === courseId);
 
   const enrollMutation = useMutation({
     mutationFn: () => api.post<Enrollment>(`/api/courses/${courseId}/enroll`, {}),
