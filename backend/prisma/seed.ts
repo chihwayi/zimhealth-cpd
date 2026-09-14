@@ -686,6 +686,71 @@ async function main() {
 
   console.log(`✅ Rich demo data seeded for grace@zimhealthcpd.co.zw — ${graceSummary.totalPoints}/${graceSummary.requiredPoints} pts, ${completedCourses.length} completed, ${inProgressCourses.length} in progress`);
 
+  // ─── 8. Shona language pack — the language switcher has no options to
+  // switch to without at least one active, non-English LanguagePack row. ───
+  const shonaTranslations: Record<string, string> = {
+    'common.save': 'Chengetedza',
+    'common.cancel': 'Dzima',
+    'common.submit': 'Tumira',
+    'common.loading': 'Kuisa mukati...',
+    'common.search': 'Tsvaga',
+    'common.download': 'Dhawunirodha',
+    'common.upload': 'Turudza',
+    'common.logout': 'Buda',
+    'common.back': 'Dzokera',
+    'common.continue': 'Enderera mberi',
+    'common.yes': 'Hongu',
+    'common.no': 'Kwete',
+    'common.error': 'Pane chakanganisika',
+    'common.retry': 'Edza zvakare',
+    'nav.dashboard': 'Dashboard',
+    'nav.browseCourses': 'Ona Makosi',
+    'nav.myLearning': 'Kudzidza Kwangu',
+    'nav.myPoints': 'Mapoinzi Angu',
+    'nav.certificates': 'Zvitupa',
+    'nav.subscription': 'Kunyoresa',
+    'nav.profile': 'Purofaira',
+    'nav.reportIssue': 'Shuma Dambudziko',
+    'nav.myInstitution': 'Chikoro/Chiuto Changu',
+    'auth.login': 'Pinda',
+    'auth.register': 'Nyoresa',
+    'auth.email': 'Email',
+    'auth.password': 'Password',
+    'auth.forgotPassword': 'Wakanganwa password?',
+    'auth.welcomeBack': 'Tinokugamuchira zvakare',
+    'auth.dontHaveAccount': 'Hauna account here?',
+    'auth.alreadyHaveAccount': 'Une account kare?',
+    'courses.enrollNow': 'Nyoresa Iye Zvino — Mahara',
+    'courses.continueLearning': 'Enderera Kudzidza',
+    'courses.completedReview': 'Zvapera — Ongorora',
+    'courses.cpdPoints': 'mapoinzi eCPD',
+    'courses.minutes': 'maminetsi',
+    'courses.modules': 'zvikamu',
+    'courses.enrolled': 'vakanyoreswa',
+    'courses.availableOffline': 'Inowanikwa kunze kweinternet',
+    'courses.allCategories': 'Mhando dzose',
+    'courses.allTracks': 'Nzira dzose',
+    'subscription.currentPlan': 'Chirongwa chazvino',
+    'subscription.upgrade': 'Vandudza',
+    'subscription.redeemVoucher': 'Shandisa vhocha',
+    'subscription.expiresOn': 'Inopera musi we',
+    'points.earned': 'Zvawanwa',
+    'points.required': 'Zvinodiwa',
+    'points.renewalDeadline': 'Zuva rekuvandudza',
+  };
+  await db.languagePack.upsert({
+    where: { code: 'sn' },
+    update: { translations: shonaTranslations, isActive: true },
+    create: {
+      code: 'sn',
+      name: 'Shona',
+      countryCodes: ['ZW'],
+      translations: shonaTranslations,
+      isActive: true,
+    },
+  });
+  console.log('✅ Shona ("sn") language pack seeded');
+
   console.log('\n🎉 Seed complete!\n');
   console.log(`Dev credentials (all use password: ${DEMO_PASSWORD}):`);
   console.log('  Admin:    admin@zimhealthcpd.co.zw');

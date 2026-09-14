@@ -14,7 +14,7 @@ const backend = {
   init() {},
   read(language: string, _namespace: string, callback: (err: unknown, data: Record<string, string> | null) => void) {
     if (language === 'en') {
-      callback(null, {});
+      callback(null, en);
       return;
     }
     api
