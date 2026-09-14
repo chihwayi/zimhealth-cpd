@@ -1,8 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
 import { Toaster } from './components/ui/Toast';
+import { lazyWithReload } from './lib/lazyWithReload';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -12,25 +13,26 @@ import VerifyCertificatePage from './pages/VerifyCertificate';
 import ReportIssue from './pages/ReportIssue';
 import { useAuthStore } from './store/auth.store';
 
-// Lazy-load all portals
-const LearnerDashboard = lazy(() => import('./pages/learner/Dashboard'));
-const LearnerCourses = lazy(() => import('./pages/learner/Courses'));
-const LearnerCoursePlayer = lazy(() => import('./pages/learner/CoursePlayer'));
-const LearnerMyLearning = lazy(() => import('./pages/learner/MyLearning'));
-const LearnerPoints = lazy(() => import('./pages/learner/Points'));
-const LearnerCertificates = lazy(() => import('./pages/learner/Certificates'));
-const LearnerProfile = lazy(() => import('./pages/learner/Profile'));
-const LearnerSubscription = lazy(() => import('./pages/learner/Subscription'));
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
-const CreatorDashboard = lazy(() => import('./pages/creator/CreatorDashboard'));
-const CreatorCourses = lazy(() => import('./pages/creator/CreatorCourses'));
-const CourseBuilder = lazy(() => import('./pages/creator/CourseBuilder'));
-const QuizBuilder = lazy(() => import('./pages/creator/QuizBuilder'));
-const CreatorAnalytics = lazy(() => import('./pages/creator/Analytics'));
-const MediaLibrary = lazy(() => import('./pages/creator/MediaLibrary'));
-const CouncilDashboard = lazy(() => import('./pages/council/CouncilDashboard'));
-const Helpdesk = lazy(() => import('./pages/admin/Helpdesk'));
-const InstitutionDashboard = lazy(() => import('./pages/institution/InstitutionDashboard'));
+// Lazy-load all portals. lazyWithReload (not React.lazy directly) auto-
+// recovers from stale-chunk errors after a deploy — see lib/lazyWithReload.ts.
+const LearnerDashboard = lazyWithReload(() => import('./pages/learner/Dashboard'));
+const LearnerCourses = lazyWithReload(() => import('./pages/learner/Courses'));
+const LearnerCoursePlayer = lazyWithReload(() => import('./pages/learner/CoursePlayer'));
+const LearnerMyLearning = lazyWithReload(() => import('./pages/learner/MyLearning'));
+const LearnerPoints = lazyWithReload(() => import('./pages/learner/Points'));
+const LearnerCertificates = lazyWithReload(() => import('./pages/learner/Certificates'));
+const LearnerProfile = lazyWithReload(() => import('./pages/learner/Profile'));
+const LearnerSubscription = lazyWithReload(() => import('./pages/learner/Subscription'));
+const AdminDashboard = lazyWithReload(() => import('./pages/admin/AdminDashboard'));
+const CreatorDashboard = lazyWithReload(() => import('./pages/creator/CreatorDashboard'));
+const CreatorCourses = lazyWithReload(() => import('./pages/creator/CreatorCourses'));
+const CourseBuilder = lazyWithReload(() => import('./pages/creator/CourseBuilder'));
+const QuizBuilder = lazyWithReload(() => import('./pages/creator/QuizBuilder'));
+const CreatorAnalytics = lazyWithReload(() => import('./pages/creator/Analytics'));
+const MediaLibrary = lazyWithReload(() => import('./pages/creator/MediaLibrary'));
+const CouncilDashboard = lazyWithReload(() => import('./pages/council/CouncilDashboard'));
+const Helpdesk = lazyWithReload(() => import('./pages/admin/Helpdesk'));
+const InstitutionDashboard = lazyWithReload(() => import('./pages/institution/InstitutionDashboard'));
 
 const Loader = () => (
   <main className="flex min-h-[50vh] flex-col items-center justify-center px-4" aria-busy="true">
