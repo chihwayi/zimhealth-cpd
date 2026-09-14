@@ -35,7 +35,7 @@ type Course = {
 
 type Enrollment = { id: string; course: { id: string } };
 
-const CATEGORIES = ['ALL', 'CLINICAL', 'PHARMACOLOGY', 'MATERNAL', 'PAEDIATRICS', 'MENTAL_HEALTH'];
+const CATEGORIES = ['ALL', 'CLINICAL', 'MANAGEMENT', 'ETHICS', 'RESEARCH'];
 
 const DIFF_COLOR: Record<string, string> = {
   BEGINNER:     '#22c55e',
@@ -58,7 +58,8 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
       if (category !== 'ALL') params.set('category', category);
       if (search.trim())      params.set('q', search.trim());
       try {
-        const data = await api.get<Course[]>(`/api/courses?${params.toString()}`);
+        const res = await api.get<{ courses: Course[] }>(`/api/courses?${params.toString()}`);
+        const data = res.courses;
         setUsingOfflineCache(false);
         if (category === 'ALL' && !search.trim()) {
           void saveOfflineCourseList(data);
@@ -153,7 +154,7 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10, gap: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10, gap: 8, alignItems: 'center' }}
       >
         {CATEGORIES.map((cat) => {
           const active = category === cat;
@@ -161,7 +162,7 @@ export default function CoursesScreen({ navigation }: CoursesListScreenProps) {
             <Pressable
               key={cat}
               onPress={() => setCategory(cat)}
-              style={[s.chip, active && s.chipActive]}
+              style={[s.chip, active && s.chipActive, { flexShrink: 0 }]}
             >
               <Text style={[s.chipText, active && s.chipTextActive]}>
                 {cat === 'ALL' ? 'All' : cat.replace('_', ' ')}

@@ -62,7 +62,7 @@ type RecommendationsData = {
 
 type Enrollment = {
   id: string;
-  progress: number;
+  progressPercent: number;
   completedAt: string | null;
   course: { id: string; title: string; category: string; cpdPoints: number };
 };
@@ -299,9 +299,9 @@ export default function DashboardScreen() {
                     </View>
                     <Text style={s.continueTitle} numberOfLines={2}>{item.course.title}</Text>
                     <View style={s.progressTrack}>
-                      <View style={[s.progressFill, { width: `${Math.round(item.progress * 100)}%` as any }]} />
+                      <View style={[s.progressFill, { width: `${Math.round(item.progressPercent)}%` as any }]} />
                     </View>
-                    <Text style={s.cardMeta}>{Math.round(item.progress * 100)}% complete</Text>
+                    <Text style={s.cardMeta}>{Math.round(item.progressPercent)}% complete</Text>
                   </Pressable>
                 )}
               />
@@ -370,7 +370,7 @@ export default function DashboardScreen() {
                       <Ionicons
                         name={ACHIEVEMENT_ICONS[a.code] ?? 'star-outline'}
                         size={18}
-                        color={a.earned ? '#fff' : TEXT3}
+                        color={a.earned ? '#fff' : '#A29CB8'}
                       />
                     }
                   />
