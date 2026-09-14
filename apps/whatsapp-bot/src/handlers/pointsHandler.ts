@@ -23,7 +23,7 @@ export async function handlePoints(msg: IncomingMessage, session: BotSession): P
     }
     const data: any = await res.json();
     const deadline = `Dec 31, ${data.cycleYear}`;
-    await sendMessage(msg.from, TEMPLATES.POINTS(data.totalPoints, data.requiredPoints, deadline));
+    await sendMessage(msg.from, TEMPLATES.POINTS(data.totalPoints, data.requiredPoints, deadline, data.currentStreak));
   } catch {
     await sendMessage(msg.from, 'Could not fetch your points right now. Please try again later.');
   }

@@ -113,6 +113,8 @@ describe('Quiz integrity (Sprint 10)', () => {
 
   afterAll(async () => {
     await db.auditLog.deleteMany({ where: { userId: learnerId } });
+    await db.learnerAchievement.deleteMany({ where: { learnerId } });
+    await db.learnerStreak.deleteMany({ where: { learnerId } });
     await db.cPDRecord.deleteMany({ where: { learnerId, courseId } });
     await db.quizAttempt.deleteMany({ where: { learnerId, quizId } });
     await db.quiz.deleteMany({ where: { id: quizId } });

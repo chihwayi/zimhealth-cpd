@@ -2,6 +2,7 @@ import type { ActivityType } from '@prisma/client';
 import { db } from '../lib/db';
 import { getRequiredPoints, getCurrentCycleYear, ACTIVITY_POINTS } from './cpd-rules';
 import { logger } from '../lib/logger';
+import { recordEngagementActivity } from './engagement';
 
 export interface CreditPointsInput {
   learnerId: string;
@@ -126,6 +127,11 @@ export async function creditPoints(
   });
 
   logger.info('CPD points credited', { learnerId, pointsEarned, activityType, cycleYear });
+
+  // Streaks/achievements are derived from genuine credited activity but never
+  // feed back into point calculation — see engagement.ts.
+  await recordEngagementActivity(learnerId);
+
   return { recordId: record.id, pointsEarned };
 }
 

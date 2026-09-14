@@ -4,6 +4,7 @@ import { db } from '../lib/db';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
 import { getLearnerCPDSummary, creditPoints } from '../services/cpd-engine';
+import { getStreak } from '../services/engagement';
 import { canEarnWhatsAppPoints, getLearnerEntitlements } from '../services/entitlements';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth.middleware';
@@ -116,8 +117,16 @@ router.get('/bot/:phone', requireBotSecret, async (req, res) => {
   try {
     const learner = await db.user.findUnique({ where: { phone: req.params.phone } });
     if (!learner) return res.status(404).json({ error: 'Learner not found' });
-    const summary = await getLearnerCPDSummary(learner.id);
-    res.json({ ...summary, learnerId: learner.id, fullName: learner.fullName });
+    const [summary, streak] = await Promise.all([
+      getLearnerCPDSummary(learner.id),
+      getStreak(learner.id),
+    ]);
+    res.json({
+      ...summary,
+      learnerId: learner.id,
+      fullName: learner.fullName,
+      currentStreak: streak.currentStreak,
+    });
   } catch {
     res.status(500).json({ error: 'Could not fetch points' });
   }

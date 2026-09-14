@@ -185,6 +185,8 @@ model User {
   issuesReported                IssueReport[]         @relation("IssueReporter")
   issuesAssigned                IssueReport[]         @relation("IssueAssignee")
   languagePacksUploaded         LanguagePack[]        @relation("LanguagePackUploader")
+  streak                        LearnerStreak?
+  achievements                  LearnerAchievement[]
 
   @@index([email])
   @@index([nczRegistrationNumber])
@@ -622,4 +624,44 @@ model Voucher {
 
   @@index([batchId])
   @@index([redeemedById])
+}
+
+// ─── Engagement (streaks + achievements) ──────────────────────────────────────
+// Personal-only, never comparative: no cross-learner leaderboard (see Sprint 11
+// non-goals — ranking nurses publicly needs a separate NCZ conversation first).
+// Points are never affected by streaks/achievements — CPD credit stays tied
+// strictly to genuine completed, approved activity (see cpd-engine.ts).
+
+model LearnerStreak {
+  id               String    @id @default(cuid())
+  learnerId        String    @unique
+  learner          User      @relation(fields: [learnerId], references: [id])
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+  // Date-only semantics (stored at UTC midnight) — the calendar day of the
+  // learner's most recent counted activity.
+  lastActivityDate DateTime?
+  updatedAt        DateTime  @updatedAt
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g. "FIRST_COURSE_COMPLETE"
+  title       String
+  description String
+  createdAt   DateTime @default(now())
+
+  learners LearnerAchievement[]
+}
+
+model LearnerAchievement {
+  id            String      @id @default(cuid())
+  learnerId     String
+  learner       User        @relation(fields: [learnerId], references: [id])
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  earnedAt      DateTime    @default(now())
+
+  @@unique([learnerId, achievementId])
+  @@index([learnerId])
 }

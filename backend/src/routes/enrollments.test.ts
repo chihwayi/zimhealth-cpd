@@ -177,6 +177,8 @@ describe('Enrollments API', () => {
 
   afterAll(async () => {
     await db.auditLog.deleteMany({ where: { userId: learnerId } });
+    await db.learnerAchievement.deleteMany({ where: { learnerId } });
+    await db.learnerStreak.deleteMany({ where: { learnerId } });
     await db.cPDRecord.deleteMany({ where: { learnerId, courseId } });
     await db.enrollment.deleteMany({ where: { id: enrollmentId } });
     await db.course.deleteMany({ where: { id: courseId } });

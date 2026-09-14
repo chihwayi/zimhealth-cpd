@@ -27,6 +27,7 @@ import telemetryRouter from './routes/telemetry';
 import issuesRouter from './routes/issues';
 import institutionsRouter from './routes/institutions';
 import localesRouter from './routes/locales';
+import learnersRouter from './routes/learners';
 import mockCouncilRegistryRouter from './routes/dev/mock-council-registry';
 import { scheduleDailySync } from './jobs/syncWorker';
 import recommendationsRouter from './routes/recommendations';
@@ -157,6 +158,7 @@ app.use('/api/bot', botRouter);
 app.use('/api/issues', issuesRouter);
 app.use('/api/institutions', institutionsRouter);
 app.use('/api/locales', localesRouter);
+app.use('/api/learners', learnersRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api', telemetryRouter);
 

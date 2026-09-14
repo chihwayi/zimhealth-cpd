@@ -7,6 +7,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { ProgressRing } from '../../components/ui/ProgressRing';
 import { api } from '../../lib/api';
 import { CourseCard } from '../../components/course/CourseCard';
+import { EngagementCard } from '../../components/dashboard/EngagementCard';
 
 type InProgressEnrollment = {
   id: string;
@@ -233,6 +234,8 @@ export default function LearnerDashboard() {
             }
           />
         </div>
+
+        <EngagementCard />
 
         {/* Continue Learning */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

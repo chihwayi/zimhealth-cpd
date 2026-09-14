@@ -33,8 +33,10 @@ Commands:
 Support: ${SUPPORT_EMAIL}
 Web: ${WEB_URL}`,
 
-  POINTS: (points: number, required: number, deadline: string) =>
-    `*Your CPD Points*\n\n✅ Earned: *${points}* pts\n📋 Required: *${required}* pts\n⏰ Deadline: ${deadline}\n\n${
+  POINTS: (points: number, required: number, deadline: string, currentStreak?: number) =>
+    `*Your CPD Points*\n\n✅ Earned: *${points}* pts\n📋 Required: *${required}* pts\n⏰ Deadline: ${deadline}${
+      currentStreak && currentStreak > 1 ? `\n🔥 ${currentStreak}-day streak — keep it going!` : ''
+    }\n\n${
       points >= required
         ? "🎉 You've completed your CPD requirements!"
         : `You need *${required - points} more points*. Reply 1 to start learning.`
