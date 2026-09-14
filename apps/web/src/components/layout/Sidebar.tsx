@@ -19,6 +19,7 @@ import {
   LogOut,
   AlertTriangle,
   MessageSquareWarning,
+  Languages,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth.store';
@@ -66,6 +67,7 @@ const ADMIN_NAV = [
   { to: '/admin/guidelines', icon: Wand2, label: 'Guideline Lab' },
   { to: '/admin/analytics', icon: BarChart2, label: 'Analytics' },
   { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
+  { to: '/admin/languages', icon: Languages, label: 'Languages' },
   { to: '/admin/council-sync', icon: RefreshCw, label: 'Council Sync' },
   { to: '/admin/audit', icon: ShieldAlert, label: 'Audit Log' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
