@@ -19,6 +19,7 @@
     "@aws-sdk/client-s3": "^3.600.0",
     "@aws-sdk/s3-request-presigner": "^3.600.0",
     "@zimhealth/ai-client": "workspace:*",
+    "@zimhealth/i18n": "workspace:*",
     "@zimhealth/types": "workspace:*",
     "@prisma/client": "^5.14.0",
     "@sentry/node": "^8.33.0",

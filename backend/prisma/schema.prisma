@@ -180,6 +180,7 @@ model User {
   vouchersRedeemed             Voucher[]              @relation("VoucherRedeemer")
   issuesReported                IssueReport[]         @relation("IssueReporter")
   issuesAssigned                IssueReport[]         @relation("IssueAssignee")
+  languagePacksUploaded         LanguagePack[]        @relation("LanguagePackUploader")
 
   @@index([email])
   @@index([nczRegistrationNumber])
@@ -510,6 +511,29 @@ model AuditLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+}
+
+// UI translation packs — English ships built into the web app as a static
+// bundle (always available, no network dependency). Any other language is a
+// DB row: upload a CSV/JSON/XLSX of key->translation pairs via
+// /api/locales and it's immediately servable, no code change or redeploy
+// needed. See Sprint 09 / docs/integrations/localization.md.
+model LanguagePack {
+  id           String   @id @default(cuid())
+  code         String   @unique // BCP-47-ish, e.g. "sn", "nd", "fr"
+  name         String   // display name, e.g. "Shona", "Ndebele", "Français"
+  // ISO 3166-1 alpha-2 countries this language is recommended for in the
+  // switcher (informational only — any user can still pick any active pack).
+  countryCodes String[] @default([])
+  translations Json     // flat { "nav.dashboard": "...", ... } key/value map
+  isActive     Boolean  @default(true)
+  uploadedById String?
+  uploadedBy   User?    @relation("LanguagePackUploader", fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([countryCodes])
 }
 
 model IssueReport {
