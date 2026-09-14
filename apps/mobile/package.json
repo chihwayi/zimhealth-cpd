@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "eas-build-post-install": "cd ../../packages/i18n && npm run build"
   },
   "dependencies": {
     "@babel/runtime": "^7.29.2",

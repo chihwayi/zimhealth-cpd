@@ -1,0 +1,25 @@
+{
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://eq0el77oug2eemd2ow8w5k6l.31.220.84.245.sslip.io",
+        "EXPO_PUBLIC_API_URL_ANDROID": "https://eq0el77oug2eemd2ow8w5k6l.31.220.84.245.sslip.io",
+        "EXPO_PUBLIC_API_URL_IOS": "https://eq0el77oug2eemd2ow8w5k6l.31.220.84.245.sslip.io"
+      }
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

@@ -22,12 +22,30 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#150a26"
       },
-      "package": "zw.co.zimhealthcpd.app"
+      "package": "zw.co.zimhealthcpd.app",
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "platforms": ["ios", "android"],
-    "plugins": ["expo-font", "expo-secure-store", "expo-sqlite", "expo-background-fetch"]
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-background-fetch"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "dded0f59-9068-49c4-a15b-12f0f617e29c"
+      }
+    },
+    "owner": "devoopzw"
   }
 }
