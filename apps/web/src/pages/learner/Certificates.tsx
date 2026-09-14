@@ -153,6 +153,7 @@ function CertificateCard({ cert }: { cert: Certificate }) {
               >
                 <Download size={14} />
                 Download PDF
+                <span className="sr-only"> (opens in a new tab)</span>
               </a>
             ) : (
               <span className="text-xs text-slate-400 italic">PDF generating…</span>
@@ -165,6 +166,7 @@ function CertificateCard({ cert }: { cert: Certificate }) {
             >
               <ExternalLink size={11} />
               View verification page
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
           </div>
         </div>

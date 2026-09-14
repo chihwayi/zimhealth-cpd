@@ -445,6 +445,7 @@ export default function LearnerDashboard() {
               className="w-full flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors border border-white/20"
             >
               Start learning on WhatsApp →
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
           </div>
         </div>

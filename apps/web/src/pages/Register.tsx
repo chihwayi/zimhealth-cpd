@@ -164,9 +164,11 @@ export default function Register() {
           </header>
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Account type">
               <button
                 type="button"
+                role="radio"
+                aria-checked={accountType === 'LEARNER'}
                 onClick={() => setAccountType('LEARNER')}
                 className={[
                   'rounded-2xl border px-4 py-3 text-left transition-colors',
@@ -182,6 +184,8 @@ export default function Register() {
               </button>
               <button
                 type="button"
+                role="radio"
+                aria-checked={accountType === 'CREATOR'}
                 onClick={() => setAccountType('CREATOR')}
                 className={[
                   'rounded-2xl border px-4 py-3 text-left transition-colors',

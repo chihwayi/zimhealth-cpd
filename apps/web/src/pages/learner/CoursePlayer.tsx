@@ -229,6 +229,7 @@ function SectionContent({
             >
               <Download size={16} />
               {isPptx ? 'Open PowerPoint (PPTX)' : 'Open Word document (DOCX)'}
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
           </div>
         ) : null}
@@ -264,6 +265,7 @@ function SectionContent({
           >
             <ExternalLink size={14} />
             Open Interactive Content
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         ) : (
           <p className="text-sm text-slate-500">No link provided for this interactive section.</p>
