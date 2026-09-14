@@ -8,11 +8,12 @@ import { api } from '../lib/api';
 import { Logo } from '../components/brand/Logo';
 
 const ROLE_REDIRECT: Record<string, string> = {
-  ADMIN: '/admin',
+  PLATFORM_OWNER: '/admin',
+  COUNTRY_ADMIN: '/admin',
   CONTENT_MANAGER: '/creator',
-  NCZ_OFFICER: '/ncz',
   COUNCIL_OFFICER: '/council',
   LEARNER: '/dashboard',
+  HELPDESK: '/helpdesk',
 };
 
 export default function Login() {
@@ -46,7 +47,7 @@ export default function Login() {
           id: string;
           email: string;
           fullName: string;
-          role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER' | 'LEARNER';
+          role: 'PLATFORM_OWNER' | 'COUNTRY_ADMIN' | 'CONTENT_MANAGER' | 'COUNCIL_OFFICER' | 'LEARNER' | 'HELPDESK';
           subscriptionTier?: string;
           subscriptionExpiresAt?: string;
           avatarUrl?: string;

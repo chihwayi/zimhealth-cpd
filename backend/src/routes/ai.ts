@@ -18,7 +18,7 @@ const router: ExpressRouter = Router();
 router.post(
   '/ingest-guideline',
   requireAuth,
-  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'),
   upload.single('file'),
   async (req: AuthRequest, res) => {
     const {

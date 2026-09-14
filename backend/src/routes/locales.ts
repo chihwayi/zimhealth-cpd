@@ -71,7 +71,7 @@ const UpsertLanguagePackSchema = z.object({
 // POST /api/locales — ADMIN uploads a CSV/JSON/XLSX file of translations.
 // This is the "just upload a file and it works" path: parses the file,
 // upserts a LanguagePack row, and it's immediately live for every client.
-router.post('/', requireAuth, requireRole('ADMIN'), localeUpload.single('file'), async (req: AuthRequest, res) => {
+router.post('/', requireAuth, requireRole('PLATFORM_OWNER'), localeUpload.single('file'), async (req: AuthRequest, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const data = UpsertLanguagePackSchema.parse(req.body);
@@ -121,7 +121,7 @@ const UpdateLanguagePackSchema = z.object({
 });
 
 // PATCH /api/locales/:code — ADMIN: rename, retire, or re-scope a pack.
-router.patch('/:code', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+router.patch('/:code', requireAuth, requireRole('PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const data = UpdateLanguagePackSchema.parse(req.body);
     const pack = await db.languagePack.update({
@@ -136,7 +136,7 @@ router.patch('/:code', requireAuth, requireRole('ADMIN'), async (req: AuthReques
 });
 
 // GET /api/locales/all/admin — ADMIN: full list including inactive packs.
-router.get('/all/admin', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/all/admin', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   try {
     const packs = await db.languagePack.findMany({
       orderBy: { createdAt: 'desc' },

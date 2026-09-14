@@ -10,7 +10,7 @@ import { z } from 'zod';
 const router: ExpressRouter = Router();
 
 async function getOfficerCouncilId(req: AuthRequest): Promise<string | null> {
-  if (req.user?.role === 'ADMIN') return null;
+  if (req.user?.role === 'PLATFORM_OWNER') return null;
   const officer = await db.user.findUnique({
     where: { id: req.user!.id },
     select: { councilId: true },
@@ -38,7 +38,7 @@ async function resolveComplianceFilters(
   const officerCouncilId = await getOfficerCouncilId(req);
 
   let councilId: string | null;
-  if (req.user?.role === 'ADMIN') {
+  if (req.user?.role === 'PLATFORM_OWNER') {
     councilId = requestedCouncilId ?? null;
   } else {
     if (requestedCouncilId && requestedCouncilId !== officerCouncilId) {
@@ -79,10 +79,10 @@ const RejectCouncilCourseSchema = z.object({
 router.patch(
   '/settings',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
-      if (req.user?.role === 'ADMIN') {
+      if (req.user?.role === 'PLATFORM_OWNER') {
         return res.status(400).json({ error: 'Admins should use /api/councils/:id to update council settings.' });
       }
 
@@ -125,10 +125,10 @@ router.patch(
 router.get(
   '/courses/reviews',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
-      if (req.user?.role === 'ADMIN') {
+      if (req.user?.role === 'PLATFORM_OWNER') {
         return res.status(400).json({ error: 'Admins should use a council-specific review view (not implemented yet).' });
       }
 
@@ -178,7 +178,7 @@ router.get(
 router.post(
   '/courses/:courseId/reviews/approve',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER'),
+  requireRole('COUNCIL_OFFICER'),
   async (req: AuthRequest, res) => {
     try {
       const councilId = await getOfficerCouncilId(req);
@@ -200,6 +200,20 @@ router.post(
           course: { select: { id: true, title: true, status: true } },
         },
       });
+
+      // A course goes live the moment ANY targeted council approves it — this
+      // is the ONLY path that can set a course to PUBLISHED (see
+      // courses.ts POST /:id/approve, which can no longer do this). Per-council
+      // learner visibility is still gated separately by
+      // course-eligibility.ts's requirement that the learner's OWN council has
+      // an APPROVED review, so approving for one council never exposes the
+      // course to another council's learners.
+      if (updated.course.status !== 'PUBLISHED') {
+        await db.course.update({
+          where: { id: req.params.courseId },
+          data: { status: 'PUBLISHED' },
+        });
+      }
 
       await db.auditLog.create({
         data: {
@@ -223,7 +237,7 @@ router.post(
 router.post(
   '/courses/:courseId/reviews/reject',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER'),
+  requireRole('COUNCIL_OFFICER'),
   async (req: AuthRequest, res) => {
     try {
       const councilId = await getOfficerCouncilId(req);
@@ -268,7 +282,7 @@ router.post(
 router.patch(
   '/courses/:courseId/reviews/points',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER'),
+  requireRole('COUNCIL_OFFICER'),
   async (req: AuthRequest, res) => {
     try {
       const councilId = await getOfficerCouncilId(req);
@@ -311,7 +325,7 @@ router.patch(
 router.get(
   '/learners',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
   try {
     const {
@@ -408,7 +422,7 @@ router.get(
 router.get(
   '/learners/:id/history',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
     const councilId = await getOfficerCouncilId(req);
@@ -485,7 +499,7 @@ const UpdateLearnerNczSchema = z.object({
 router.patch(
   '/learners/:id',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
       const data = UpdateLearnerNczSchema.parse(req.body);
@@ -526,7 +540,7 @@ router.patch(
 router.get(
   '/compliance',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
     const year = parseInt((req.query.year as string) ?? String(new Date().getFullYear()), 10);
@@ -578,7 +592,7 @@ router.get(
 router.get(
   '/export/csv',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
     const year = parseInt((req.query.year as string) ?? String(new Date().getFullYear()), 10);
@@ -724,7 +738,7 @@ router.get('/verify/:uuid', async (req, res) => {
 router.post(
   '/sync/trigger',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
       const onlyFailed = req.query.onlyFailed === 'true';
@@ -739,7 +753,7 @@ router.post(
 router.post(
   '/sync/retry/:id',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
       const result = await retryNczRecord(req.params.id, req.user?.id ?? 'manual');
@@ -749,7 +763,7 @@ router.post(
     }
 });
 
-router.get('/sync/logs', requireAuth, requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'), async (_req, res) => {
+router.get('/sync/logs', requireAuth, requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'), async (_req, res) => {
   try {
     const logs = await db.nczSyncLog.findMany({
       orderBy: { syncedAt: 'desc' },
@@ -764,7 +778,7 @@ router.get('/sync/logs', requireAuth, requireRole('NCZ_OFFICER', 'COUNCIL_OFFICE
 router.get(
   '/sync/summary',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (_req, res) => {
     try {
     const [pending, blocked, failed, synced] = await Promise.all([
@@ -783,7 +797,7 @@ router.get(
 router.get(
   '/sync/blocked',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req, res) => {
     try {
     const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 200);
@@ -805,7 +819,7 @@ router.get(
 router.get(
   '/sync/failed',
   requireAuth,
-  requireRole('NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN'),
+  requireRole('COUNCIL_OFFICER', 'PLATFORM_OWNER'),
   async (req, res) => {
     try {
     const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 200);

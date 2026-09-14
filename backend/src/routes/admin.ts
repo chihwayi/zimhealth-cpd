@@ -14,11 +14,35 @@ import {
 } from '../lib/redis';
 import { ACTIVITY_POINTS, REQUIRED_POINTS } from '../services/cpd-rules';
 import type { AuthRequest } from '../middleware/auth.middleware';
+import { canAssignRole } from '../lib/roles';
+import type { Prisma, Role } from '@prisma/client';
 
 const router: ExpressRouter = Router();
 const AVAILABLE_PROVIDERS = ['anthropic', 'openai', 'gemini', 'ollama'] as const;
-const AVAILABLE_ROLES = ['ADMIN', 'CONTENT_MANAGER', 'NCZ_OFFICER', 'LEARNER'] as const;
+const AVAILABLE_ROLES = ['PLATFORM_OWNER', 'COUNTRY_ADMIN', 'CONTENT_MANAGER', 'COUNCIL_OFFICER', 'LEARNER', 'HELPDESK'] as const;
 const AVAILABLE_TIERS = ['FREE', 'STANDARD', 'INSTITUTION', 'DIASPORA'] as const;
+
+// A COUNTRY_ADMIN only ever sees/touches: learners whose council is in their
+// country, and CONTENT_MANAGER/HELPDESK accounts stamped with their own
+// countryCode (set when that admin created them — see PATCH /users/:id).
+// COUNCIL_OFFICER, COUNTRY_ADMIN, and PLATFORM_OWNER accounts are never
+// reachable through this scope, regardless of country.
+function countryScopeWhere(countryCode: string): Prisma.UserWhereInput {
+  return {
+    OR: [
+      { role: 'LEARNER', council: { countryCode } },
+      { role: { in: ['CONTENT_MANAGER', 'HELPDESK'] }, countryCode },
+    ],
+  };
+}
+
+async function isUserInCountryScope(userId: string, countryCode: string): Promise<boolean> {
+  const match = await db.user.findFirst({
+    where: { id: userId, ...countryScopeWhere(countryCode) },
+    select: { id: true },
+  });
+  return Boolean(match);
+}
 
 const UpdateUserSchema = z.object({
   role: z.enum(AVAILABLE_ROLES).optional(),
@@ -49,7 +73,7 @@ function getConfiguredProviders(): string[] {
   return providers;
 }
 
-router.get('/config/ai', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/config/ai', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   const provider = await getAIProvider();
   res.json({
     provider,
@@ -58,7 +82,7 @@ router.get('/config/ai', requireAuth, requireRole('ADMIN'), async (_req, res) =>
   });
 });
 
-router.get('/ai/health', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/ai/health', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   try {
     const provider = await getAIProvider();
     const since = new Date(Date.now() - 1000 * 60 * 60 * 24);
@@ -130,7 +154,7 @@ router.get('/ai/health', requireAuth, requireRole('ADMIN'), async (_req, res) =>
   }
 });
 
-router.get('/telemetry/summary', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/telemetry/summary', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   try {
     const since24h = new Date(Date.now() - 1000 * 60 * 60 * 24);
     const [enrollmentsCompleted, enrollmentsInProgress, quizAttempts24h, offlineDownloads24h, botTutorEvents24h] = await Promise.all([
@@ -153,7 +177,7 @@ router.get('/telemetry/summary', requireAuth, requireRole('ADMIN'), async (_req,
   }
 });
 
-router.patch('/config/ai', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+router.patch('/config/ai', requireAuth, requireRole('PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   const { provider } = req.body as { provider?: string };
 
   if (!provider || !AVAILABLE_PROVIDERS.includes(provider as (typeof AVAILABLE_PROVIDERS)[number])) {
@@ -183,7 +207,7 @@ router.get('/config/public', async (_req, res) => {
   res.json({ maintenanceMode, aiFeaturesEnabled });
 });
 
-router.get('/config/system', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/config/system', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   const [provider, maintenanceMode, aiFeaturesEnabled] = await Promise.all([
     getAIProvider(),
     getMaintenanceMode(),
@@ -202,7 +226,7 @@ router.get('/config/system', requireAuth, requireRole('ADMIN'), async (_req, res
   });
 });
 
-router.patch('/config/system', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+router.patch('/config/system', requireAuth, requireRole('PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const data = UpdateSystemConfigSchema.parse(req.body);
 
@@ -235,24 +259,38 @@ router.patch('/config/system', requireAuth, requireRole('ADMIN'), async (req: Au
   }
 });
 
-router.get('/users', requireAuth, requireRole('ADMIN'), async (req, res) => {
+router.get('/users', requireAuth, requireRole('PLATFORM_OWNER', 'COUNTRY_ADMIN'), async (req: AuthRequest, res) => {
   try {
     const { search, role, approved, page = '1', limit = '25' } = req.query as Record<string, string>;
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
     const skip = (pageNumber - 1) * pageSize;
 
-    const where: Record<string, unknown> = {};
-    if (role) where.role = role;
+    const where: Prisma.UserWhereInput = {};
+    if (role) where.role = role as Role;
     if (approved === 'true') where.isApproved = true;
     if (approved === 'false') where.isApproved = false;
+
+    const and: Prisma.UserWhereInput[] = [];
     if (search) {
-      where.OR = [
-        { fullName: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { nczRegistrationNumber: { contains: search, mode: 'insensitive' } },
-      ];
+      and.push({
+        OR: [
+          { fullName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { nczRegistrationNumber: { contains: search, mode: 'insensitive' } },
+        ],
+      });
     }
+
+    if (req.user!.role === 'COUNTRY_ADMIN') {
+      const actor = await db.user.findUnique({ where: { id: req.user!.id }, select: { countryCode: true } });
+      if (!actor?.countryCode) {
+        return res.status(400).json({ error: 'Country Admin is not assigned to a country.' });
+      }
+      and.push(countryScopeWhere(actor.countryCode));
+    }
+
+    if (and.length) where.AND = and;
 
     const [users, total] = await Promise.all([
       db.user.findMany({
@@ -284,11 +322,12 @@ router.get('/users', requireAuth, requireRole('ADMIN'), async (req, res) => {
   }
 });
 
-router.patch('/users/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+router.patch('/users/:id', requireAuth, requireRole('PLATFORM_OWNER', 'COUNTRY_ADMIN'), async (req: AuthRequest, res) => {
   try {
     const data = UpdateUserSchema.parse(req.body);
+    const actorRole = req.user!.role as Role;
 
-    if (req.params.id === req.user?.id && data.role && data.role !== 'ADMIN') {
+    if (req.params.id === req.user?.id && data.role && data.role !== actorRole) {
       return res.status(400).json({ error: 'Cannot change your own role' });
     }
 
@@ -296,10 +335,39 @@ router.patch('/users/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRe
       return res.status(400).json({ error: 'Cannot deactivate your own account' });
     }
 
+    let countryCodeStamp: string | undefined;
+    if (actorRole === 'COUNTRY_ADMIN') {
+      const actor = await db.user.findUnique({ where: { id: req.user!.id }, select: { countryCode: true } });
+      if (!actor?.countryCode) {
+        return res.status(400).json({ error: 'Country Admin is not assigned to a country.' });
+      }
+      countryCodeStamp = actor.countryCode;
+
+      // Country Admin may only touch users already inside their own country
+      // scope (or a brand-new role assignment they're about to create — see
+      // canAssignRole below, which independently caps what role they can grant).
+      const target = await db.user.findUnique({ where: { id: req.params.id }, select: { role: true } });
+      if (!target) return res.status(404).json({ error: 'User not found' });
+      const inScope = target.role === 'LEARNER' || target.role === 'CONTENT_MANAGER' || target.role === 'HELPDESK'
+        ? await isUserInCountryScope(req.params.id, actor.countryCode)
+        : false;
+      if (!inScope) {
+        return res.status(403).json({ error: 'This user is outside your country scope.' });
+      }
+    }
+
+    if (data.role && !canAssignRole(actorRole, data.role as Role)) {
+      return res.status(403).json({ error: `${actorRole} cannot assign the ${data.role} role.` });
+    }
+
     const updated = await db.user.update({
       where: { id: req.params.id },
       data: {
         ...data,
+        // Country Admin-created/managed staff accounts are stamped with the
+        // admin's own country so they remain in that admin's scope going
+        // forward (LEARNER country is always derived from council instead).
+        ...(countryCodeStamp && data.role && data.role !== 'LEARNER' ? { countryCode: countryCodeStamp } : {}),
         subscriptionExpiresAt:
           data.subscriptionExpiresAt === undefined
             ? undefined
@@ -313,7 +381,7 @@ router.patch('/users/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRe
       await db.auditLog.create({
         data: {
           userId: req.user.id,
-          action: 'ADMIN_USER_UPDATED',
+          action: data.role ? 'ROLE_ASSIGNED' : 'ADMIN_USER_UPDATED',
           entityType: 'User',
           entityId: req.params.id,
           meta: data,
@@ -328,12 +396,19 @@ router.patch('/users/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRe
   }
 });
 
-router.delete('/users/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+router.delete('/users/:id', requireAuth, requireRole('PLATFORM_OWNER', 'COUNTRY_ADMIN'), async (req: AuthRequest, res) => {
   if (req.params.id === req.user?.id) {
     return res.status(400).json({ error: 'Cannot delete your own account' });
   }
 
   try {
+    if (req.user!.role === 'COUNTRY_ADMIN') {
+      const actor = await db.user.findUnique({ where: { id: req.user!.id }, select: { countryCode: true } });
+      if (!actor?.countryCode || !(await isUserInCountryScope(req.params.id, actor.countryCode))) {
+        return res.status(403).json({ error: 'This user is outside your country scope.' });
+      }
+    }
+
     await db.user.update({ where: { id: req.params.id }, data: { isActive: false } });
     if (req.user) {
       await db.auditLog.create({
@@ -351,7 +426,7 @@ router.delete('/users/:id', requireAuth, requireRole('ADMIN'), async (req: AuthR
   }
 });
 
-router.get('/courses/pending', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/courses/pending', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   try {
     const courses = await db.course.findMany({
       where: { status: 'UNDER_REVIEW' },
@@ -367,7 +442,7 @@ router.get('/courses/pending', requireAuth, requireRole('ADMIN'), async (_req, r
   }
 });
 
-router.get('/stats', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/stats', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   try {
     const year = new Date().getFullYear();
     const [totalLearners, activeSubs, publishedCourses, pendingApprovals, totalPointsResult] =
@@ -397,7 +472,7 @@ router.get('/stats', requireAuth, requireRole('ADMIN'), async (_req, res) => {
   }
 });
 
-router.get('/audit', requireAuth, requireRole('ADMIN'), async (req, res) => {
+router.get('/audit', requireAuth, requireRole('PLATFORM_OWNER'), async (req, res) => {
   try {
     const { page = '1' } = req.query as Record<string, string>;
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
@@ -418,7 +493,7 @@ router.get('/audit', requireAuth, requireRole('ADMIN'), async (req, res) => {
   }
 });
 
-router.get('/analytics/monthly', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/analytics/monthly', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   try {
     const months: Array<{ month: string; learners: number; points: number }> = [];
 
@@ -454,7 +529,7 @@ router.get('/analytics/monthly', requireAuth, requireRole('ADMIN'), async (_req,
   }
 });
 
-router.get('/analytics/subscriptions', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/analytics/subscriptions', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   try {
     const groups = await db.user.groupBy({
       by: ['subscriptionTier'],
@@ -473,7 +548,7 @@ router.get('/analytics/subscriptions', requireAuth, requireRole('ADMIN'), async 
   }
 });
 
-router.get('/subscriptions/summary', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/subscriptions/summary', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   try {
     const now = new Date();
     const [activeTotal, expiringSoon, byGateway, byTier] = await Promise.all([
@@ -513,7 +588,7 @@ router.get('/subscriptions/summary', requireAuth, requireRole('ADMIN'), async (_
   }
 });
 
-router.get('/subscriptions/recent', requireAuth, requireRole('ADMIN'), async (req, res) => {
+router.get('/subscriptions/recent', requireAuth, requireRole('PLATFORM_OWNER'), async (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '20'), 10) || 20, 1), 100);
     const subscriptions = await db.subscription.findMany({

@@ -2,10 +2,11 @@ import { Sidebar } from './Sidebar';
 import { OfflineBanner } from '../ui/OfflineBanner';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { Menu } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { Menu, UserCog } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
 import { Logo } from '../brand/Logo';
+import { api } from '../../lib/api';
 
 interface Props {
   children: ReactNode;
@@ -14,16 +15,49 @@ interface Props {
 export function AppShell({ children }: Props) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const isCouncilRole = user?.role === 'NCZ_OFFICER' || user?.role === 'COUNCIL_OFFICER';
-  const isAdmin = user?.role === 'ADMIN';
+  const ownerSession = useAuthStore((s) => s.ownerSession);
+  const stopImpersonation = useAuthStore((s) => s.stopImpersonation);
+  const isCouncilRole = user?.role === 'COUNCIL_OFFICER';
+  const isAdmin = user?.role === 'PLATFORM_OWNER' || user?.role === 'COUNTRY_ADMIN';
 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
+  async function handleStopImpersonating() {
+    try {
+      await api.post('/api/auth/impersonate/end', {});
+    } catch {
+      // best-effort audit call — still restore the owner session locally either way
+    }
+    stopImpersonation();
+    navigate('/admin');
+  }
+
   return (
-    <div className={isCouncilRole ? 'relative flex min-h-dvh bg-[#150a26]' : 'relative flex min-h-dvh bg-slate-100'}>
+    <div className="min-h-dvh flex flex-col">
+      {ownerSession && (
+        <div className="flex-shrink-0 z-[60] flex flex-wrap items-center justify-center gap-3 bg-violet-700 px-4 py-2 text-xs font-semibold text-white text-center">
+          <UserCog size={14} className="flex-shrink-0" />
+          <span>
+            Viewing as {user?.fullName} ({user?.role}) — impersonation session, expires automatically in 30 min.
+          </span>
+          <button
+            type="button"
+            onClick={handleStopImpersonating}
+            className="rounded-md bg-white/15 px-2.5 py-1 hover:bg-white/25"
+          >
+            Stop impersonating
+          </button>
+        </div>
+      )}
+      <div
+        className={
+          (isCouncilRole ? 'relative flex flex-1 min-h-0 bg-[#150a26]' : 'relative flex flex-1 min-h-0 bg-slate-100')
+        }
+      >
       {isCouncilRole ? (
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_85%,rgba(124,58,237,0.18),transparent_55%),radial-gradient(circle_at_80%_18%,rgba(249,115,22,0.12),transparent_40%)]" />
       ) : isAdmin ? (
@@ -73,6 +107,7 @@ export function AppShell({ children }: Props) {
         <OfflineBanner />
         {children}
       </main>
+      </div>
     </div>
   );
 }

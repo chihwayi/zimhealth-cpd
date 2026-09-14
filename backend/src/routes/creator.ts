@@ -16,10 +16,10 @@ function getMonthLabel(date: Date) {
 }
 
 // GET /api/creator/courses — creator's own courses
-router.get('/courses', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.get('/courses', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const courses = await db.course.findMany({
-      where: req.user!.role === 'ADMIN' ? {} : { creatorId: req.user!.id },
+      where: req.user!.role === 'PLATFORM_OWNER' ? {} : { creatorId: req.user!.id },
       orderBy: { updatedAt: 'desc' },
       include: {
         _count: { select: { enrollments: true } },
@@ -44,10 +44,10 @@ router.get('/courses', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), asy
 });
 
 // GET /api/creator/analytics/summary — overall stats for creator
-router.get('/analytics/summary', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.get('/analytics/summary', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const creatorId = req.user!.id;
-    const isAdmin = req.user!.role === 'ADMIN';
+    const isAdmin = req.user!.role === 'PLATFORM_OWNER';
     const where = isAdmin ? {} : { creatorId };
 
     const courses = await db.course.findMany({ where, select: { id: true } });
@@ -74,10 +74,10 @@ router.get('/analytics/summary', requireAuth, requireRole('CONTENT_MANAGER', 'AD
 });
 
 // GET /api/creator/analytics/courses — per-course metrics
-router.get('/analytics/courses', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.get('/analytics/courses', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const creatorId = req.user!.id;
-    const isAdmin = req.user!.role === 'ADMIN';
+    const isAdmin = req.user!.role === 'PLATFORM_OWNER';
     const courseWhere = isAdmin ? {} : { creatorId };
 
     const courses = await db.course.findMany({
@@ -141,11 +141,11 @@ router.get('/analytics/courses', requireAuth, requireRole('CONTENT_MANAGER', 'AD
 });
 
 // GET /api/creator/courses/:id/analytics
-router.get('/courses/:id/analytics', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.get('/courses/:id/analytics', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const course = await db.course.findUnique({ where: { id: req.params.id } });
     if (!course) return res.status(404).json({ error: 'Course not found' });
-    if (req.user!.role !== 'ADMIN' && course.creatorId !== req.user!.id) {
+    if (req.user!.role !== 'PLATFORM_OWNER' && course.creatorId !== req.user!.id) {
       return res.status(403).json({ error: 'Not authorised' });
     }
 
@@ -177,10 +177,10 @@ router.get('/courses/:id/analytics', requireAuth, requireRole('CONTENT_MANAGER',
 });
 
 // GET /api/creator/analytics/timeseries
-router.get('/analytics/timeseries', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.get('/analytics/timeseries', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const creatorId = req.user!.id;
-    const isAdmin = req.user!.role === 'ADMIN';
+    const isAdmin = req.user!.role === 'PLATFORM_OWNER';
     const monthStarts = Array.from({ length: 6 }, (_, index) => {
       const date = new Date();
       date.setUTCDate(1);

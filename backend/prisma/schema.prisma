@@ -9,11 +9,20 @@ datasource db {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
+// Level 0: PLATFORM_OWNER — global, cross-country, infrastructure/secrets/governance.
+// Level 1: COUNCIL_OFFICER — per-council content governance + compliance (merged
+//          from the legacy NCZ_OFFICER, which was Zimbabwe-specific naming; every
+//          route already treated the two roles identically).
+// Level 2: COUNTRY_ADMIN — per-country operations only (see User.countryCode).
+// Level 3: LEARNER — own account only.
+// Level 4: CONTENT_MANAGER — own draft content only, cannot publish directly.
+// Cross-cutting: HELPDESK — issue-report triage, reports to PLATFORM_OWNER, not
+//                country/council scoped.
 enum Role {
-  ADMIN
-  CONTENT_MANAGER
-  NCZ_OFFICER
+  PLATFORM_OWNER
+  COUNTRY_ADMIN
   COUNCIL_OFFICER
+  CONTENT_MANAGER
   LEARNER
   HELPDESK
 }
@@ -140,53 +149,57 @@ enum CouncilCourseReviewStatus {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id                    String           @id @default(cuid())
-  email                 String           @unique
-  passwordHash          String
-  fullName              String
-  role                  Role             @default(LEARNER)
-  councilId             String?
-  council               Council?         @relation(fields: [councilId], references: [id])
-  professionalTitle     String?
-  registrationNumber    String?          @unique
-  cadre                 Cadre?
-  nczRegistrationNumber String?          @unique
-  institution           String?
-  province              String?
-  district              String?
-  phone                 String?          @unique
-  avatarUrl             String?
-  specialtyArea         String?
+  id                     String           @id @default(cuid())
+  email                  String           @unique
+  passwordHash           String
+  fullName               String
+  role                   Role             @default(LEARNER)
+  councilId              String?
+  council                Council?         @relation(fields: [councilId], references: [id])
+  // ISO 3166-1 alpha-2 — only meaningful for COUNTRY_ADMIN, scopes that admin's
+  // operational access (user mgmt, vouchers, local support) to their own country.
+  // Learners/council officers derive country via their council instead.
+  countryCode            String?
+  professionalTitle      String?
+  registrationNumber     String?          @unique
+  cadre                  Cadre?
+  nczRegistrationNumber  String?          @unique
+  institution            String?
+  province               String?
+  district               String?
+  phone                  String?          @unique
+  avatarUrl              String?
+  specialtyArea          String?
   // Preferred content language — currently English/Shona/Ndebele
   // (Zimbabwe-specific course content tagging, distinct from the
   // country-agnostic dynamic UI translations in LanguagePack).
-  language              Language         @default(ENGLISH)
+  language               Language         @default(ENGLISH)
   resetPasswordTokenHash String?
   resetPasswordExpiresAt DateTime?
-  subscriptionTier      SubscriptionTier @default(FREE)
-  subscriptionExpiresAt DateTime?
-  isActive              Boolean          @default(true)
-  isApproved            Boolean          @default(true) // false for new CONTENT_MANAGER until Admin approves
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
+  subscriptionTier       SubscriptionTier @default(FREE)
+  subscriptionExpiresAt  DateTime?
+  isActive               Boolean          @default(true)
+  isApproved             Boolean          @default(true) // false for new CONTENT_MANAGER until Admin approves
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
   // Relations
-  coursesCreated   Course[]       @relation("CourseCreator")
-  enrollments      Enrollment[]
-  cpdRecords       CPDRecord[]
-  certificates     Certificate[]
-  quizAttempts     QuizAttempt[]
-  nczFlags         NczFlag[]
-  auditLogs        AuditLog[]
+  coursesCreated               Course[]              @relation("CourseCreator")
+  enrollments                  Enrollment[]
+  cpdRecords                   CPDRecord[]
+  certificates                 Certificate[]
+  quizAttempts                 QuizAttempt[]
+  nczFlags                     NczFlag[]
+  auditLogs                    AuditLog[]
   councilCourseReviewsReviewed CouncilCourseReview[] @relation("CouncilCourseReviewedBy")
-  voucherBatchesCreated        VoucherBatch[]         @relation("VoucherBatchCreator")
-  voucherBatchesAdministered   VoucherBatch[]         @relation("VoucherBatchInstitutionContact")
-  vouchersRedeemed             Voucher[]              @relation("VoucherRedeemer")
-  issuesReported                IssueReport[]         @relation("IssueReporter")
-  issuesAssigned                IssueReport[]         @relation("IssueAssignee")
-  languagePacksUploaded         LanguagePack[]        @relation("LanguagePackUploader")
-  streak                        LearnerStreak?
-  achievements                  LearnerAchievement[]
+  voucherBatchesCreated        VoucherBatch[]        @relation("VoucherBatchCreator")
+  voucherBatchesAdministered   VoucherBatch[]        @relation("VoucherBatchInstitutionContact")
+  vouchersRedeemed             Voucher[]             @relation("VoucherRedeemer")
+  issuesReported               IssueReport[]         @relation("IssueReporter")
+  issuesAssigned               IssueReport[]         @relation("IssueAssignee")
+  languagePacksUploaded        LanguagePack[]        @relation("LanguagePackUploader")
+  streak                       LearnerStreak?
+  achievements                 LearnerAchievement[]
 
   @@index([email])
   @@index([nczRegistrationNumber])
@@ -213,7 +226,7 @@ model Council {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  users User[]
+  users         User[]
   courseReviews CouncilCourseReview[]
 
   @@index([isActive])
@@ -222,43 +235,43 @@ model Council {
 }
 
 model Course {
-  id                 String       @id @default(cuid())
-  title              String
-  subtitle           String?
-  description        String
-  thumbnailUrl       String?
-  promoVideoUrl      String?
-  category           CPDCategory
-  isPublicToAll      Boolean      @default(false)
-  targetCadres       String[]
-  targetCouncilIds   String[]     @default([])
-  targetTitles       String[]     @default([])
-  specialtyTrack     SpecialtyTrack?
-  difficulty         Difficulty   @default(FOUNDATION)
-  language           Language     @default(ENGLISH)
+  id                  String          @id @default(cuid())
+  title               String
+  subtitle            String?
+  description         String
+  thumbnailUrl        String?
+  promoVideoUrl       String?
+  category            CPDCategory
+  isPublicToAll       Boolean         @default(false)
+  targetCadres        String[]
+  targetCouncilIds    String[]        @default([])
+  targetTitles        String[]        @default([])
+  specialtyTrack      SpecialtyTrack?
+  difficulty          Difficulty      @default(FOUNDATION)
+  language            Language        @default(ENGLISH)
   // Legacy field: council-specific points now live in CouncilCourseReview.points.
   // Keep a default for backwards compatibility until all callers migrate.
-  cpdPoints          Int         @default(0)
-  estimatedMinutes   Int
-  accreditationBody  String?
-  tags               String[]
+  cpdPoints           Int             @default(0)
+  estimatedMinutes    Int
+  accreditationBody   String?
+  tags                String[]
   aiSourceName        String?
   aiGeneratedAt       DateTime?
   aiGeneratedProvider String?
   aiReviewNotes       String?
-  status             CourseStatus @default(DRAFT)
-  expiresAt          DateTime?
-  priceOverride      Decimal?
-  creatorId          String
-  creator            User         @relation("CourseCreator", fields: [creatorId], references: [id])
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  status              CourseStatus    @default(DRAFT)
+  expiresAt           DateTime?
+  priceOverride       Decimal?
+  creatorId           String
+  creator             User            @relation("CourseCreator", fields: [creatorId], references: [id])
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 
   // Relations
-  modules     Module[]
-  enrollments Enrollment[]
-  cpdRecords  CPDRecord[]
-  reviews     CourseReview[]
+  modules        Module[]
+  enrollments    Enrollment[]
+  cpdRecords     CPDRecord[]
+  reviews        CourseReview[]
   councilReviews CouncilCourseReview[]
 
   @@index([status])
@@ -268,20 +281,20 @@ model Course {
 }
 
 model CouncilCourseReview {
-  id              String                   @id @default(cuid())
-  courseId        String
-  councilId       String
-  status          CouncilCourseReviewStatus @default(PENDING_REVIEW)
-  points          Int?
-  rejectionReason String?
-  reviewedAt      DateTime?
+  id               String                    @id @default(cuid())
+  courseId         String
+  councilId        String
+  status           CouncilCourseReviewStatus @default(PENDING_REVIEW)
+  points           Int?
+  rejectionReason  String?
+  reviewedAt       DateTime?
   reviewedByUserId String?
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
 
-  course          Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  council         Council @relation(fields: [councilId], references: [id], onDelete: Cascade)
-  reviewedBy      User?   @relation("CouncilCourseReviewedBy", fields: [reviewedByUserId], references: [id])
+  course     Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  council    Council @relation(fields: [councilId], references: [id], onDelete: Cascade)
+  reviewedBy User?   @relation("CouncilCourseReviewedBy", fields: [reviewedByUserId], references: [id])
 
   @@unique([courseId, councilId])
   @@index([councilId, status])
@@ -299,8 +312,8 @@ model Module {
   sections ContentSection[]
   quizzes  Quiz[]
 
-  @@index([courseId])
   @@unique([courseId, order])
+  @@index([courseId])
 }
 
 model ContentSection {
@@ -310,9 +323,9 @@ model ContentSection {
   type                ContentType
   title               String
   order               Int
-  content             String      // rich text or URL
+  content             String // rich text or URL
   mediaUrl            String?
-  mediaKey            String?     // S3 key
+  mediaKey            String? // S3 key
   completionThreshold Float       @default(0.8) // 80% watch time for video
   createdAt           DateTime    @default(now())
 
@@ -371,7 +384,7 @@ model QuizAttempt {
   quiz        Quiz      @relation(fields: [quizId], references: [id])
   score       Float
   passed      Boolean
-  answers     Json      // { questionId: optionId }
+  answers     Json // { questionId: optionId }
   // Client-reported time the learner began this attempt (quiz fetch/session
   // start) — used only as a soft signal for the implausibly-fast-submission
   // audit flag, never to block a submission on its own.
@@ -383,15 +396,15 @@ model QuizAttempt {
 }
 
 model Enrollment {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   learnerId         String
-  learner           User     @relation(fields: [learnerId], references: [id])
+  learner           User      @relation(fields: [learnerId], references: [id])
   courseId          String
-  course            Course   @relation(fields: [courseId], references: [id])
-  enrolledAt        DateTime @default(now())
+  course            Course    @relation(fields: [courseId], references: [id])
+  enrolledAt        DateTime  @default(now())
   completedAt       DateTime?
-  progress          Float    @default(0) // 0–1, auto-calculated from completedSections
-  completedSections String[] @default([]) // section IDs marked complete
+  progress          Float     @default(0) // 0–1, auto-calculated from completedSections
+  completedSections String[]  @default([]) // section IDs marked complete
   lastAccessAt      DateTime?
 
   @@unique([learnerId, courseId])
@@ -399,29 +412,29 @@ model Enrollment {
 }
 
 model CPDRecord {
-  id               String       @id @default(cuid())
-  learnerId        String
-  learner          User         @relation(fields: [learnerId], references: [id])
-  courseId         String?
-  course           Course?      @relation(fields: [courseId], references: [id])
-  quizId           String?
-  quiz             Quiz?        @relation(fields: [quizId], references: [id])
-  sourceAttemptKey String?      // bot/offline attempt dedupe/audit key
-  nczSyncStatus    NczSyncStatus @default(PENDING)
-  nczLastError     String?
-  nczLastAttemptAt DateTime?
-  activityType     ActivityType
-  pointsEarned     Int
-  quizScore        Float?
-  completedAt      DateTime     @default(now())
-  cycleYear        Int
-  syncedToNcz      Boolean      @default(false)
-  nczSyncedAt      DateTime?
-  isManualOverride Boolean      @default(false)
-  overrideNote     String?
-  nczSyncMetadata  Json?
+  id                String        @id @default(cuid())
+  learnerId         String
+  learner           User          @relation(fields: [learnerId], references: [id])
+  courseId          String?
+  course            Course?       @relation(fields: [courseId], references: [id])
+  quizId            String?
+  quiz              Quiz?         @relation(fields: [quizId], references: [id])
+  sourceAttemptKey  String? // bot/offline attempt dedupe/audit key
+  nczSyncStatus     NczSyncStatus @default(PENDING)
+  nczLastError      String?
+  nczLastAttemptAt  DateTime?
+  activityType      ActivityType
+  pointsEarned      Int
+  quizScore         Float?
+  completedAt       DateTime      @default(now())
+  cycleYear         Int
+  syncedToNcz       Boolean       @default(false)
+  nczSyncedAt       DateTime?
+  isManualOverride  Boolean       @default(false)
+  overrideNote      String?
+  nczSyncMetadata   Json?
   nczIdempotencyKey String?
-  nczNextRetryAt   DateTime?
+  nczNextRetryAt    DateTime?
 
   @@index([learnerId, cycleYear])
   @@index([learnerId, quizId, cycleYear])
@@ -440,7 +453,7 @@ model Certificate {
   coursesCompleted String[]
   issuedAt         DateTime @default(now())
   pdfUrl           String?
-  pdfKey           String?  // S3 key
+  pdfKey           String? // S3 key
 
   @@index([learnerId])
   @@index([certificateUuid])
@@ -451,7 +464,7 @@ model CourseReview {
   courseId  String
   course    Course   @relation(fields: [courseId], references: [id])
   learnerId String
-  rating    Int      // 1–5
+  rating    Int // 1–5
   comment   String?
   createdAt DateTime @default(now())
 
@@ -499,7 +512,7 @@ model NczFlag {
 
 model NczSyncLog {
   id           String   @id @default(cuid())
-  triggeredBy  String?  // userId or "cron"
+  triggeredBy  String? // userId or "cron"
   recordCount  Int
   success      Boolean
   errorMessage String?
@@ -532,11 +545,11 @@ model AuditLog {
 model LanguagePack {
   id           String   @id @default(cuid())
   code         String   @unique // BCP-47-ish, e.g. "sn", "nd", "fr"
-  name         String   // display name, e.g. "Shona", "Ndebele", "Français"
+  name         String // display name, e.g. "Shona", "Ndebele", "Français"
   // ISO 3166-1 alpha-2 countries this language is recommended for in the
   // switcher (informational only — any user can still pick any active pack).
   countryCodes String[] @default([])
-  translations Json     // flat { "nav.dashboard": "...", ... } key/value map
+  translations Json // flat { "nav.dashboard": "...", ... } key/value map
   isActive     Boolean  @default(true)
   uploadedById String?
   uploadedBy   User?    @relation("LanguagePackUploader", fields: [uploadedById], references: [id])
@@ -548,22 +561,22 @@ model LanguagePack {
 }
 
 model IssueReport {
-  id              String        @id @default(cuid())
-  reporterId      String?
-  reporter        User?         @relation("IssueReporter", fields: [reporterId], references: [id])
+  id               String        @id @default(cuid())
+  reporterId       String?
+  reporter         User?         @relation("IssueReporter", fields: [reporterId], references: [id])
   // Fallback contact for WhatsApp reporters who aren't registered yet.
-  reporterContact String?
-  source          IssueSource
-  title           String
-  description     String
-  status          IssueStatus   @default(OPEN)
-  priority        IssuePriority @default(MEDIUM)
+  reporterContact  String?
+  source           IssueSource
+  title            String
+  description      String
+  status           IssueStatus   @default(OPEN)
+  priority         IssuePriority @default(MEDIUM)
   assignedToUserId String?
-  assignedTo      User?         @relation("IssueAssignee", fields: [assignedToUserId], references: [id])
-  resolutionNotes String?
-  resolvedAt      DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  assignedTo       User?         @relation("IssueAssignee", fields: [assignedToUserId], references: [id])
+  resolutionNotes  String?
+  resolvedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   @@index([status])
   @@index([priority])
@@ -578,29 +591,29 @@ model Subscription {
   startsAt   DateTime
   expiresAt  DateTime
   paymentRef String?
-  gateway    String?          // "paynow" | "stripe"
+  gateway    String? // "paynow" | "stripe"
   createdAt  DateTime         @default(now())
 }
 
 // ─── Voucher / Sponsored access ───────────────────────────────────────────────
 
 model VoucherBatch {
-  id          String           @id @default(cuid())
-  name        String           // human label, e.g. "UNICEF Q1 2026 – Standard"
-  sponsorName String           // e.g. "UNICEF Zimbabwe"
-  tier        SubscriptionTier
-  totalCount  Int              // number of codes generated in this batch
-  createdById String
-  createdBy   User             @relation("VoucherBatchCreator", fields: [createdById], references: [id])
+  id                   String           @id @default(cuid())
+  name                 String // human label, e.g. "UNICEF Q1 2026 – Standard"
+  sponsorName          String // e.g. "UNICEF Zimbabwe"
+  tier                 SubscriptionTier
+  totalCount           Int // number of codes generated in this batch
+  createdById          String
+  createdBy            User             @relation("VoucherBatchCreator", fields: [createdById], references: [id])
   // Non-admin user (e.g. an institution's HR/training contact) who can view
   // this batch's roster without being a global ADMIN. Set by the admin who
   // creates the batch on the institution's behalf — see Sprint 07.
   institutionContactId String?
-  institutionContact    User?   @relation("VoucherBatchInstitutionContact", fields: [institutionContactId], references: [id])
-  expiresAt   DateTime?        // optional: all codes in batch expire at this date
-  notes       String?          // internal notes for admin
-  createdAt   DateTime         @default(now())
-  vouchers    Voucher[]
+  institutionContact   User?            @relation("VoucherBatchInstitutionContact", fields: [institutionContactId], references: [id])
+  expiresAt            DateTime? // optional: all codes in batch expire at this date
+  notes                String? // internal notes for admin
+  createdAt            DateTime         @default(now())
+  vouchers             Voucher[]
 
   @@index([createdById])
   @@index([createdAt])
@@ -609,7 +622,7 @@ model VoucherBatch {
 
 model Voucher {
   id           String           @id @default(cuid())
-  code         String           @unique  // e.g. "ZHCPD-A3K7-V9MQ-B4NP"
+  code         String           @unique // e.g. "ZHCPD-A3K7-V9MQ-B4NP"
   batchId      String
   // Pre-assigned invitee, set by a bulk institution invite before redemption
   // (Sprint 07) — lets the roster show pending invitees, not just redeemed ones.

@@ -81,45 +81,45 @@ const HELPDESK_NAV = [
 const NAV_BY_ROLE: Record<string, typeof LEARNER_NAV> = {
   LEARNER: LEARNER_NAV,
   CONTENT_MANAGER: CREATOR_NAV,
-  NCZ_OFFICER: COUNCIL_NAV,
   COUNCIL_OFFICER: COUNCIL_NAV,
-  ADMIN: ADMIN_NAV,
+  PLATFORM_OWNER: ADMIN_NAV,
+  COUNTRY_ADMIN: ADMIN_NAV,
   HELPDESK: HELPDESK_NAV,
 };
 
 const ROLE_ACCENT: Record<string, string> = {
   LEARNER: 'border-primary-500',
   CONTENT_MANAGER: 'border-violet-500',
-  NCZ_OFFICER: 'border-cyan-500',
   COUNCIL_OFFICER: 'border-cyan-500',
-  ADMIN: 'border-rose-600',
+  PLATFORM_OWNER: 'border-rose-600',
+  COUNTRY_ADMIN: 'border-orange-500',
   HELPDESK: 'border-amber-500',
 };
 
 const ROLE_ACTIVE: Record<string, string> = {
   LEARNER: 'bg-white/10 text-white border-l-2 border-primary-400',
   CONTENT_MANAGER: 'bg-violet-50 text-violet-700 border-l-2 border-violet-500',
-  NCZ_OFFICER: 'bg-white/10 text-white border-l-2 border-cyan-400',
   COUNCIL_OFFICER: 'bg-white/10 text-white border-l-2 border-cyan-400',
-  ADMIN: 'bg-rose-50 text-rose-700 border-l-2 border-rose-600',
+  PLATFORM_OWNER: 'bg-rose-50 text-rose-700 border-l-2 border-rose-600',
+  COUNTRY_ADMIN: 'bg-orange-50 text-orange-700 border-l-2 border-orange-500',
   HELPDESK: 'bg-amber-50 text-amber-700 border-l-2 border-amber-500',
 };
 
 const ROLE_AVATAR: Record<string, string> = {
   LEARNER: 'bg-primary-500/20 text-primary-300',
   CONTENT_MANAGER: 'bg-violet-100 text-violet-700',
-  NCZ_OFFICER: 'bg-cyan-500/20 text-cyan-300',
   COUNCIL_OFFICER: 'bg-cyan-500/20 text-cyan-300',
-  ADMIN: 'bg-rose-100 text-rose-700',
+  PLATFORM_OWNER: 'bg-rose-100 text-rose-700',
+  COUNTRY_ADMIN: 'bg-orange-100 text-orange-700',
   HELPDESK: 'bg-amber-100 text-amber-700',
 };
 
 const ROLE_LABEL: Record<string, string> = {
   LEARNER: 'Learner',
   CONTENT_MANAGER: 'Course Creator',
-  NCZ_OFFICER: 'Council Officer',
   COUNCIL_OFFICER: 'Council Officer',
-  ADMIN: 'System Admin',
+  PLATFORM_OWNER: 'Platform Owner',
+  COUNTRY_ADMIN: 'Country Admin',
   HELPDESK: 'Helpdesk',
 };
 
@@ -147,8 +147,8 @@ export function Sidebar({ className, mobile = false, onNavigate, onClose }: Side
           { to: '/institution', icon: Building2, label: 'My Institution', i18nKey: 'nav.myInstitution' },
           { to: '/report-issue', icon: AlertTriangle, label: 'Report an issue', i18nKey: 'nav.reportIssue' },
         ];
-  const isCouncilRole = user.role === 'NCZ_OFFICER' || user.role === 'COUNCIL_OFFICER';
-  const isAdmin = user.role === 'ADMIN';
+  const isCouncilRole = user.role === 'COUNCIL_OFFICER';
+  const isAdmin = user.role === 'PLATFORM_OWNER' || user.role === 'COUNTRY_ADMIN';
 
   const isDarkSidebar = isCouncilRole || user.role === 'LEARNER';
 

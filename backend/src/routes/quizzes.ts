@@ -128,7 +128,7 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/quizzes — create quiz for a module
-router.post('/', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.post('/', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const { courseId, moduleId, title, passMark, attemptLimit, timeLimitMinutes, randomiseQuestions, showAnswersAfter } = req.body;
     const quiz = await db.quiz.create({
@@ -150,7 +150,7 @@ router.post('/', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (re
 });
 
 // PATCH /api/quizzes/:id — update quiz settings
-router.patch('/:id', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.patch('/:id', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const { title, passMark, attemptLimit, timeLimitMinutes, randomiseQuestions, showAnswersAfter } = req.body;
     const quiz = await db.quiz.update({
@@ -171,7 +171,7 @@ router.patch('/:id', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async
 });
 
 // POST /api/quizzes/:id/questions — add question
-router.post('/:id/questions', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.post('/:id/questions', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const { type, text, points, options } = req.body;
     const questionCount = await db.question.count({ where: { quizId: req.params.id } });
@@ -198,7 +198,7 @@ router.post('/:id/questions', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN
 });
 
 // PATCH /api/quizzes/:id/questions/:qid — update question
-router.patch('/:id/questions/:qid', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.patch('/:id/questions/:qid', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const { text, points, options } = req.body;
     await db.question.update({
@@ -226,7 +226,7 @@ router.patch('/:id/questions/:qid', requireAuth, requireRole('CONTENT_MANAGER', 
 });
 
 // DELETE /api/quizzes/:id/questions/:qid — delete question
-router.delete('/:id/questions/:qid', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.delete('/:id/questions/:qid', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     await db.question.delete({ where: { id: req.params.qid } });
     res.json({ success: true });
@@ -402,7 +402,7 @@ router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: Aut
 });
 
 // POST /api/quizzes/:id/generate-questions — AI question generation
-router.post('/:id/generate-questions', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req, res) => {
+router.post('/:id/generate-questions', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req, res) => {
   try {
     const { sourceText, count = 5 } = req.body;
     if (!sourceText || sourceText.length < 50) return res.status(400).json({ error: 'sourceText must be at least 50 characters' });

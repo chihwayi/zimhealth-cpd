@@ -290,7 +290,7 @@ const OverrideSchema = z.object({
   note: z.string().min(5),
 });
 
-router.post('/override', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+router.post('/override', requireAuth, requireRole('PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const data = OverrideSchema.parse(req.body);
     const result = await creditPoints({
@@ -309,9 +309,9 @@ router.post('/override', requireAuth, requireRole('ADMIN'), async (req: AuthRequ
 });
 
 // GET /api/points/learner/:id — Admin or NCZ Officer
-router.get('/learner/:id', requireAuth, requireRole('ADMIN', 'NCZ_OFFICER'), async (req: AuthRequest, res) => {
+router.get('/learner/:id', requireAuth, requireRole('PLATFORM_OWNER', 'COUNCIL_OFFICER'), async (req: AuthRequest, res) => {
   try {
-    if (req.user!.role === 'NCZ_OFFICER') {
+    if (req.user!.role === 'COUNCIL_OFFICER') {
       const [officer, learner] = await Promise.all([
         db.user.findUnique({ where: { id: req.user!.id }, select: { councilId: true } }),
         db.user.findUnique({ where: { id: req.params.id }, select: { councilId: true } }),

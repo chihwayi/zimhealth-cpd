@@ -21,6 +21,10 @@ export interface TokenPayload {
   sub: string; // userId
   email: string;
   role: Role;
+  // Set only for impersonation tokens: the id of the PLATFORM_OWNER who
+  // triggered the impersonation. Every action taken while this claim is
+  // present is attributable to both the impersonated user AND the real actor.
+  impersonatedBy?: string;
   iat?: number;
   exp?: number;
 }
@@ -30,6 +34,24 @@ export function signAccessToken(user: Pick<User, 'id' | 'email' | 'role'>): stri
   return jwt.sign({ sub: user.id, email: user.email, role: user.role }, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
   });
+}
+
+const IMPERSONATION_TTL = '30m';
+
+// Short-lived, non-refreshable token for support impersonation. No refresh
+// token is ever issued for this — the session simply expires in 30 minutes
+// and the Platform Owner must re-trigger it. See routes/auth.ts
+// POST /impersonate/:userId.
+export function signImpersonationToken(
+  target: Pick<User, 'id' | 'email' | 'role'>,
+  platformOwnerId: string,
+): string {
+  assertSecureJwtSecret();
+  return jwt.sign(
+    { sub: target.id, email: target.email, role: target.role, impersonatedBy: platformOwnerId },
+    JWT_SECRET,
+    { expiresIn: IMPERSONATION_TTL },
+  );
 }
 
 export async function signRefreshToken(userId: string): Promise<string> {

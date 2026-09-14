@@ -32,7 +32,7 @@ async function loadBatchForAccess(req: AuthRequest, batchId: string): Promise<Ba
   });
   if (!batch) return { error: 404, message: 'Batch not found' };
 
-  const isAdmin = req.user?.role === 'ADMIN';
+  const isAdmin = req.user?.role === 'PLATFORM_OWNER';
   const isOwner = batch.createdById === req.user?.id;
   const isContact = batch.institutionContactId === req.user?.id;
   if (!isAdmin && !isOwner && !isContact) {
@@ -46,7 +46,7 @@ async function loadBatchForAccess(req: AuthRequest, batchId: string): Promise<Ba
 // batches for ADMIN.
 router.get('/my-batches', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const isAdmin = req.user!.role === 'ADMIN';
+    const isAdmin = req.user!.role === 'PLATFORM_OWNER';
     const batches = await db.voucherBatch.findMany({
       where: isAdmin ? undefined : { OR: [{ createdById: req.user!.id }, { institutionContactId: req.user!.id }] },
       orderBy: { createdAt: 'desc' },

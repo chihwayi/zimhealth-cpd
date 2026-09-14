@@ -56,7 +56,7 @@ router.get('/', async (_req, res) => {
 });
 
 // GET /api/councils/all — admin-only list (includes inactive)
-router.get('/all', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/all', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
   try {
     const councils = await db.council.findMany({
       orderBy: { name: 'asc' },
@@ -82,7 +82,7 @@ router.get('/all', requireAuth, requireRole('ADMIN'), async (_req, res) => {
 });
 
 // POST /api/councils — admin-only create council
-router.post('/', requireAuth, requireRole('ADMIN'), async (req, res) => {
+router.post('/', requireAuth, requireRole('PLATFORM_OWNER'), async (req, res) => {
   try {
     const data = CreateCouncilSchema.parse(req.body);
     const slug = data.slug?.trim() ? slugify(data.slug) : slugify(data.name);
@@ -136,7 +136,7 @@ const UpdateCouncilSchema = z.object({
 });
 
 // PATCH /api/councils/:id — admin-only council config updates (required points, renewal date, titles)
-router.patch('/:id', requireAuth, requireRole('ADMIN'), async (req, res) => {
+router.patch('/:id', requireAuth, requireRole('PLATFORM_OWNER'), async (req, res) => {
   try {
     const data = UpdateCouncilSchema.parse(req.body);
     const updated = await db.council.update({

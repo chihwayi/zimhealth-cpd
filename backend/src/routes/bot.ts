@@ -4,6 +4,7 @@ import { db } from '../lib/db';
 import { requireBotSecret } from '../middleware/auth.middleware';
 import { randomBytes } from 'crypto';
 import { z } from 'zod';
+import { buildEligibleCourseWhere, assertLearnerCanAccessCourse } from '../services/course-eligibility';
 
 const router: ExpressRouter = Router();
 
@@ -58,7 +59,7 @@ router.get('/courses/available', requireBotSecret, async (req, res) => {
   try {
     const learner = await db.user.findUnique({
       where: { phone },
-      select: { id: true, councilId: true, language: true },
+      select: { id: true, councilId: true, language: true, professionalTitle: true, cadre: true },
     });
     if (!learner) return res.status(404).json({ error: 'Learner not found' });
 
@@ -71,14 +72,13 @@ router.get('/courses/available', requireBotSecret, async (req, res) => {
     // Fetch a larger window and prioritize the learner's preferred language
     // without hard-excluding other languages — most content is still
     // English-only, so a strict filter would return an empty menu.
+    // Uses the same council-approval eligibility as the web app
+    // (course-eligibility.ts) — a course being PUBLISHED is not enough on its
+    // own; the learner's own council must have approved it with points.
     const candidates = await db.course.findMany({
       where: {
-        status: 'PUBLISHED',
+        ...buildEligibleCourseWhere(learner),
         id: { notIn: enrolledIds },
-        OR: [
-          { isPublicToAll: true },
-          ...(learner.councilId ? [{ targetCouncilIds: { has: learner.councilId } }] : []),
-        ],
       },
       orderBy: { createdAt: 'desc' },
       take: 40,
@@ -126,15 +126,11 @@ router.post('/enroll', requireBotSecret, async (req, res) => {
     });
     if (!learner) return res.status(404).json({ error: 'Learner not found' });
 
-    const course = await db.course.findFirst({
-      where: {
-        id: courseId,
-        status: 'PUBLISHED',
-        OR: [
-          { isPublicToAll: true },
-          ...(learner.councilId ? [{ targetCouncilIds: { has: learner.councilId } }] : []),
-        ],
-      },
+    const canAccess = await assertLearnerCanAccessCourse(learner.id, courseId);
+    if (!canAccess) return res.status(404).json({ error: 'Course not available' });
+
+    const course = await db.course.findUnique({
+      where: { id: courseId },
       select: { id: true, title: true },
     });
     if (!course) return res.status(404).json({ error: 'Course not available' });

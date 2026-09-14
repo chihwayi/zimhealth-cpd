@@ -25,7 +25,7 @@ describe('Institution bulk-enrollment (/api/institutions)', () => {
   beforeAll(async () => {
     const [admin, contact, outsider, learner] = await Promise.all([
       db.user.create({
-        data: { email: ADMIN_EMAIL, passwordHash: 'test-hash', fullName: 'Institution Admin', role: Role.ADMIN, isApproved: true },
+        data: { email: ADMIN_EMAIL, passwordHash: 'test-hash', fullName: 'Institution Admin', role: Role.PLATFORM_OWNER, isApproved: true },
         select: { id: true, email: true, role: true },
       }),
       db.user.create({

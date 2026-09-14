@@ -196,20 +196,36 @@ async function main() {
     },
   });
 
-  // ─── 1. Admin user ──────────────────────────────────────────────────────────
+  // ─── 1. Platform Owner ──────────────────────────────────────────────────────
   const adminPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
   const admin = await db.user.upsert({
     where: { email: 'admin@zimhealthcpd.co.zw' },
-    update: {},
+    update: { role: Role.PLATFORM_OWNER },
     create: {
       email: 'admin@zimhealthcpd.co.zw',
       passwordHash: adminPassword,
-      fullName: 'Platform Admin',
-      role: Role.ADMIN,
+      fullName: 'Platform Owner',
+      role: Role.PLATFORM_OWNER,
       isApproved: true,
     },
   });
-  console.log('✅ Admin user:', admin.email);
+  console.log('✅ Platform Owner:', admin.email);
+
+  // ─── 1b. Country Admin (Zimbabwe) ──────────────────────────────────────────
+  const countryAdminPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
+  const countryAdmin = await db.user.upsert({
+    where: { email: 'country-admin@zimhealthcpd.co.zw' },
+    update: { role: Role.COUNTRY_ADMIN, countryCode: 'ZW' },
+    create: {
+      email: 'country-admin@zimhealthcpd.co.zw',
+      passwordHash: countryAdminPassword,
+      fullName: 'Zimbabwe Country Admin',
+      role: Role.COUNTRY_ADMIN,
+      countryCode: 'ZW',
+      isApproved: true,
+    },
+  });
+  console.log('✅ Country Admin:', countryAdmin.email);
 
   // ─── 2. Content Manager ─────────────────────────────────────────────────────
   const creatorPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
@@ -275,18 +291,18 @@ async function main() {
   const nczPassword = await bcrypt.hash(DEMO_PASSWORD, 12);
   const ncz = await db.user.upsert({
     where: { email: 'officer@ncz.co.zw' },
-    update: { councilId: nczCouncil.id, professionalTitle: 'Council Officer' },
+    update: { role: Role.COUNCIL_OFFICER, councilId: nczCouncil.id, professionalTitle: 'Council Officer' },
     create: {
       email: 'officer@ncz.co.zw',
       passwordHash: nczPassword,
       fullName: 'NCZ Compliance Officer',
-      role: Role.NCZ_OFFICER,
+      role: Role.COUNCIL_OFFICER,
       councilId: nczCouncil.id,
       professionalTitle: 'Council Officer',
       isApproved: true,
     },
   });
-  console.log('✅ NCZ Officer:', ncz.email);
+  console.log('✅ Council Officer (legacy NCZ seed):', ncz.email);
 
   // ─── 3b. Council Officer (generic role; same portal) ────────────────────────
   const councilOfficerPassword = await bcrypt.hash(DEMO_PASSWORD, 12);

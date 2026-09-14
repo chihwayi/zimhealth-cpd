@@ -296,7 +296,7 @@ export default function CoursePlayerPage() {
   const isOnline = useOnlineStatus();
   const user = useAuthStore((state) => state.user);
   // Creators and admins preview without enrolling — skip learner-only API calls
-  const isPreviewMode = user?.role === 'CONTENT_MANAGER' || user?.role === 'ADMIN';
+  const isPreviewMode = user?.role === 'CONTENT_MANAGER' || user?.role === 'PLATFORM_OWNER';
 
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [reviewRating, setReviewRating] = useState(0);

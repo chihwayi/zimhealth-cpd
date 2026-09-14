@@ -20,7 +20,7 @@ const UploadImageSchema = z.object({
 router.post(
   '/image',
   requireAuth,
-  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'),
   upload.single('file'),
   async (req: AuthRequest, res) => {
     try {
@@ -39,7 +39,7 @@ router.post(
 router.post(
   '/video',
   requireAuth,
-  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'),
   upload.single('file'),
   async (req: AuthRequest, res) => {
     try {
@@ -95,7 +95,7 @@ router.post(
 router.post(
   '/document',
   requireAuth,
-  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'),
   upload.single('file'),
   async (req: AuthRequest, res) => {
     try {
@@ -166,7 +166,7 @@ router.get('/status/:assetId', requireAuth, async (req: AuthRequest, res) => {
   try {
     const asset = await db.mediaAsset.findUnique({ where: { id: req.params.assetId } });
     if (!asset) return res.status(404).json({ error: 'Asset not found' });
-    if (req.user!.role !== 'ADMIN' && asset.ownerId !== req.user!.id) {
+    if (req.user!.role !== 'PLATFORM_OWNER' && asset.ownerId !== req.user!.id) {
       return res.status(403).json({ error: 'Not authorised' });
     }
     res.json({
@@ -189,9 +189,9 @@ router.get('/status/:assetId', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // GET /api/media/assets — list assets (mine by default; admin can request all)
-router.get('/assets', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.get('/assets', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
-    const scope = req.user!.role === 'ADMIN' && req.query.scope === 'all' ? {} : { ownerId: req.user!.id };
+    const scope = req.user!.role === 'PLATFORM_OWNER' && req.query.scope === 'all' ? {} : { ownerId: req.user!.id };
     const assets = await db.mediaAsset.findMany({
       where: scope,
       orderBy: { createdAt: 'desc' },
@@ -223,11 +223,11 @@ router.get('/assets', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), asyn
 });
 
 // DELETE /api/media/assets/:assetId — delete asset record (and S3 object if configured)
-router.delete('/assets/:assetId', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.delete('/assets/:assetId', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const asset = await db.mediaAsset.findUnique({ where: { id: req.params.assetId } });
     if (!asset) return res.status(404).json({ error: 'Asset not found' });
-    if (req.user!.role !== 'ADMIN' && asset.ownerId !== req.user!.id) {
+    if (req.user!.role !== 'PLATFORM_OWNER' && asset.ownerId !== req.user!.id) {
       return res.status(403).json({ error: 'Not authorised' });
     }
 
@@ -241,11 +241,11 @@ router.delete('/assets/:assetId', requireAuth, requireRole('CONTENT_MANAGER', 'A
   }
 });
 
-router.post('/assets/:assetId/retry', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.post('/assets/:assetId/retry', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const asset = await db.mediaAsset.findUnique({ where: { id: req.params.assetId } });
     if (!asset) return res.status(404).json({ error: 'Asset not found' });
-    if (req.user!.role !== 'ADMIN' && asset.ownerId !== req.user!.id) {
+    if (req.user!.role !== 'PLATFORM_OWNER' && asset.ownerId !== req.user!.id) {
       return res.status(403).json({ error: 'Not authorised' });
     }
     if (!asset.mimeType.startsWith('video/')) {

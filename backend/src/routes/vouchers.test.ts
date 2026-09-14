@@ -24,7 +24,7 @@ describe('Voucher redemption', () => {
           email: ADMIN_EMAIL,
           passwordHash: 'test-hash',
           fullName: 'Voucher Admin',
-          role: Role.ADMIN,
+          role: Role.PLATFORM_OWNER,
           isApproved: true,
         },
         select: { id: true, email: true, role: true },

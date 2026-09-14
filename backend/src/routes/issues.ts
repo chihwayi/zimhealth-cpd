@@ -42,7 +42,7 @@ const ListIssuesQuerySchema = z.object({
 const PRIORITY_ORDER: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 
 // GET /api/issues — helpdesk/admin triage queue, ranked by priority then age
-router.get('/', requireAuth, requireRole('ADMIN', 'HELPDESK'), async (req, res) => {
+router.get('/', requireAuth, requireRole('PLATFORM_OWNER', 'HELPDESK'), async (req, res) => {
   try {
     const query = ListIssuesQuerySchema.parse(req.query);
     const issues = await db.issueReport.findMany({
@@ -73,7 +73,7 @@ const UpdateIssueSchema = z.object({
 });
 
 // PATCH /api/issues/:id — helpdesk/admin triage: rank, assign, resolve
-router.patch('/:id', requireAuth, requireRole('ADMIN', 'HELPDESK'), async (req: AuthRequest, res) => {
+router.patch('/:id', requireAuth, requireRole('PLATFORM_OWNER', 'HELPDESK'), async (req: AuthRequest, res) => {
   try {
     const data = UpdateIssueSchema.parse(req.body);
     const updated = await db.issueReport.update({

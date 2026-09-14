@@ -153,7 +153,7 @@ router.get('/:id', async (req, res) => {
     });
     if (!course) return res.status(404).json({ error: 'Course not found' });
     if (course.status !== 'PUBLISHED') {
-      const isStaff = role === 'ADMIN' || role === 'CONTENT_MANAGER';
+      const isStaff = role === 'PLATFORM_OWNER' || role === 'CONTENT_MANAGER';
       if (!isStaff) {
         return res.status(404).json({ error: 'Course not found' });
       }
@@ -175,7 +175,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/courses — CONTENT_MANAGER or ADMIN
-router.post('/', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.post('/', requireAuth, requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const data = CreateCourseSchema.parse(req.body);
     const course = await db.course.create({
@@ -192,7 +192,7 @@ router.post('/', requireAuth, requireRole('CONTENT_MANAGER', 'ADMIN'), async (re
 router.get(
   '/:id/quizzes',
   requireAuth,
-  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
       const owned = await getOwnedCourse(req.params.id, req);
@@ -214,7 +214,7 @@ router.get(
 router.patch(
   '/:id',
   requireAuth,
-  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
       const course = await db.course.findUnique({ where: { id: req.params.id } });
@@ -350,39 +350,35 @@ router.post(
   },
 );
 
-// POST /api/courses/:id/approve — Admin approves or rejects
-router.post('/:id/approve', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+// POST /api/courses/:id/approve — PLATFORM_OWNER content-policy takedown only.
+// Publishing a course is exclusively the target council's mandate (see
+// ncz.ts POST /courses/:courseId/reviews/approve, which flips the course to
+// PUBLISHED automatically once a targeted council approves it). Platform
+// Owner can never fast-track a publish here — only reject/withdraw a
+// submission for policy reasons (e.g. plagiarism, spam) before or instead of
+// council review.
+router.post('/:id/approve', requireAuth, requireRole('PLATFORM_OWNER'), async (req: AuthRequest, res) => {
   try {
     const { action, reason, reviewerNotes } = CourseApprovalSchema.parse(req.body);
-    const newStatus = action === 'APPROVE' ? 'PUBLISHED' : 'DRAFT';
+    if (action === 'APPROVE') {
+      return res.status(403).json({
+        error: 'Publishing is the approving council\'s mandate. Platform Owner can only reject/withdraw a submission here.',
+      });
+    }
     const updated = await db.course.update({
       where: { id: req.params.id },
-      data: { status: newStatus, aiReviewNotes: reviewerNotes ?? undefined },
+      data: { status: 'DRAFT', aiReviewNotes: reviewerNotes ?? undefined },
     });
-    let publishWarning: string | null = null;
-    if (action === 'APPROVE') {
-      const approvedReviewCount = await db.councilCourseReview.count({
-        where: {
-          courseId: req.params.id,
-          status: 'APPROVED',
-          points: { not: null },
-        },
-      });
-      if (approvedReviewCount === 0) {
-        publishWarning =
-          'Course published, but no council has approved it yet. Learners will not see this course until at least one council approves it and assigns CPD points.';
-      }
-    }
     await db.auditLog.create({
       data: {
         userId: req.user!.id,
-        action: action === 'APPROVE' ? 'ADMIN_COURSE_APPROVED' : 'ADMIN_COURSE_REJECTED',
+        action: 'PLATFORM_OWNER_COURSE_REJECTED',
         entityType: 'Course',
         entityId: req.params.id,
-        meta: { action, reason, reviewerNotes, newStatus },
+        meta: { action, reason, reviewerNotes, newStatus: 'DRAFT' },
       },
     });
-    res.json({ course: updated, action, reason, warning: publishWarning ?? undefined });
+    res.json({ course: updated, action, reason });
   } catch (err: any) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
     res.status(500).json({ error: 'Could not process approval' });
@@ -402,7 +398,7 @@ router.get('/:id/modules', async (req, res) => {
     });
     if (!course) return res.status(404).json({ error: 'Course not found' });
     if (course.status !== 'PUBLISHED') {
-      const isStaff = role === 'ADMIN' || role === 'CONTENT_MANAGER';
+      const isStaff = role === 'PLATFORM_OWNER' || role === 'CONTENT_MANAGER';
       if (!isStaff) return res.status(404).json({ error: 'Course not found' });
     }
     if (course.status === 'PUBLISHED' && learner) {
@@ -459,7 +455,7 @@ router.get('/:id/modules', async (req, res) => {
 router.post(
   '/:id/modules',
   requireAuth,
-  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
       const data = CreateModuleSchema.parse(req.body);
@@ -479,7 +475,7 @@ router.post(
 router.post(
   '/:courseId/modules/:moduleId/sections',
   requireAuth,
-  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
       const data = CreateSectionSchema.parse(req.body);
@@ -504,7 +500,7 @@ router.post(
 router.patch(
   '/:courseId/modules/:moduleId/sections/:sectionId',
   requireAuth,
-  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'),
   async (req: AuthRequest, res) => {
     try {
       const data = CreateSectionSchema.partial().parse(req.body);
@@ -534,7 +530,7 @@ router.patch(
 router.post(
   '/:id/ai-generate-content',
   requireAuth,
-  requireRole('CONTENT_MANAGER', 'ADMIN'),
+  requireRole('CONTENT_MANAGER', 'PLATFORM_OWNER'),
   upload.single('file'),
   async (req: AuthRequest, res) => {
     const { guidelineText, targetCadre, sourceUrl } = req.body as {

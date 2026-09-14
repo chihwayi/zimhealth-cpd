@@ -78,7 +78,7 @@ interface AdminUser {
   id: string;
   fullName: string;
   email: string;
-  role: 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER' | 'LEARNER';
+  role: 'PLATFORM_OWNER' | 'COUNTRY_ADMIN' | 'CONTENT_MANAGER' | 'COUNCIL_OFFICER' | 'LEARNER' | 'HELPDESK';
   cadre?: string | null;
   subscriptionTier: 'FREE' | 'STANDARD' | 'INSTITUTION' | 'DIASPORA';
   subscriptionExpiresAt?: string | null;
@@ -240,7 +240,7 @@ const ADMIN_SECTIONS = [
   { key: 'settings', label: 'Settings', path: '/admin/settings', icon: Settings },
 ] as const;
 
-const ROLE_OPTIONS = ['ALL', 'ADMIN', 'CONTENT_MANAGER', 'NCZ_OFFICER', 'COUNCIL_OFFICER', 'LEARNER'] as const;
+const ROLE_OPTIONS = ['ALL', 'PLATFORM_OWNER', 'COUNTRY_ADMIN', 'CONTENT_MANAGER', 'COUNCIL_OFFICER', 'LEARNER', 'HELPDESK'] as const;
 const PIE_COLOURS = ['#e11d48', '#7c3aed', '#0891b2', '#f59e0b'];
 
 function formatDate(value: string): string {
@@ -906,6 +906,9 @@ function ApprovalsSection({ standalone = false }: { standalone?: boolean }) {
 
 function UsersSection() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const currentRole = useAuthStore((s) => s.user?.role);
+  const startImpersonation = useAuthStore((s) => s.startImpersonation);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<(typeof ROLE_OPTIONS)[number]>('ALL');
@@ -938,6 +941,27 @@ function UsersSection() {
       qc.invalidateQueries({ queryKey: ['admin-audit'] });
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not deactivate user.'),
+  });
+
+  const impersonateMutation = useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ accessToken: string; user: { id: string; email: string; fullName: string; role: string } }>(
+        `/api/auth/impersonate/${id}`,
+        {},
+      ),
+    onSuccess: (res) => {
+      startImpersonation(res.user as any, res.accessToken);
+      toast.success(`Now viewing as ${res.user.fullName} (30 min session).`);
+      const dest: Record<string, string> = {
+        COUNTRY_ADMIN: '/admin',
+        CONTENT_MANAGER: '/creator',
+        COUNCIL_OFFICER: '/council',
+        LEARNER: '/dashboard',
+        HELPDESK: '/helpdesk',
+      };
+      navigate(dest[res.user.role] ?? '/dashboard');
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not start impersonation.'),
   });
 
   function applySearch() {
@@ -1070,6 +1094,15 @@ function UsersSection() {
                     >
                       Soft delete
                     </button>
+                    {currentRole === 'PLATFORM_OWNER' && user.role !== 'PLATFORM_OWNER' && (
+                      <button
+                        onClick={() => impersonateMutation.mutate(user.id)}
+                        disabled={impersonateMutation.isPending}
+                        className="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                      >
+                        Impersonate
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1162,6 +1195,15 @@ function UsersSection() {
                           >
                             Soft delete
                           </button>
+                          {currentRole === 'PLATFORM_OWNER' && user.role !== 'PLATFORM_OWNER' && (
+                            <button
+                              onClick={() => impersonateMutation.mutate(user.id)}
+                              disabled={impersonateMutation.isPending}
+                              className="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                            >
+                              Impersonate
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

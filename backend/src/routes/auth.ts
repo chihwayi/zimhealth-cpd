@@ -8,7 +8,10 @@ import {
   revokeRefreshToken,
   hashPassword,
   verifyPassword,
+  signImpersonationToken,
 } from '../services/auth.service';
+import { requireRole } from '../middleware/role.middleware';
+import type { AuthRequest } from '../middleware/auth.middleware';
 import {
   RegisterSchema,
   RegisterCreatorSchema,
@@ -322,10 +325,71 @@ router.get('/me', requireAuth, async (req: any, res) => {
       select: ME_SELECT,
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json(user);
+    res.json({ ...user, impersonating: Boolean(req.user.impersonatedBy) });
   } catch {
     res.status(500).json({ error: 'Could not fetch user' });
   }
+});
+
+// POST /api/auth/impersonate/:userId — PLATFORM_OWNER only. Issues a
+// short-lived (30 min), non-refreshable token for the target user, for
+// support/debugging. Logged every time it's used. Cannot target another
+// PLATFORM_OWNER (no support reason to impersonate a peer, and it would
+// otherwise be a trivial way to launder actions between owner accounts).
+router.post('/impersonate/:userId', requireAuth, requireRole('PLATFORM_OWNER'), async (req: AuthRequest, res) => {
+  try {
+    const target = await db.user.findUnique({
+      where: { id: req.params.userId },
+      select: { id: true, email: true, role: true, fullName: true, isActive: true },
+    });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (target.role === 'PLATFORM_OWNER') {
+      return res.status(403).json({ error: 'Cannot impersonate another Platform Owner.' });
+    }
+    if (!target.isActive) {
+      return res.status(400).json({ error: 'Cannot impersonate a deactivated account.' });
+    }
+
+    const accessToken = signImpersonationToken(target, req.user!.id);
+
+    await db.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: 'IMPERSONATION_STARTED',
+        entityType: 'User',
+        entityId: target.id,
+        meta: { targetEmail: target.email, targetRole: target.role },
+      },
+    });
+
+    res.json({
+      accessToken,
+      expiresInMinutes: 30,
+      user: { id: target.id, email: target.email, fullName: target.fullName, role: target.role },
+    });
+  } catch {
+    res.status(500).json({ error: 'Could not start impersonation session' });
+  }
+});
+
+// POST /api/auth/impersonate/end — best-effort audit entry when a Platform
+// Owner deliberately ends an impersonation session early (the frontend
+// discards the impersonation token and restores the owner's own token
+// client-side; this call just completes the audit trail). Safe to call even
+// if the token has already expired naturally — no error either way.
+router.post('/impersonate/end', requireAuth, async (req: AuthRequest, res) => {
+  if (req.user?.impersonatedBy) {
+    await db.auditLog.create({
+      data: {
+        userId: req.user.impersonatedBy,
+        action: 'IMPERSONATION_ENDED',
+        entityType: 'User',
+        entityId: req.user.id,
+        meta: {},
+      },
+    });
+  }
+  res.json({ ok: true });
 });
 
 // PATCH /api/auth/me — update own profile (name, professional fields, avatar URL)

@@ -55,7 +55,7 @@ export default function App() {
       .catch(() => setMaintenanceMode(false));
   }, []);
 
-  if (maintenanceMode && user?.role !== 'ADMIN') {
+  if (maintenanceMode && user?.role !== 'PLATFORM_OWNER') {
     return (
       <>
         <Toaster />
@@ -87,7 +87,7 @@ export default function App() {
         <Route
           path="/report-issue"
           element={
-            <ProtectedRoute allowedRoles={['LEARNER', 'CONTENT_MANAGER', 'NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN', 'HELPDESK']}>
+            <ProtectedRoute allowedRoles={['LEARNER', 'CONTENT_MANAGER', 'COUNCIL_OFFICER', 'PLATFORM_OWNER', 'HELPDESK']}>
               <AppShell>
                 <ReportIssue />
               </AppShell>
@@ -119,7 +119,7 @@ export default function App() {
         <Route
           path="/courses/:id"
           element={
-            <ProtectedRoute allowedRoles={['LEARNER', 'CONTENT_MANAGER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['LEARNER', 'CONTENT_MANAGER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <LearnerCoursePlayer />
               </AppShell>
@@ -181,7 +181,7 @@ export default function App() {
         <Route
           path="/creator"
           element={
-            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <CreatorDashboard />
               </AppShell>
@@ -191,7 +191,7 @@ export default function App() {
         <Route
           path="/creator/courses"
           element={
-            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <CreatorCourses />
               </AppShell>
@@ -201,7 +201,7 @@ export default function App() {
         <Route
           path="/creator/courses/new"
           element={
-            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <CourseBuilder />
               </AppShell>
@@ -211,7 +211,7 @@ export default function App() {
         <Route
           path="/creator/courses/:id/edit"
           element={
-            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <CourseBuilder />
               </AppShell>
@@ -221,7 +221,7 @@ export default function App() {
         <Route
           path="/creator/analytics"
           element={
-            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <CreatorAnalytics />
               </AppShell>
@@ -231,7 +231,7 @@ export default function App() {
         <Route
           path="/creator/media"
           element={
-            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <MediaLibrary />
               </AppShell>
@@ -241,7 +241,7 @@ export default function App() {
         <Route
           path="/creator/quizzes/:id"
           element={
-            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['CONTENT_MANAGER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <QuizBuilder />
               </AppShell>
@@ -253,7 +253,7 @@ export default function App() {
         <Route
           path="/ncz/*"
           element={
-            <ProtectedRoute allowedRoles={['NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['COUNCIL_OFFICER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <CouncilDashboard />
               </AppShell>
@@ -264,7 +264,7 @@ export default function App() {
         <Route
           path="/council/*"
           element={
-            <ProtectedRoute allowedRoles={['NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['COUNCIL_OFFICER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <CouncilDashboard />
               </AppShell>
@@ -275,7 +275,7 @@ export default function App() {
         <Route
           path="/institution"
           element={
-            <ProtectedRoute allowedRoles={['LEARNER', 'CONTENT_MANAGER', 'NCZ_OFFICER', 'COUNCIL_OFFICER', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['LEARNER', 'CONTENT_MANAGER', 'COUNCIL_OFFICER', 'PLATFORM_OWNER']}>
               <AppShell>
                 <InstitutionDashboard />
               </AppShell>
@@ -286,7 +286,7 @@ export default function App() {
         <Route
           path="/helpdesk"
           element={
-            <ProtectedRoute allowedRoles={['HELPDESK', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['HELPDESK', 'PLATFORM_OWNER']}>
               <AppShell>
                 <Helpdesk />
               </AppShell>
@@ -301,7 +301,7 @@ export default function App() {
         <Route
           path="/admin/*"
           element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
+            <ProtectedRoute allowedRoles={['PLATFORM_OWNER', 'COUNTRY_ADMIN']}>
               <AppShell>
                 <AdminDashboard />
               </AppShell>

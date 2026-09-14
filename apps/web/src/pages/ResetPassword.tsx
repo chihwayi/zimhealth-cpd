@@ -29,7 +29,7 @@ export default function ResetPassword() {
           id: string;
           email: string;
           fullName: string;
-          role: 'LEARNER' | 'ADMIN' | 'CONTENT_MANAGER' | 'NCZ_OFFICER' | 'COUNCIL_OFFICER';
+          role: 'LEARNER' | 'PLATFORM_OWNER' | 'COUNTRY_ADMIN' | 'CONTENT_MANAGER' | 'COUNCIL_OFFICER' | 'HELPDESK';
           subscriptionTier?: string;
         };
         accessToken: string;

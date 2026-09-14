@@ -18,11 +18,12 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
   if (!allowedRoles.includes(user.role)) {
     // Redirect to the user's home portal
     const homeMap: Record<string, string> = {
-      ADMIN: '/admin',
+      PLATFORM_OWNER: '/admin',
+      COUNTRY_ADMIN: '/admin',
       CONTENT_MANAGER: '/creator',
-      NCZ_OFFICER: '/ncz',
       COUNCIL_OFFICER: '/council',
       LEARNER: '/dashboard',
+      HELPDESK: '/helpdesk',
     };
     return <Navigate to={homeMap[user.role] ?? '/'} replace />;
   }

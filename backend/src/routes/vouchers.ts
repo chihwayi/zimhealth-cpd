@@ -74,9 +74,14 @@ const CreateBatchSchema = z.object({
 
 // ── Admin: list batches ───────────────────────────────────────────────────────
 
-router.get('/batches', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+router.get('/batches', requireAuth, requireRole('PLATFORM_OWNER', 'COUNTRY_ADMIN'), async (req: AuthRequest, res) => {
   try {
+    // Country Admin only sees batches they personally created — VoucherBatch
+    // has no country field of its own, so ownership is the scoping proxy
+    // (same pattern as institutions.ts's loadBatchForAccess).
+    const where = req.user!.role === 'COUNTRY_ADMIN' ? { createdById: req.user!.id } : {};
     const batches = await db.voucherBatch.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -120,7 +125,7 @@ router.get('/batches', requireAuth, requireRole('ADMIN'), async (_req, res) => {
 
 // ── Admin: generate a new batch ───────────────────────────────────────────────
 
-router.post('/batches', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+router.post('/batches', requireAuth, requireRole('PLATFORM_OWNER', 'COUNTRY_ADMIN'), async (req: AuthRequest, res) => {
   try {
     const data = CreateBatchSchema.parse(req.body);
 
@@ -171,7 +176,7 @@ router.post('/batches', requireAuth, requireRole('ADMIN'), async (req: AuthReque
 
 // ── Admin: batch detail (vouchers list) ───────────────────────────────────────
 
-router.get('/batches/:id', requireAuth, requireRole('ADMIN'), async (req, res) => {
+router.get('/batches/:id', requireAuth, requireRole('PLATFORM_OWNER', 'COUNTRY_ADMIN'), async (req: AuthRequest, res) => {
   try {
     const batch = await db.voucherBatch.findUnique({
       where: { id: req.params.id },
@@ -189,6 +194,9 @@ router.get('/batches/:id', requireAuth, requireRole('ADMIN'), async (req, res) =
     });
 
     if (!batch) return res.status(404).json({ error: 'Voucher batch not found' });
+    if (req.user!.role === 'COUNTRY_ADMIN' && batch.createdById !== req.user!.id) {
+      return res.status(403).json({ error: 'This batch belongs to another admin.' });
+    }
 
     const redeemed  = batch.vouchers.filter((v) => v.redeemedAt).length;
     const remaining = batch.totalCount - redeemed;
@@ -201,7 +209,7 @@ router.get('/batches/:id', requireAuth, requireRole('ADMIN'), async (req, res) =
 
 // ── Admin: CSV export ─────────────────────────────────────────────────────────
 
-router.get('/batches/:id/export.csv', requireAuth, requireRole('ADMIN'), async (req, res) => {
+router.get('/batches/:id/export.csv', requireAuth, requireRole('PLATFORM_OWNER', 'COUNTRY_ADMIN'), async (req: AuthRequest, res) => {
   try {
     const batch = await db.voucherBatch.findUnique({
       where: { id: req.params.id },
@@ -216,6 +224,9 @@ router.get('/batches/:id/export.csv', requireAuth, requireRole('ADMIN'), async (
     });
 
     if (!batch) return res.status(404).json({ error: 'Batch not found' });
+    if (req.user!.role === 'COUNTRY_ADMIN' && batch.createdById !== req.user!.id) {
+      return res.status(403).json({ error: 'This batch belongs to another admin.' });
+    }
 
     const rows = [
       ['Code', 'Tier', 'Status', 'Redeemed At', 'Redeemed By Name', 'Redeemed By Email', 'Registration No'],
@@ -246,7 +257,7 @@ router.get('/batches/:id/export.csv', requireAuth, requireRole('ADMIN'), async (
 
 // ── Admin: voucher lookup (audit search by code) ──────────────────────────────
 
-router.get('/lookup', requireAuth, requireRole('ADMIN'), async (req, res) => {
+router.get('/lookup', requireAuth, requireRole('PLATFORM_OWNER'), async (req, res) => {
   try {
     const code = typeof req.query.code === 'string' ? req.query.code.trim().toUpperCase() : '';
     if (!code) return res.status(400).json({ error: 'code query param required' });
