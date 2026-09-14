@@ -66,7 +66,7 @@ export function AppShell({ children }: Props) {
 
       <main
         id="main-content"
-        className="relative flex-1 pt-14 md:pt-0 bg-slate-50 text-slate-900"
+        className="relative flex-1 min-w-0 pt-14 md:pt-0 bg-slate-50 text-slate-900"
         tabIndex={-1}
       >
         <OfflineBanner />
