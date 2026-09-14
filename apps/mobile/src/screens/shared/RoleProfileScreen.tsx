@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../../store/auth.store';
 import { API_BASE_URL } from '../../lib/api';
+import { LanguageSwitcher } from '../../components/ui/LanguageSwitcher';
 import {
   BG, SURFACE, SURFACE2, BORDER, TEXT, TEXT2, TEXT3,
   ACCENT, ACCENT_L, ACCENT_BG, DANGER, DANGER_BG,
@@ -114,6 +115,12 @@ export default function RoleProfileScreen() {
               </Pressable>
             </>
           )}
+
+          {/* ── Preferences ── */}
+          <Text style={s.sectionLabel}>Preferences</Text>
+          <View style={s.section}>
+            <LanguageSwitcher />
+          </View>
 
           {/* ── Logout ── */}
           <Text style={s.sectionLabel}>Account</Text>

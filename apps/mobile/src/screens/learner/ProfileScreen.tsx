@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useModal } from '../../context/ModalContext';
+import { LanguageSwitcher } from '../../components/ui/LanguageSwitcher';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -245,6 +246,11 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
                   ))}
                 </View>
               )}
+            </View>
+
+            {/* ── Preferences ── */}
+            <View style={s.card}>
+              <LanguageSwitcher />
             </View>
 
             {/* ── Logout ── */}
