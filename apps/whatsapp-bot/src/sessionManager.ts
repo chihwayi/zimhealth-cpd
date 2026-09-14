@@ -61,12 +61,13 @@ export interface LearningState {
 }
 
 export interface RegistrationState {
-  step: 'NAME' | 'CADRE' | 'COUNCIL' | 'NCZ' | 'INSTITUTION' | 'CONFIRM';
+  step: 'NAME' | 'CADRE' | 'COUNCIL' | 'LANGUAGE' | 'NCZ' | 'INSTITUTION' | 'CONFIRM';
   fullName?: string;
   cadre?: string;
   councilId?: string;
   councilLabel?: string;
   councilOptions?: Array<{ id: string; label: string }>;
+  language?: string;
   nczRegistrationNumber?: string;
   institution?: string;
 }

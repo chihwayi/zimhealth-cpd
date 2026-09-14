@@ -55,6 +55,18 @@ function cadrePicker(): string {
   return `What is your professional cadre?\n\n${lines}\n\n_Reply with a number (1–${CADRE_OPTIONS.length})._`;
 }
 
+// ─── Language options ──────────────────────────────────────────────────────────
+const LANGUAGE_OPTIONS = [
+  { key: 'ENGLISH', label: 'English' },
+  { key: 'SHONA', label: 'Shona' },
+  { key: 'NDEBELE', label: 'Ndebele' },
+] as const;
+
+function languagePicker(): string {
+  const lines = LANGUAGE_OPTIONS.map((l, i) => `${i + 1}️⃣ ${l.label}`).join('\n');
+  return `Which language would you like to use?\n\n${lines}\n\n_Reply with a number (1–${LANGUAGE_OPTIONS.length})._`;
+}
+
 // ─── Main registration handler ─────────────────────────────────────────────────
 export async function handleRegistration(msg: IncomingMessage, session: BotSession): Promise<void> {
   const text = msg.body.trim();
@@ -110,12 +122,9 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
     if (councils.length === 1) {
       rs.councilId = councils[0].id;
       rs.councilLabel = `${councils[0].acronym} - ${councils[0].name}`;
-      rs.step = 'NCZ';
+      rs.step = 'LANGUAGE';
       await saveSession(session);
-      await sendMessage(
-        msg.from,
-        `What is your *council registration number*?\n\n_Reply *skip* if you don't have one yet._`,
-      );
+      await sendMessage(msg.from, languagePicker());
       return;
     }
     if (councils.length > 1) {
@@ -127,12 +136,9 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
     }
     // No council mapped for this number's country yet — proceed without one;
     // an admin can assign it later once that country's council is onboarded.
-    rs.step = 'NCZ';
+    rs.step = 'LANGUAGE';
     await saveSession(session);
-    await sendMessage(
-      msg.from,
-      `What is your *council registration number*?\n\n_Reply *skip* if you don't have one yet._`,
-    );
+    await sendMessage(msg.from, languagePicker());
     return;
   }
 
@@ -147,6 +153,20 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
     rs.councilId = options[idx].id;
     rs.councilLabel = options[idx].label;
     delete rs.councilOptions;
+    rs.step = 'LANGUAGE';
+    await saveSession(session);
+    await sendMessage(msg.from, languagePicker());
+    return;
+  }
+
+  // ── LANGUAGE step: preferred language for course content ──
+  if (rs.step === 'LANGUAGE') {
+    const idx = parseInt(text, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= LANGUAGE_OPTIONS.length) {
+      await sendMessage(msg.from, `Please reply with a number between 1 and ${LANGUAGE_OPTIONS.length}.`);
+      return;
+    }
+    rs.language = LANGUAGE_OPTIONS[idx].key;
     rs.step = 'NCZ';
     await saveSession(session);
     await sendMessage(
@@ -176,10 +196,11 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
     await saveSession(session);
 
     const cadreName = CADRE_OPTIONS.find((c) => c.key === rs.cadre)?.label ?? rs.cadre;
+    const languageName = LANGUAGE_OPTIONS.find((l) => l.key === rs.language)?.label ?? rs.language;
     const councilLine = rs.councilLabel ? `\n🏛️ Council: *${rs.councilLabel}*` : '';
     await sendMessage(
       msg.from,
-      `📋 *Review your details:*\n\n👤 Name: *${rs.fullName}*\n🏥 Cadre: *${cadreName}*${councilLine}\n🔖 Registration No: *${rs.nczRegistrationNumber ?? 'Not provided'}*\n🏨 Workplace: *${rs.institution}*\n\nReply *yes* to confirm and create your account, or *no* to start over.`,
+      `📋 *Review your details:*\n\n👤 Name: *${rs.fullName}*\n🏥 Cadre: *${cadreName}*${councilLine}\n🗣️ Language: *${languageName}*\n🔖 Registration No: *${rs.nczRegistrationNumber ?? 'Not provided'}*\n🏨 Workplace: *${rs.institution}*\n\nReply *yes* to confirm and create your account, or *no* to start over.`,
     );
     return;
   }
@@ -206,6 +227,7 @@ export async function handleRegistration(msg: IncomingMessage, session: BotSessi
         fullName: rs.fullName,
         cadre: rs.cadre,
         councilId: rs.councilId,
+        language: rs.language,
         nczRegistrationNumber: rs.nczRegistrationNumber,
         institution: rs.institution,
       };

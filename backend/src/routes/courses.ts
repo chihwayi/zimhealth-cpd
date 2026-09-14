@@ -61,7 +61,7 @@ async function getRequestRole(req: any): Promise<string | null> {
 // GET /api/courses — public browsing (published courses only, with filters)
 router.get('/', async (req, res) => {
   try {
-    const { category, specialtyTrack, difficulty, cadre, search, page = '1', limit = '12' } = req.query as Record<
+    const { category, specialtyTrack, difficulty, language, cadre, search, page = '1', limit = '12' } = req.query as Record<
       string,
       string
     >;
@@ -80,6 +80,7 @@ router.get('/', async (req, res) => {
     if (category) where.category = category;
     if (specialtyTrack) where.specialtyTrack = specialtyTrack;
     if (difficulty) where.difficulty = difficulty;
+    if (language) where.language = language;
     if (cadre) where.targetCadres = { has: cadre };
     if (search)
       where.OR = [

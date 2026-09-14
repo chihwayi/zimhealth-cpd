@@ -58,7 +58,7 @@ router.get('/courses/available', requireBotSecret, async (req, res) => {
   try {
     const learner = await db.user.findUnique({
       where: { phone },
-      select: { id: true, councilId: true },
+      select: { id: true, councilId: true, language: true },
     });
     if (!learner) return res.status(404).json({ error: 'Learner not found' });
 
@@ -68,7 +68,10 @@ router.get('/courses/available', requireBotSecret, async (req, res) => {
     });
     const enrolledIds = enrolled.map((entry) => entry.courseId);
 
-    const courses = await db.course.findMany({
+    // Fetch a larger window and prioritize the learner's preferred language
+    // without hard-excluding other languages — most content is still
+    // English-only, so a strict filter would return an empty menu.
+    const candidates = await db.course.findMany({
       where: {
         status: 'PUBLISHED',
         id: { notIn: enrolledIds },
@@ -78,15 +81,20 @@ router.get('/courses/available', requireBotSecret, async (req, res) => {
         ],
       },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 40,
       select: {
         id: true,
         title: true,
         cpdPoints: true,
         estimatedMinutes: true,
+        language: true,
         _count: { select: { modules: true } },
       },
     });
+
+    const courses = [...candidates]
+      .sort((a, b) => Number(b.language === learner.language) - Number(a.language === learner.language))
+      .slice(0, 10);
 
     return res.json({
       learnerId: learner.id,
@@ -242,11 +250,12 @@ router.get('/lookup', requireBotSecret, async (req, res) => {
 // ─── POST /api/bot/register ───────────────────────────────────────────────────
 // Create a WhatsApp-only account (phone is the auth factor — verified by Twilio)
 router.post('/register', requireBotSecret, async (req, res) => {
-  const { phone, fullName, cadre, councilId, nczRegistrationNumber, institution, province } = req.body as {
+  const { phone, fullName, cadre, councilId, language, nczRegistrationNumber, institution, province } = req.body as {
     phone?: string;
     fullName?: string;
     cadre?: string;
     councilId?: string;
+    language?: string;
     nczRegistrationNumber?: string;
     institution?: string;
     province?: string;
@@ -272,6 +281,7 @@ router.post('/register', requireBotSecret, async (req, res) => {
         phone,
         cadre: cadre as any,
         councilId: councilId || null,
+        language: (language as any) || 'ENGLISH',
         nczRegistrationNumber: nczRegistrationNumber || null,
         institution: institution || null,
         province: province || null,

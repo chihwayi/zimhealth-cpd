@@ -66,6 +66,7 @@ export default function CoursesPage() {
   const [category, setCategory] = useState('');
   const [specialtyTrack, setSpecialtyTrack] = useState('');
   const [difficulty, setDifficulty] = useState('');
+  const [language, setLanguage] = useState('');
   const [page, setPage] = useState(1);
   const [view, setView] = useState<ViewMode>('grid');
   const [sort, setSort] = useState<SortOption>('newest');
@@ -76,10 +77,11 @@ export default function CoursesPage() {
     if (category) params.set('category', category);
     if (specialtyTrack) params.set('specialtyTrack', specialtyTrack);
     if (difficulty) params.set('difficulty', difficulty);
+    if (language) params.set('language', language);
     params.set('page', String(page));
     params.set('limit', '12');
     return params.toString();
-  }, [search, category, specialtyTrack, difficulty, page]);
+  }, [search, category, specialtyTrack, difficulty, language, page]);
 
   const { data, isLoading, error } = useQuery<CoursesResponse>({
     queryKey: ['courses', queryString],
@@ -91,13 +93,14 @@ export default function CoursesPage() {
     [data?.courses, sort],
   );
 
-  const activeFiltersCount = [search, category, specialtyTrack, difficulty].filter(Boolean).length;
+  const activeFiltersCount = [search, category, specialtyTrack, difficulty, language].filter(Boolean).length;
 
   function clearFilters() {
     setSearch('');
     setCategory('');
     setSpecialtyTrack('');
     setDifficulty('');
+    setLanguage('');
     setPage(1);
   }
 
@@ -184,6 +187,23 @@ export default function CoursesPage() {
               <option value="FOUNDATION">Foundation</option>
               <option value="INTERMEDIATE">Intermediate</option>
               <option value="ADVANCED">Advanced</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="course-language" className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Language
+            </label>
+            <select
+              id="course-language"
+              value={language}
+              onChange={(e) => { setPage(1); setLanguage(e.target.value); }}
+              className="mt-2 w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+            >
+              <option value="">All languages</option>
+              <option value="ENGLISH">English</option>
+              <option value="SHONA">Shona</option>
+              <option value="NDEBELE">Ndebele</option>
             </select>
           </div>
 
@@ -279,6 +299,14 @@ export default function CoursesPage() {
                 <span className="flex items-center gap-1.5 bg-primary-50 text-primary-700 text-xs font-medium px-3 py-1 rounded-full">
                   {difficulty.charAt(0) + difficulty.slice(1).toLowerCase()}
                   <button onClick={() => { setDifficulty(''); setPage(1); }} aria-label="Remove difficulty filter">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {language && (
+                <span className="flex items-center gap-1.5 bg-primary-50 text-primary-700 text-xs font-medium px-3 py-1 rounded-full">
+                  {language.charAt(0) + language.slice(1).toLowerCase()}
+                  <button onClick={() => { setLanguage(''); setPage(1); }} aria-label="Remove language filter">
                     <X size={11} />
                   </button>
                 </span>

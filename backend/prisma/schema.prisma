@@ -157,6 +157,10 @@ model User {
   phone                 String?          @unique
   avatarUrl             String?
   specialtyArea         String?
+  // Preferred content language — currently English/Shona/Ndebele
+  // (Zimbabwe-specific course content tagging, distinct from the
+  // country-agnostic dynamic UI translations in LanguagePack).
+  language              Language         @default(ENGLISH)
   resetPasswordTokenHash String?
   resetPasswordExpiresAt DateTime?
   subscriptionTier      SubscriptionTier @default(FREE)
