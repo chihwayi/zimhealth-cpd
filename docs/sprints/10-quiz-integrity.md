@@ -1,5 +1,7 @@
 # Sprint 10 — Quiz integrity controls
 
+**Status: DONE (2026-09-14)** — `attemptLimit`, `randomiseQuestions`, and duplicate-credit prevention already existed pre-sprint on the web path; the real gap was the WhatsApp bot, which never recorded `QuizAttempt` rows for module quizzes (only a `CPDRecord` on a pass) and so couldn't enforce attempt limits at all. Fixed by having the bot report every completed attempt — pass or fail — to `POST /api/points/bot/credit` (now creates a `QuizAttempt` row and rejects once `attemptLimit` is exceeded, mirroring web's `POST /api/quizzes/:id/attempt`), plus a new `GET /api/bot/quiz/:quizId/status` so the bot declines upfront instead of running a learner through a whole quiz first. Also fixed question randomization being reshuffled on every `GET` (now a seeded shuffle stable within an in-progress attempt, fresh on the next one) and added the minimum-elapsed-time check as a non-blocking `AuditLog` flag (`QUIZ_SUBMISSION_FLAGGED_FAST`) plus a `QuizAttempt.flaggedFast` column, exactly as specified — soft signal, never an auto-reject. Verified via `quizzes.test.ts` (attempt-limit rejection, no double-crediting on retake pass, fast-submission flag) — all 46 backend tests pass; migration applied to production.
+
 **Track:** Backend. **Priority:** P2. **Depends on:** nothing.
 
 ## Goal
