@@ -25,6 +25,7 @@ export type ProfileStackParamList = {
 export type AppTabParamList = {
   DashboardTab:     undefined;
   CoursesTab:       undefined;
+  PointsTab:        undefined;
   CertificatesTab:  undefined;
   ProfileTab:       undefined;
 };

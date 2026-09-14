@@ -6,6 +6,7 @@ import DashboardScreen    from '../screens/learner/DashboardScreen';
 import CoursesScreen      from '../screens/learner/CoursesScreen';
 import CourseDetailScreen from '../screens/learner/CourseDetailScreen';
 import CoursePlayerScreen from '../screens/learner/CoursePlayerScreen';
+import PointsScreen       from '../screens/learner/PointsScreen';
 import CertificatesScreen from '../screens/learner/CertificatesScreen';
 import ProfileScreen      from '../screens/learner/ProfileScreen';
 import SubscriptionScreen from '../screens/learner/SubscriptionScreen';
@@ -61,6 +62,7 @@ type IconName = React.ComponentProps<typeof Ionicons>['name'];
 const TAB_ICONS: Record<keyof AppTabParamList, { active: IconName; inactive: IconName }> = {
   DashboardTab:    { active: 'home',        inactive: 'home-outline'        },
   CoursesTab:      { active: 'book',        inactive: 'book-outline'        },
+  PointsTab:       { active: 'trophy',      inactive: 'trophy-outline'      },
   CertificatesTab: { active: 'ribbon',      inactive: 'ribbon-outline'      },
   ProfileTab:      { active: 'person',      inactive: 'person-outline'      },
 };
@@ -94,6 +96,7 @@ export default function AppNavigator() {
     >
       <Tab.Screen name="DashboardTab"    component={DashboardScreen}    options={{ title: 'Home'         }} />
       <Tab.Screen name="CoursesTab"      component={CoursesStack}        options={{ title: 'Courses'      }} />
+      <Tab.Screen name="PointsTab"       component={PointsScreen}       options={{ title: 'Points'       }} />
       <Tab.Screen name="CertificatesTab" component={CertificatesScreen} options={{ title: 'Certificates' }} />
       <Tab.Screen name="ProfileTab"      component={ProfileStack}       options={{ title: 'Profile'      }} />
     </Tab.Navigator>

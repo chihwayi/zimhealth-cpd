@@ -290,7 +290,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.25)',
+    borderColor: 'rgba(139,92,246,0.3)',
   },
   cadreText: { color: ACCENT_L, fontSize: 11, fontWeight: '600' },
   avatar: {
@@ -347,7 +347,7 @@ const s = StyleSheet.create({
     color: TEXT,
     fontSize: 14,
   },
-  inputFocused: { borderColor: BORDER_FOCUS, backgroundColor: 'rgba(96,165,250,0.06)' },
+  inputFocused: { borderColor: BORDER_FOCUS, backgroundColor: 'rgba(139,92,246,0.08)' },
   inputHint:   { color: TEXT3, fontSize: 11 },
 
   errorBox: {

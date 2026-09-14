@@ -1,6 +1,7 @@
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,7 +18,23 @@ import { api } from '../../lib/api';
 import { getOfflineModule, saveOfflineModule } from '../../lib/offlineDB';
 import { useAuthStore } from '../../store/auth.store';
 import type { AppTabParamList } from '../../navigation/types';
-import { BG, SURFACE, SURFACE2, BORDER, TEXT, TEXT2, TEXT3, ACCENT, ACCENT_L, ACCENT_BG, HERO_BG, WARN } from '../../theme';
+import { ProgressRing, HorizonRule, SkyHeader, StreakBars, AchievementBadge } from '../../components/ui/Horizon';
+import {
+  BG,
+  SURFACE,
+  SURFACE2,
+  BORDER,
+  TEXT,
+  TEXT2,
+  TEXT3,
+  ACCENT_L,
+  ACCENT_BG,
+  DANGER,
+  DANGER_BG,
+  WHATSAPP,
+  VIOLET_500,
+  AMBER_400,
+} from '../../theme';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,8 +62,27 @@ type RecommendationsData = {
 
 type Enrollment = {
   id: string;
+  progress: number;
   completedAt: string | null;
   course: { id: string; title: string; category: string; cpdPoints: number };
+};
+
+type StreakData = {
+  currentStreak: number;
+  longestStreak: number;
+  lastActivityDate: string | null;
+};
+
+type Achievement = {
+  code: string;
+  title: string;
+  description: string;
+  earned: boolean;
+  earnedAt: string | null;
+};
+
+type MeData = {
+  council: { requiredPoints: number; renewalMonth: number; renewalDay: number } | null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -59,12 +95,30 @@ const CADRE_LABEL: Record<string, string> = {
   LAB_TECH:         'Laboratory Technician',
 };
 
+const ACHIEVEMENT_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  FIRST_COURSE_COMPLETE: 'flag-outline',
+  FIVE_COURSES_COMPLETE: 'trophy-outline',
+  FIRST_QUIZ_PASS: 'checkmark-done-outline',
+  STREAK_7_DAYS: 'flame-outline',
+  STREAK_30_DAYS: 'rocket-outline',
+  SPECIALTY_FOCUS_5: 'ribbon-outline',
+};
+
 function greeting() {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
 }
+
+function daysToRenewal(month: number, day: number): number {
+  const now = new Date();
+  let target = new Date(now.getFullYear(), month - 1, day);
+  if (target.getTime() < now.getTime()) target = new Date(now.getFullYear() + 1, month - 1, day);
+  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+const WHATSAPP_LINK = 'https://wa.me/263771234567';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -86,6 +140,22 @@ export default function DashboardScreen() {
         return { totalPoints: 0, requiredPoints: 60, percentComplete: 0, cycleYear: new Date().getFullYear() };
       }
     },
+  });
+
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.get<MeData>('/api/auth/me'),
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const { data: streak } = useQuery({
+    queryKey: ['streak'],
+    queryFn: () => api.get<StreakData>('/api/learners/me/streak'),
+  });
+
+  const { data: achievementsData } = useQuery({
+    queryKey: ['achievements'],
+    queryFn: () => api.get<{ achievements: Achievement[] }>('/api/learners/me/achievements'),
   });
 
   const {
@@ -123,104 +193,118 @@ export default function DashboardScreen() {
   const totalPoints    = pointsData?.totalPoints ?? 0;
   const targetPoints   = pointsData?.requiredPoints ?? 60;
   const progressPct    = Math.min(pointsData?.percentComplete ?? 0, 100);
-  const completedCount = enrollments?.filter((e) => e.completedAt).length ?? 0;
-  const inProgress     = enrollments?.find((e) => !e.completedAt);
+  const inProgressList = (enrollments ?? []).filter((e) => !e.completedAt).slice(0, 3);
+  const renewal        = me?.council ? daysToRenewal(me.council.renewalMonth, me.council.renewalDay) : null;
+  const isUrgentRenewal = renewal !== null && renewal <= 60;
+
+  const currentStreak = streak?.currentStreak ?? 0;
+  const streakDays = Array.from({ length: 7 }).map((_, i) => {
+    const lit = i < Math.min(currentStreak, 7);
+    return { lit, h: lit ? 0.5 + (i % 3) * 0.2 : 0.35 };
+  });
+
+  const earnedAchievements = (achievementsData?.achievements ?? []).slice(0, 3);
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 36 }}
+        contentContainerStyle={{ paddingBottom: 110 }}
         refreshControl={
           <RefreshControl
             refreshing={pointsLoading || recsLoading}
             onRefresh={() => {
               void queryClient.invalidateQueries({ queryKey: ['points-summary'] });
               void queryClient.invalidateQueries({ queryKey: ['enrollments-mine'] });
+              void queryClient.invalidateQueries({ queryKey: ['streak'] });
+              void queryClient.invalidateQueries({ queryKey: ['achievements'] });
               void refetchRecs();
             }}
             tintColor={ACCENT_L}
           />
         }
       >
-        {/* ── Hero greeting ── */}
-        <View style={s.hero}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.greeting}>{greeting()},</Text>
-            <Text style={s.heroName} numberOfLines={1}>
-              {user?.fullName?.split(' ')[0] ?? 'Doctor'}
-            </Text>
-            {user?.cadre && (
-              <View style={s.cadrePill}>
-                <Text style={s.cadreText}>{CADRE_LABEL[user.cadre] ?? user.cadre}</Text>
-              </View>
-            )}
-          </View>
-          <View style={s.heroIcon}>
-            <Ionicons name="pulse" size={28} color={ACCENT_L} />
-          </View>
-        </View>
-
-        <View style={{ paddingHorizontal: 16, gap: 16, marginTop: 20 }}>
-          {/* ── CPD Progress card ── */}
-          <View style={s.card}>
-            <View style={s.cardRow}>
-              <Text style={s.cardTitle}>CPD Progress {pointsData?.cycleYear ?? ''}</Text>
-              <Text style={s.progressLabel}>{totalPoints} / {targetPoints} pts</Text>
+        {/* ── Sky hero ── */}
+        <SkyHeader style={s.hero}>
+          <View style={s.heroTop}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.greeting}>{greeting()}</Text>
+              <Text style={s.heroName} numberOfLines={1}>
+                {user?.fullName?.split(' ')[0] ?? 'there'}
+              </Text>
+              {user?.cadre && (
+                <View style={s.cadrePill}>
+                  <Text style={s.cadreText}>{CADRE_LABEL[user.cadre] ?? user.cadre}</Text>
+                </View>
+              )}
             </View>
-            <View style={s.progressTrack}>
-              <View style={[s.progressFill, { width: `${progressPct}%` as any }]} />
+            <View style={s.heroIcon}>
+              <Ionicons name="notifications-outline" size={20} color="#fff" />
             </View>
-            <Text style={s.progressCaption}>
-              {progressPct >= 100
-                ? 'Renewal requirement met!'
-                : `${Math.round(100 - progressPct)}% remaining for this cycle`}
-            </Text>
-            {progressPct >= 100 && (!user?.subscriptionTier || user.subscriptionTier === 'FREE') && (
-              <Pressable
-                style={s.upgradeCta}
-                onPress={() => navigation.navigate('ProfileTab')}
-              >
-                <Ionicons name="ribbon-outline" size={14} color={WARN} />
-                <Text style={s.upgradeCtaText}>Upgrade to receive your CPD certificate →</Text>
-              </Pressable>
-            )}
           </View>
 
-          {/* ── Quick stats ── */}
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            {[
-              { icon: 'checkmark-circle-outline' as const, label: 'Completed', value: completedCount },
-              { icon: 'star-outline'              as const, label: 'Points',    value: totalPoints    },
-              { icon: 'flame-outline'             as const, label: 'Streak',    value: '—'            },
-            ].map((stat) => (
-              <View key={stat.label} style={[s.card, s.statCard]}>
-                <Ionicons name={stat.icon} size={22} color={ACCENT_L} />
-                <Text style={s.statValue}>{stat.value}</Text>
-                <Text style={s.statLabel}>{stat.label}</Text>
-              </View>
-            ))}
+          <View style={s.ringRow}>
+            <ProgressRing size={116} strokeWidth={9} percent={progressPct}>
+              <Text style={s.ringValue}>{totalPoints}</Text>
+              <Text style={s.ringLabel}>of {targetPoints} pts</Text>
+            </ProgressRing>
+            <View style={{ flex: 1, marginLeft: 18 }}>
+              {renewal !== null && (
+                <View style={[s.renewalPill, isUrgentRenewal ? { backgroundColor: DANGER_BG, borderColor: 'rgba(225,29,72,0.4)' } : { backgroundColor: ACCENT_BG, borderColor: 'rgba(139,92,246,0.35)' }]}>
+                  <View style={[s.renewalDot, { backgroundColor: isUrgentRenewal ? DANGER : VIOLET_500 }]} />
+                  <Text style={[s.renewalText, isUrgentRenewal && { color: '#fecdd3' }]}>{renewal} days to renewal</Text>
+                </View>
+              )}
+              <Text style={s.heroCaption}>
+                {targetPoints - totalPoints > 0
+                  ? `${targetPoints - totalPoints} points to go — keep it up.`
+                  : 'Renewal requirement met!'}
+              </Text>
+            </View>
           </View>
+
+          <HorizonRule style={{ marginTop: 22 }} />
+
+          <View style={{ marginTop: 18 }}>
+            <View style={s.streakHeaderRow}>
+              <Text style={s.streakLabel}>{currentStreak}-day streak</Text>
+              <Text style={s.streakBest}>best: {streak?.longestStreak ?? 0}</Text>
+            </View>
+            <StreakBars days={streakDays} />
+          </View>
+        </SkyHeader>
+
+        <View style={{ paddingHorizontal: 16, marginTop: 20, gap: 22 }}>
+          {progressPct >= 100 && (!user?.subscriptionTier || user.subscriptionTier === 'FREE') && (
+            <Pressable style={s.upgradeCta} onPress={() => navigation.navigate('ProfileTab')}>
+              <Ionicons name="ribbon-outline" size={14} color={AMBER_400} />
+              <Text style={s.upgradeCtaText}>Upgrade to receive your CPD certificate →</Text>
+            </Pressable>
+          )}
 
           {/* ── Continue learning ── */}
-          {inProgress && (
+          {inProgressList.length > 0 && (
             <View>
-              <Text style={s.sectionLabel}>Continue Learning</Text>
-              <Pressable
-                style={[s.card, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}
-                onPress={() => navigation.navigate('CoursesTab')}
-              >
-                <View style={s.continueBadge}>
-                  <Ionicons name="play-circle" size={26} color={ACCENT_L} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.cardTitle, { fontSize: 13 }]} numberOfLines={2}>
-                    {inProgress.course.title}
-                  </Text>
-                  <Text style={s.cardMeta}>{inProgress.course.cpdPoints} CPD pts</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={TEXT3} />
-              </Pressable>
+              <Text style={s.sectionLabel}>Continue learning</Text>
+              <FlatList
+                data={inProgressList}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 12 }}
+                renderItem={({ item }) => (
+                  <Pressable style={s.continueCard} onPress={() => navigation.navigate('CoursesTab')}>
+                    <View style={s.continueThumb}>
+                      <Ionicons name="play" size={20} color="#fff" />
+                    </View>
+                    <Text style={s.continueTitle} numberOfLines={2}>{item.course.title}</Text>
+                    <View style={s.progressTrack}>
+                      <View style={[s.progressFill, { width: `${Math.round(item.progress * 100)}%` as any }]} />
+                    </View>
+                    <Text style={s.cardMeta}>{Math.round(item.progress * 100)}% complete</Text>
+                  </Pressable>
+                )}
+              />
             </View>
           )}
 
@@ -228,28 +312,19 @@ export default function DashboardScreen() {
           <View>
             <View style={[s.cardRow, { marginBottom: 10 }]}>
               <View>
-                <Text style={s.sectionLabel}>Recommended for You</Text>
-                {recs?.isProfileBased && (
-                  <Text style={s.profileTag}>Based on your profile</Text>
-                )}
+                <Text style={s.sectionLabel}>Recommended for you</Text>
+                {recs?.isProfileBased && <Text style={s.profileTag}>Based on your profile</Text>}
               </View>
-              <Pressable
-                onPress={() => refreshMutation.mutate()}
-                hitSlop={10}
-                disabled={refreshMutation.isPending}
-              >
+              <Pressable onPress={() => refreshMutation.mutate()} hitSlop={10} disabled={refreshMutation.isPending}>
                 {refreshMutation.isPending
-                  ? <ActivityIndicator size="small" color={ACCENT} />
-                  : <Ionicons name="refresh-outline" size={18} color={ACCENT_L} />
-                }
+                  ? <ActivityIndicator size="small" color={ACCENT_L} />
+                  : <Ionicons name="refresh-outline" size={18} color={ACCENT_L} />}
               </Pressable>
             </View>
 
             {recsLoading ? (
               <View style={{ flexDirection: 'row', gap: 12 }}>
-                {[1, 2].map((i) => (
-                  <View key={i} style={[s.recCardSkeleton]} />
-                ))}
+                {[1, 2].map((i) => <View key={i} style={s.recCardSkeleton} />)}
               </View>
             ) : recsError ? (
               <View style={[s.card, { alignItems: 'center', paddingVertical: 24 }]}>
@@ -280,8 +355,36 @@ export default function DashboardScreen() {
               />
             )}
           </View>
+
+          {/* ── Badges ── */}
+          {earnedAchievements.length > 0 && (
+            <View>
+              <Text style={s.sectionLabel}>Your badges</Text>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                {earnedAchievements.map((a) => (
+                  <AchievementBadge
+                    key={a.code}
+                    earned={a.earned}
+                    label={a.title}
+                    icon={
+                      <Ionicons
+                        name={ACHIEVEMENT_ICONS[a.code] ?? 'star-outline'}
+                        size={18}
+                        color={a.earned ? '#fff' : TEXT3}
+                      />
+                    }
+                  />
+                ))}
+              </View>
+            </View>
+          )}
         </View>
       </ScrollView>
+
+      <Pressable style={s.fab} onPress={() => Linking.openURL(WHATSAPP_LINK)}>
+        <Ionicons name="logo-whatsapp" size={16} color="#fff" />
+        <Text style={s.fabText}>WhatsApp</Text>
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -291,109 +394,74 @@ export default function DashboardScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: BG },
 
-  // Hero
-  hero: {
-    backgroundColor: HERO_BG,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 28,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  greeting: { color: ACCENT_L, fontSize: 13, fontWeight: '600' },
-  heroName:  { color: TEXT, fontSize: 26, fontWeight: '800', marginTop: 2, letterSpacing: -0.5 },
-  heroIcon:  {
-    width: 52, height: 52,
-    borderRadius: 18,
-    backgroundColor: ACCENT_BG,
-    alignItems: 'center',
-    justifyContent: 'center',
+  hero: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 26 },
+  heroTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  greeting: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '600' },
+  heroName: { color: TEXT, fontSize: 26, fontWeight: '800', marginTop: 2, letterSpacing: -0.5 },
+  heroIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center', justifyContent: 'center',
   },
   cadrePill: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    backgroundColor: ACCENT_BG,
-    borderRadius: 100,
-    borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.3)',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    marginTop: 8, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 100, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 10, paddingVertical: 3,
   },
-  cadreText: { color: ACCENT_L, fontSize: 11, fontWeight: '600' },
+  cadreText: { color: '#fff', fontSize: 11, fontWeight: '600' },
 
-  // Cards
-  card: {
-    backgroundColor: SURFACE,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: BORDER,
-    padding: 16,
+  ringRow: { flexDirection: 'row', alignItems: 'center', marginTop: 24 },
+  ringValue: { color: TEXT, fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  ringLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 10.5, marginTop: 2 },
+
+  renewalPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    borderRadius: 100, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6,
   },
-  cardRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitle: { color: TEXT, fontSize: 14, fontWeight: '700' },
-  cardMeta:  { color: TEXT3, fontSize: 12, marginTop: 3 },
+  renewalDot: { width: 6, height: 6, borderRadius: 3 },
+  renewalText: { color: '#e9d5ff', fontSize: 11.5, fontWeight: '700' },
+  heroCaption: { color: 'rgba(255,255,255,0.65)', fontSize: 12.5, marginTop: 10, lineHeight: 18 },
 
-  // Progress
-  progressLabel:   { color: TEXT2, fontSize: 12, fontWeight: '600' },
-  progressTrack:   { height: 10, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 100, overflow: 'hidden', marginTop: 12 },
-  progressFill:    { height: '100%', backgroundColor: ACCENT, borderRadius: 100 },
-  progressCaption: { color: TEXT3, fontSize: 12, marginTop: 8 },
+  streakHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  streakLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 12.5, fontWeight: '700' },
+  streakBest: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+
   upgradeCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
-    backgroundColor: 'rgba(245,158,11,0.12)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.25)',
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(249,115,22,0.14)', borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderWidth: 1, borderColor: 'rgba(249,115,22,0.28)',
   },
-  upgradeCtaText: { color: '#f59e0b', fontSize: 12, fontWeight: '600', flex: 1 },
+  upgradeCtaText: { color: '#fdba74', fontSize: 12, fontWeight: '600', flex: 1 },
 
-  // Stats
-  statCard:  { flex: 1, alignItems: 'center', gap: 4 },
-  statValue: { color: TEXT, fontSize: 20, fontWeight: '800', marginTop: 4 },
-  statLabel: { color: TEXT3, fontSize: 11 },
+  card: { backgroundColor: SURFACE, borderRadius: 20, borderWidth: 1, borderColor: BORDER, padding: 16 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardMeta: { color: TEXT3, fontSize: 12, marginTop: 3 },
 
-  // Section labels
-  sectionLabel: { color: TEXT2, fontSize: 13, fontWeight: '700', marginBottom: 8 },
-  profileTag:   { color: ACCENT_L, fontSize: 11, marginTop: 2 },
+  sectionLabel: { color: TEXT2, fontSize: 13, fontWeight: '700', marginBottom: 10 },
+  profileTag: { color: ACCENT_L, fontSize: 11, marginTop: 2 },
 
-  // Continue
-  continueBadge: {
-    width: 48, height: 48,
-    borderRadius: 16,
-    backgroundColor: ACCENT_BG,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  progressTrack: { height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 100, overflow: 'hidden', marginTop: 8 },
+  progressFill: { height: '100%', backgroundColor: AMBER_400, borderRadius: 100 },
 
-  // Rec cards
-  recCard: {
-    width: 180,
-    backgroundColor: SURFACE,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: BORDER,
-    padding: 14,
-    height: 130,
+  continueCard: { width: 190, backgroundColor: SURFACE, borderRadius: 20, borderWidth: 1, borderColor: BORDER, padding: 14 },
+  continueThumb: {
+    width: 40, height: 40, borderRadius: 12, backgroundColor: ACCENT_BG,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 10,
   },
-  recCardSkeleton: {
-    width: 180,
-    height: 130,
-    backgroundColor: SURFACE2,
-    borderRadius: 20,
-  },
-  catPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: ACCENT_BG,
-    borderRadius: 100,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  catText:  { color: ACCENT_L, fontSize: 10, fontWeight: '700' },
+  continueTitle: { color: TEXT, fontSize: 13, fontWeight: '700', lineHeight: 18, marginBottom: 8 },
+
+  recCard: { width: 180, backgroundColor: SURFACE, borderRadius: 20, borderWidth: 1, borderColor: BORDER, padding: 14, height: 130 },
+  recCardSkeleton: { width: 180, height: 130, backgroundColor: SURFACE2, borderRadius: 20 },
+  catPill: { alignSelf: 'flex-start', backgroundColor: ACCENT_BG, borderRadius: 100, paddingHorizontal: 8, paddingVertical: 3 },
+  catText: { color: ACCENT_L, fontSize: 10, fontWeight: '700' },
   recTitle: { color: TEXT, fontSize: 12, fontWeight: '600', lineHeight: 17, marginBottom: 4 },
+
+  fab: {
+    position: 'absolute', right: 16, bottom: 20,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: WHATSAPP, borderRadius: 100, paddingHorizontal: 16, paddingVertical: 12,
+    shadowColor: WHATSAPP, shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8,
+  },
+  fabText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });

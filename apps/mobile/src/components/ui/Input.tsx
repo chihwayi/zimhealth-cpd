@@ -47,7 +47,7 @@ export function Input({
       <Text className="text-xs font-bold text-slate-500 uppercase tracking-wide">{label}</Text>
       <View
         className={`flex-row items-center rounded-2xl border px-4 py-4 ${borderColor} ${bgColor}`}
-        style={focused && !error ? { shadowColor: '#3b82f6', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } } : undefined}
+        style={focused && !error ? { shadowColor: '#7c3aed', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } } : undefined}
       >
         <TextInput
           className="flex-1 text-sm text-slate-900"
@@ -69,7 +69,7 @@ export function Input({
             <Ionicons
               name={show ? 'eye-off-outline' : 'eye-outline'}
               size={18}
-              color={focused ? '#3b82f6' : '#94a3b8'}
+              color={focused ? '#7c3aed' : '#94a3b8'}
             />
           </Pressable>
         )}

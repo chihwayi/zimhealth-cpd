@@ -18,7 +18,7 @@ interface Props extends ToastConfig {
 }
 
 const TYPE_STYLES: Record<ToastType, { bg: string; icon: string; iconColor: string; border: string }> = {
-  info:    { bg: 'rgba(30,41,59,0.97)',  icon: 'information-circle', iconColor: ACCENT,   border: 'rgba(59,130,246,0.4)' },
+  info:    { bg: 'rgba(30,41,59,0.97)',  icon: 'information-circle', iconColor: ACCENT,   border: 'rgba(124,58,237,0.4)' },
   success: { bg: 'rgba(20,40,30,0.97)',  icon: 'checkmark-circle',   iconColor: SUCCESS,  border: 'rgba(34,197,94,0.4)' },
   warning: { bg: 'rgba(40,32,10,0.97)',  icon: 'warning',            iconColor: WARN,     border: 'rgba(245,158,11,0.4)' },
   danger:  { bg: 'rgba(40,20,20,0.97)',  icon: 'alert-circle',       iconColor: DANGER,   border: 'rgba(239,68,68,0.4)' },

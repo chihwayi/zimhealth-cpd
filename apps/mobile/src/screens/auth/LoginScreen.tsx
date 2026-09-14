@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -11,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useMutation } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -18,10 +20,12 @@ import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/auth.store';
 import type { AuthUser } from '../../store/auth.store';
 import type { LoginScreenProps } from '../../navigation/types';
+import { GRADIENT_LOGIN, WHATSAPP, VIOLET_500, AMBER_400, DANGER_BG } from '../../theme';
 
 type LoginResponse = { user: AuthUser; accessToken: string; refreshToken: string };
+const WHATSAPP_LINK = 'https://wa.me/263771234567';
 
-// ── Dark glass input ──────────────────────────────────────────────────────────
+// ── Glass input on the sunrise gradient ────────────────────────────────────────
 
 function DarkInput({
   icon,
@@ -48,7 +52,7 @@ function DarkInput({
       <Ionicons
         name={icon}
         size={18}
-        color={focused ? '#60a5fa' : 'rgba(255,255,255,0.35)'}
+        color={focused ? '#fff' : 'rgba(255,255,255,0.5)'}
         style={{ marginRight: 12 }}
       />
       <TextInput
@@ -56,7 +60,7 @@ function DarkInput({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="rgba(255,255,255,0.25)"
+        placeholderTextColor="rgba(255,255,255,0.45)"
         secureTextEntry={secureTextEntry && !show}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
@@ -69,7 +73,7 @@ function DarkInput({
           <Ionicons
             name={show ? 'eye-off-outline' : 'eye-outline'}
             size={18}
-            color="rgba(255,255,255,0.3)"
+            color="rgba(255,255,255,0.5)"
           />
         </Pressable>
       )}
@@ -98,123 +102,119 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   const canSubmit = email.trim().length > 0 && password.length > 0;
 
   return (
-    <SafeAreaView style={s.safe}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          contentContainerStyle={s.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ── Brand ── */}
-          <View style={s.brand}>
-            <Image
-              source={require('../../../assets/brand-logo.png')}
-              style={s.logo}
-              resizeMode="contain"
-            />
-            <Text style={s.headline}>Welcome back</Text>
-            <Text style={s.sub}>Log in to continue your CPD journey</Text>
-          </View>
-
-          {/* ── Form ── */}
-          <View style={s.form}>
-            <DarkInput
-              icon="mail-outline"
-              placeholder="Email address"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-            />
-            <DarkInput
-              icon="lock-closed-outline"
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-
-            <Pressable style={s.forgotWrap} hitSlop={10}>
-              <Text style={s.forgotText}>Forgot password?</Text>
-            </Pressable>
-
-            {loginMutation.isError && (
-              <View style={s.errorBox}>
-                <Ionicons name="alert-circle-outline" size={15} color="#fca5a5" />
-                <Text style={s.errorText}>
-                  {loginMutation.error?.message ?? 'Login failed. Please try again.'}
-                </Text>
+    <LinearGradient colors={GRADIENT_LOGIN} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {/* ── Brand ── */}
+            <View style={s.brand}>
+              <View style={s.logoBadge}>
+                <Image source={require('../../../assets/brand-logo.png')} style={s.logo} resizeMode="contain" />
               </View>
-            )}
-
-            {/* Primary button */}
-            <Pressable
-              style={[s.btn, (!canSubmit || loginMutation.isPending) && s.btnDisabled]}
-              onPress={() => loginMutation.mutate()}
-              disabled={!canSubmit || loginMutation.isPending}
-            >
-              <Text style={s.btnText}>
-                {loginMutation.isPending ? 'Signing in…' : 'Log In'}
-              </Text>
-            </Pressable>
-
-            {/* Divider */}
-            <View style={s.divider}>
-              <View style={s.dividerLine} />
-              <Text style={s.dividerText}>OR</Text>
-              <View style={s.dividerLine} />
+              <Text style={s.headline}>Your CPD points, rising every day you show up.</Text>
+              <Text style={s.sub}>One account for the app and WhatsApp — track hours, courses and your council renewal in one place.</Text>
             </View>
 
-            {/* WhatsApp */}
-            <Pressable style={s.waBtn}>
-              <View style={s.waIconWrap}>
-                <FontAwesome5 name="whatsapp" size={22} color="#fff" />
-              </View>
-              <Text style={s.waBtnText}>Continue with WhatsApp</Text>
-            </Pressable>
-          </View>
+            {/* ── Form ── */}
+            <View style={s.form}>
+              <DarkInput
+                icon="mail-outline"
+                placeholder="Email address"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+              />
+              <DarkInput
+                icon="lock-closed-outline"
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
 
-          {/* ── Footer ── */}
-          <View style={s.footer}>
-            <Text style={s.footerText}>Don't have an account? </Text>
-            <Pressable onPress={() => navigation.navigate('Register')} hitSlop={8}>
-              <Text style={s.footerLink}>Register here</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+              <Pressable style={s.forgotWrap} hitSlop={10}>
+                <Text style={s.forgotText}>Forgot password?</Text>
+              </Pressable>
+
+              {loginMutation.isError && (
+                <View style={s.errorBox}>
+                  <Ionicons name="alert-circle-outline" size={15} color="#fecdd3" />
+                  <Text style={s.errorText}>
+                    {loginMutation.error?.message ?? 'Login failed. Please try again.'}
+                  </Text>
+                </View>
+              )}
+
+              {/* Primary button */}
+              <Pressable
+                style={[s.btn, (!canSubmit || loginMutation.isPending) && s.btnDisabled]}
+                onPress={() => loginMutation.mutate()}
+                disabled={!canSubmit || loginMutation.isPending}
+              >
+                <Text style={s.btnText}>
+                  {loginMutation.isPending ? 'Signing in…' : 'Continue'}
+                </Text>
+              </Pressable>
+
+              {/* Divider */}
+              <View style={s.divider}>
+                <View style={s.dividerLine} />
+                <Text style={s.dividerText}>OR</Text>
+                <View style={s.dividerLine} />
+              </View>
+
+              {/* WhatsApp */}
+              <Pressable style={s.waBtn} onPress={() => Linking.openURL(WHATSAPP_LINK)}>
+                <View style={s.waIconWrap}>
+                  <FontAwesome5 name="whatsapp" size={22} color="#fff" />
+                </View>
+                <Text style={s.waBtnText}>Continue on WhatsApp</Text>
+              </Pressable>
+            </View>
+
+            {/* ── Footer ── */}
+            <View style={s.footer}>
+              <Text style={s.footerText}>Don't have an account? </Text>
+              <Pressable onPress={() => navigation.navigate('Register')} hitSlop={8}>
+                <Text style={s.footerLink}>Register here</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const BG   = '#0f172a';
-const CARD = 'rgba(255,255,255,0.05)';
-const BORDER = 'rgba(255,255,255,0.10)';
-const BORDER_FOCUS = 'rgba(96,165,250,0.7)';
+const CARD = 'rgba(255,255,255,0.12)';
+const BORDER = 'rgba(255,255,255,0.22)';
+const BORDER_FOCUS = '#fff';
 
 const s = StyleSheet.create({
-  safe:  { flex: 1, backgroundColor: BG },
-  scroll: { flexGrow: 1, paddingHorizontal: 28, paddingBottom: 40 },
+  scroll: { flexGrow: 1, paddingHorizontal: 28, paddingBottom: 40, justifyContent: 'center' },
 
   // Brand
-  brand: { alignItems: 'center', paddingTop: 52, paddingBottom: 44 },
-  logo:  { width: 200, height: 54 },
+  brand: { paddingTop: 60, paddingBottom: 40 },
+  logoBadge: {
+    width: 52, height: 52, borderRadius: 16, marginBottom: 24,
+    backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center',
+  },
+  logo: { width: 32, height: 32 },
   headline: {
-    color: '#f8fafc',
-    fontSize: 28,
-    fontWeight: '700',
-    marginTop: 32,
-    letterSpacing: -0.5,
+    fontFamily: Platform.select({ ios: 'DM Serif Display', android: 'serif', default: 'serif' }),
+    color: '#fff',
+    fontSize: 30,
+    lineHeight: 38,
+    maxWidth: 300,
   },
   sub: {
-    color: 'rgba(255,255,255,0.35)',
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 14,
-    marginTop: 6,
-    textAlign: 'center',
+    marginTop: 14,
+    lineHeight: 20,
+    maxWidth: 300,
   },
 
   // Form
@@ -232,59 +232,59 @@ const s = StyleSheet.create({
   },
   inputRowFocused: {
     borderColor: BORDER_FOCUS,
-    backgroundColor: 'rgba(96,165,250,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
   inputText: {
     flex: 1,
-    color: '#f8fafc',
+    color: '#fff',
     fontSize: 15,
   },
 
   forgotWrap: { alignSelf: 'flex-end', marginTop: -2 },
-  forgotText: { color: '#60a5fa', fontSize: 13, fontWeight: '500' },
+  forgotText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(239,68,68,0.12)',
+    backgroundColor: DANGER_BG,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.25)',
+    borderColor: 'rgba(225,29,72,0.4)',
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  errorText: { color: '#fca5a5', fontSize: 13, flex: 1 },
+  errorText: { color: '#fecdd3', fontSize: 13, flex: 1 },
 
   btn: {
-    backgroundColor: '#3b82f6',
-    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderRadius: 100,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#3b82f6',
-    shadowOpacity: 0.45,
+    shadowColor: VIOLET_500,
+    shadowOpacity: 0.4,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
     marginTop: 4,
   },
   btnDisabled: { opacity: 0.45, shadowOpacity: 0 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+  btnText: { color: '#2e1065', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
 
   divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 4 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' },
-  dividerText: { color: 'rgba(255,255,255,0.2)', fontSize: 11, fontWeight: '600', letterSpacing: 1 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
+  dividerText: { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
 
   waBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    borderRadius: 16,
+    borderRadius: 100,
     paddingVertical: 14,
     paddingHorizontal: 20,
-    backgroundColor: '#25D366',
-    shadowColor: '#25D366',
+    backgroundColor: WHATSAPP,
+    shadowColor: WHATSAPP,
     shadowOpacity: 0.35,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 5 },
@@ -301,6 +301,6 @@ const s = StyleSheet.create({
   waBtnText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
 
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 36 },
-  footerText: { color: 'rgba(255,255,255,0.3)', fontSize: 14 },
-  footerLink: { color: '#60a5fa', fontSize: 14, fontWeight: '600' },
+  footerText: { color: 'rgba(255,255,255,0.65)', fontSize: 14 },
+  footerLink: { color: AMBER_400, fontSize: 14, fontWeight: '700' },
 });

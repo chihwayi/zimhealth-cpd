@@ -38,7 +38,7 @@ const TYPE_ICON: Record<ModalType, { name: string; color: string }> = {
 };
 
 const TYPE_GLOW: Record<ModalType, string> = {
-  info:    'rgba(59,130,246,0.18)',
+  info:    'rgba(124,58,237,0.20)',
   success: 'rgba(34,197,94,0.18)',
   warning: 'rgba(245,158,11,0.18)',
   danger:  'rgba(239,68,68,0.18)',

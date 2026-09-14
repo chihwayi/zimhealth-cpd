@@ -29,11 +29,11 @@ export default function RootNavigator() {
     return <AppNavigator />;
   }
 
-  if (user.role === 'ADMIN' || user.role === 'CONTENT_MANAGER') {
+  if (user.role === 'PLATFORM_OWNER' || user.role === 'CONTENT_MANAGER') {
     return <CreatorNavigator />;
   }
 
-  if (user.role === 'NCZ_OFFICER' || user.role === 'COUNCIL_OFFICER') {
+  if (user.role === 'COUNCIL_OFFICER') {
     return <CouncilNavigator />;
   }
 

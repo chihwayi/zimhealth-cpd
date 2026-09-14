@@ -280,7 +280,7 @@ const s = StyleSheet.create({
     paddingVertical: 11,
     gap: 10,
   },
-  searchBarFocused: { borderColor: BORDER_FOCUS, backgroundColor: 'rgba(96,165,250,0.05)' },
+  searchBarFocused: { borderColor: BORDER_FOCUS, backgroundColor: 'rgba(139,92,246,0.06)' },
   searchInput: { flex: 1, color: TEXT, fontSize: 14 },
 
   offlineBtn: {
@@ -292,7 +292,7 @@ const s = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.2)',
+    borderColor: 'rgba(139,92,246,0.25)',
   },
   offlineBtnDisabled: { opacity: 0.45 },
   offlineBtnText:     { color: ACCENT_L, fontSize: 13, fontWeight: '600' },

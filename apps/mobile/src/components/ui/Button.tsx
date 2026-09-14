@@ -12,8 +12,8 @@ interface ButtonProps {
 }
 
 const SHADOW = {
-  primary: { shadowColor: '#2563eb', shadowOpacity: 0.30, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
-  danger:  { shadowColor: '#ef4444', shadowOpacity: 0.25, shadowRadius: 8,  shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  primary: { shadowColor: '#7c3aed', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  danger:  { shadowColor: '#e11d48', shadowOpacity: 0.25, shadowRadius: 8,  shadowOffset: { width: 0, height: 3 }, elevation: 4 },
   secondary: {},
   ghost: {},
 };
@@ -53,7 +53,7 @@ export function Button({
         ${BG[variant]} ${fullWidth ? 'w-full' : ''} ${isDisabled ? 'opacity-40' : ''}`}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? '#fff' : '#2563eb'} />
+        <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? '#fff' : '#7c3aed'} />
       ) : (
         <Text className={LABEL[variant]}>{label}</Text>
       )}

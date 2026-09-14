@@ -17,6 +17,7 @@ import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/auth.store';
 import type { AuthUser } from '../../store/auth.store';
 import type { RegisterScreenProps } from '../../navigation/types';
+import { BG, VIOLET_600, VIOLET_500, AMBER_400, DANGER_BG } from '../../theme';
 
 type RegisterResponse = { user: AuthUser; accessToken: string; refreshToken: string };
 
@@ -59,7 +60,7 @@ function DarkInput({
         <Ionicons
           name={icon}
           size={18}
-          color={focused ? '#60a5fa' : 'rgba(255,255,255,0.35)'}
+          color={focused ? '#c4b5fd' : 'rgba(255,255,255,0.4)'}
           style={{ marginRight: 12 }}
         />
         <TextInput
@@ -162,7 +163,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
               </Text>
               <Text style={s.sub}>
                 {step === 1
-                  ? "Join Zimbabwe's health professionals"
+                  ? 'Join health professionals across the region'
                   : 'Tell us about your profession'}
               </Text>
 
@@ -297,10 +298,9 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const BG     = '#0f172a';
-const CARD   = 'rgba(255,255,255,0.05)';
+const CARD   = 'rgba(255,255,255,0.06)';
 const BORDER = 'rgba(255,255,255,0.10)';
-const BORDER_FOCUS = 'rgba(96,165,250,0.7)';
+const BORDER_FOCUS = 'rgba(139,92,246,0.7)';
 
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: BG },
@@ -311,17 +311,17 @@ const s = StyleSheet.create({
 
   brand:    { alignItems: 'center' },
   logo:     { width: 180, height: 48 },
-  headline: { color: '#f8fafc', fontSize: 26, fontWeight: '700', marginTop: 24, letterSpacing: -0.5, textAlign: 'center' },
-  sub:      { color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 6, textAlign: 'center' },
+  headline: { color: '#fff', fontSize: 26, fontWeight: '700', marginTop: 24, letterSpacing: -0.5, textAlign: 'center' },
+  sub:      { color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 6, textAlign: 'center' },
 
   dots:     { flexDirection: 'row', gap: 8, marginTop: 20 },
   dot:      { width: 16, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)' },
-  dotActive:{ width: 32, backgroundColor: '#3b82f6' },
+  dotActive:{ width: 32, backgroundColor: AMBER_400 },
 
   form: { gap: 14 },
 
   sectionLabel: {
-    color: 'rgba(255,255,255,0.4)',
+    color: 'rgba(255,255,255,0.5)',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
@@ -330,22 +330,22 @@ const s = StyleSheet.create({
 
   pills:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill:        { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 50, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
-  pillActive:  { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  pillText:    { color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: '600' },
+  pillActive:  { backgroundColor: VIOLET_600, borderColor: VIOLET_600 },
+  pillText:    { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '600' },
   pillTextActive: { color: '#fff' },
 
   inputRow:        { flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 16, paddingVertical: 15 },
-  inputRowFocused: { borderColor: BORDER_FOCUS, backgroundColor: 'rgba(96,165,250,0.06)' },
-  inputText:       { flex: 1, color: '#f8fafc', fontSize: 15 },
+  inputRowFocused: { borderColor: BORDER_FOCUS, backgroundColor: 'rgba(139,92,246,0.08)' },
+  inputText:       { flex: 1, color: '#fff', fontSize: 15 },
 
-  errorBox:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(239,68,68,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', paddingHorizontal: 14, paddingVertical: 10 },
+  errorBox:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: DANGER_BG, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(225,29,72,0.3)', paddingHorizontal: 14, paddingVertical: 10 },
   errorText: { color: '#fca5a5', fontSize: 13, flex: 1 },
 
-  btn:         { backgroundColor: '#3b82f6', borderRadius: 16, paddingVertical: 16, alignItems: 'center', shadowColor: '#3b82f6', shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 8, marginTop: 4 },
+  btn:         { backgroundColor: VIOLET_600, borderRadius: 16, paddingVertical: 16, alignItems: 'center', shadowColor: VIOLET_500, shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 8, marginTop: 4 },
   btnDisabled: { opacity: 0.4, shadowOpacity: 0 },
   btnText:     { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
 
   footer:     { flexDirection: 'row', justifyContent: 'center', marginTop: 36 },
-  footerText: { color: 'rgba(255,255,255,0.3)', fontSize: 14 },
-  footerLink: { color: '#60a5fa', fontSize: 14, fontWeight: '600' },
+  footerText: { color: 'rgba(255,255,255,0.5)', fontSize: 14 },
+  footerLink: { color: AMBER_400, fontSize: 14, fontWeight: '700' },
 });

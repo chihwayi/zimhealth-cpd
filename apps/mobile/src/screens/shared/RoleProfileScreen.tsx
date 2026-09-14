@@ -12,24 +12,27 @@ import {
 } from '../../theme';
 
 const ROLE_LABEL: Record<string, string> = {
-  ADMIN:           'Platform Administrator',
+  PLATFORM_OWNER:  'Platform Owner',
+  COUNTRY_ADMIN:   'Country Admin',
   CONTENT_MANAGER: 'Content Creator',
-  NCZ_OFFICER:     'NCZ Officer',
   COUNCIL_OFFICER: 'Council Officer',
+  HELPDESK:        'Helpdesk',
 };
 
 const ROLE_PORTAL: Record<string, { label: string; path: string; color: string }> = {
-  ADMIN:           { label: 'Creator Portal', path: '/creator',  color: ACCENT      },
+  PLATFORM_OWNER:  { label: 'Admin Portal',   path: '/admin',    color: ACCENT      },
+  COUNTRY_ADMIN:   { label: 'Admin Portal',   path: '/admin',    color: ACCENT      },
   CONTENT_MANAGER: { label: 'Creator Portal', path: '/creator',  color: ACCENT      },
-  NCZ_OFFICER:     { label: 'Council Portal', path: '/ncz',      color: '#7c3aed'   },
-  COUNCIL_OFFICER: { label: 'Council Portal', path: '/ncz',      color: '#7c3aed'   },
+  COUNCIL_OFFICER: { label: 'Council Portal', path: '/council',  color: '#7c3aed'   },
+  HELPDESK:        { label: 'Helpdesk Portal', path: '/helpdesk', color: ACCENT     },
 };
 
 const ROLE_ICON_COLOR: Record<string, string> = {
-  ADMIN:           ACCENT_L,
+  PLATFORM_OWNER:  ACCENT_L,
+  COUNTRY_ADMIN:   ACCENT_L,
   CONTENT_MANAGER: ACCENT_L,
-  NCZ_OFFICER:     '#a855f7',
   COUNCIL_OFFICER: '#a855f7',
+  HELPDESK:        ACCENT_L,
 };
 
 export default function RoleProfileScreen() {
@@ -66,7 +69,7 @@ export default function RoleProfileScreen() {
           <Text style={s.email}>{user?.email ?? ''}</Text>
           <View style={[s.rolePill, { backgroundColor: `${iconColor}18`, borderColor: `${iconColor}30` }]}>
             <Ionicons
-              name={role === 'NCZ_OFFICER' || role === 'COUNCIL_OFFICER' ? 'shield-checkmark-outline' : 'create-outline'}
+              name={role === 'COUNCIL_OFFICER' ? 'shield-checkmark-outline' : 'create-outline'}
               size={11}
               color={iconColor}
               style={{ marginRight: 4 }}

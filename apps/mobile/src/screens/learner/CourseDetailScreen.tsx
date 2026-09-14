@@ -8,9 +8,10 @@ import { cacheCourseContent, cacheCourseOffline, retryFailedDownloads, shouldWar
 import { getCourseDownloadStatus, getOfflineCourseDetail, saveOfflineCourseDetail } from '../../lib/offlineDB';
 import { useModal } from '../../context/ModalContext';
 import type { CourseDetailScreenProps } from '../../navigation/types';
+import { SkyHeader } from '../../components/ui/Horizon';
 import {
   BG, SURFACE, SURFACE2, BORDER, BORDER2, TEXT, TEXT2, TEXT3,
-  ACCENT, ACCENT_L, ACCENT_BG, HERO_BG, SUCCESS, SUCCESS_BG, WARN,
+  ACCENT, ACCENT_L, ACCENT_BG, SUCCESS, SUCCESS_BG, WARN,
 } from '../../theme';
 
 type Module = {
@@ -100,7 +101,7 @@ export default function CourseDetailScreen({ route, navigation }: CourseDetailSc
     <SafeAreaView style={s.safe} edges={['bottom']}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* ── Hero banner ── */}
-        <View style={s.hero}>
+        <SkyHeader style={s.hero}>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
             <View style={s.heroBadge}>
               <Text style={s.heroBadgeText}>{course.category}</Text>
@@ -113,7 +114,7 @@ export default function CourseDetailScreen({ route, navigation }: CourseDetailSc
           {course.subtitle && (
             <Text style={s.heroSub}>{course.subtitle}</Text>
           )}
-        </View>
+        </SkyHeader>
 
         <View style={{ paddingHorizontal: 16, paddingBottom: 40, gap: 20, marginTop: -16 }}>
           {/* ── Stats row ── */}
@@ -274,7 +275,6 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: BG },
 
   hero: {
-    backgroundColor: HERO_BG,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 36,
@@ -285,7 +285,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.25)',
+    borderColor: 'rgba(139,92,246,0.3)',
   },
   heroBadgeText: { color: ACCENT_L, fontSize: 11, fontWeight: '700' },
   heroTitle: { color: TEXT, fontSize: 22, fontWeight: '800', lineHeight: 30, letterSpacing: -0.3 },

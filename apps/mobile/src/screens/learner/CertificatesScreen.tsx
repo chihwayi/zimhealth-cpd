@@ -211,7 +211,7 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.2)',
+    borderColor: 'rgba(139,92,246,0.25)',
   },
   pointsValue: { color: ACCENT_L, fontSize: 24, fontWeight: '800' },
   pointsLabel: { color: ACCENT_L, fontSize: 10, fontWeight: '600', marginTop: 2 },

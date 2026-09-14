@@ -255,7 +255,7 @@ const s = StyleSheet.create({
     fontFamily: 'monospace',
     letterSpacing: 1,
   },
-  voucherInputFocused: { borderColor: BORDER_FOCUS, backgroundColor: 'rgba(96,165,250,0.06)' },
+  voucherInputFocused: { borderColor: BORDER_FOCUS, backgroundColor: 'rgba(139,92,246,0.08)' },
 
   redeemBtn: {
     backgroundColor: ACCENT,
