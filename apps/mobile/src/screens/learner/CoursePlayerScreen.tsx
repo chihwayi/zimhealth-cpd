@@ -105,6 +105,42 @@ function CachedDocument({ uri }: { uri: string }) {
   );
 }
 
+// ── Minimal HTML content renderer ──────────────────────────────────────────
+// Course text sections are authored as simple HTML (only <h2>, <p>, <b> are
+// ever used — see prisma/seed-courses.ts) rather than a rich-text tree, so a
+// tiny bespoke parser avoids pulling in a full HTML-rendering dependency.
+
+function renderInline(text: string, keyPrefix: string) {
+  const parts = text.split(/(<b>.*?<\/b>)/g).filter(Boolean);
+  return parts.map((part, i) => {
+    const boldMatch = part.match(/^<b>(.*?)<\/b>$/);
+    return (
+      <Text key={`${keyPrefix}-${i}`} style={boldMatch ? { fontWeight: '700' } : undefined}>
+        {boldMatch ? boldMatch[1] : part}
+      </Text>
+    );
+  });
+}
+
+function HtmlContent({ html }: { html: string }) {
+  const blocks = html.split(/(<h2>.*?<\/h2>|<p>.*?<\/p>)/g).filter((b) => b.trim());
+  return (
+    <View style={{ gap: 14 }}>
+      {blocks.map((block, i) => {
+        const h2Match = block.match(/^<h2>(.*?)<\/h2>$/);
+        const pMatch  = block.match(/^<p>(.*?)<\/p>$/);
+        if (h2Match) {
+          return <Text key={i} style={s.contentHeading}>{renderInline(h2Match[1], `h${i}`)}</Text>;
+        }
+        if (pMatch) {
+          return <Text key={i} style={s.bodyText}>{renderInline(pMatch[1], `p${i}`)}</Text>;
+        }
+        return <Text key={i} style={s.bodyText}>{renderInline(block, `t${i}`)}</Text>;
+      })}
+    </View>
+  );
+}
+
 function CachedImage({ uri }: { uri: string }) {
   const sourceUri = useCachedUri(uri);
   if (!sourceUri) {
@@ -423,7 +459,7 @@ export default function CoursePlayerScreen({ route, navigation }: CoursePlayerSc
       {/* ── Module / section header ── */}
       <View style={s.header}>
         <Text style={s.moduleName} numberOfLines={1}>
-          Module {activeModuleIdx + 1}: {currentModule.title}
+          {currentModule.title}
         </Text>
         <Text style={s.sectionTitle}>{currentSection.title}</Text>
         <Text style={s.metaText}>
@@ -438,7 +474,7 @@ export default function CoursePlayerScreen({ route, navigation }: CoursePlayerSc
         showsVerticalScrollIndicator={false}
       >
         {currentSection.type === 'TEXT' ? (
-          <Text style={s.bodyText}>{currentSection.content}</Text>
+          <HtmlContent html={currentSection.content} />
         ) : currentSection.type === 'VIDEO' ? (
           <CachedVideo uri={currentSection.content} />
         ) : currentSection.type === 'DOCUMENT' ? (
@@ -536,6 +572,7 @@ const s = StyleSheet.create({
   sectionTitle: { color: TEXT, fontSize: 16, fontWeight: '700', marginTop: 2 },
   metaText:  { color: TEXT3, fontSize: 12 },
   bodyText:  { color: TEXT2, fontSize: 14, lineHeight: 26 },
+  contentHeading: { color: TEXT, fontSize: 17, fontWeight: '800', lineHeight: 24 },
   questionText: { color: TEXT, fontSize: 14, fontWeight: '600', lineHeight: 22 },
 
   videoWrap: {

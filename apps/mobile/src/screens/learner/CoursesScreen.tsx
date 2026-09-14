@@ -17,7 +17,7 @@ import { getCourseDownloadStatus, getOfflineCourseList, saveOfflineCourseList } 
 import { useModal } from '../../context/ModalContext';
 import type { CoursesListScreenProps } from '../../navigation/types';
 import {
-  BG, SURFACE, SURFACE2, BORDER, BORDER_FOCUS, TEXT, TEXT2, TEXT3,
+  BG, SURFACE, SURFACE2, BORDER, BORDER2, BORDER_FOCUS, TEXT, TEXT2, TEXT3,
   ACCENT, ACCENT_L, ACCENT_BG, WARN,
 } from '../../theme';
 
@@ -315,11 +315,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: SURFACE,
+    borderColor: BORDER2,
+    backgroundColor: SURFACE2,
   },
   chipActive:     { backgroundColor: ACCENT, borderColor: ACCENT },
-  chipText:       { color: TEXT2, fontSize: 12, fontWeight: '600' },
+  chipText:       { color: TEXT, fontSize: 12, fontWeight: '600' },
   chipTextActive: { color: '#fff' },
 
   // Skeleton
