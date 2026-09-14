@@ -229,6 +229,37 @@ router.get('/module/:moduleId', requireBotSecret, async (req, res) => {
   }
 });
 
+// ─── GET /api/bot/quiz/:quizId/status?phone=+263771234567 ────────────────────
+// Lets the bot check attemptsRemaining before starting a module quiz, so it
+// can decline upfront instead of running the learner through the whole quiz
+// only to reject the credit at the end.
+router.get('/quiz/:quizId/status', requireBotSecret, async (req, res) => {
+  const phone = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+
+  try {
+    const learner = await db.user.findUnique({ where: { phone }, select: { id: true } });
+    if (!learner) return res.status(404).json({ error: 'Learner not found' });
+
+    const quiz = await db.quiz.findUnique({
+      where: { id: req.params.quizId },
+      select: { attemptLimit: true },
+    });
+    if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+
+    const attemptCount = await db.quizAttempt.count({
+      where: { learnerId: learner.id, quizId: req.params.quizId },
+    });
+
+    res.json({
+      attemptLimit: quiz.attemptLimit,
+      attemptsRemaining: Math.max(0, quiz.attemptLimit - attemptCount),
+    });
+  } catch {
+    res.status(500).json({ error: 'Could not check quiz status' });
+  }
+});
+
 // ─── GET /api/bot/lookup?phone=+263771234567 ─────────────────────────────────
 // Check whether a phone number has a registered account
 router.get('/lookup', requireBotSecret, async (req, res) => {

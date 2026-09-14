@@ -19,6 +19,7 @@ export function useOnlineStatus() {
         api.post(`/api/quizzes/${entry.quizId}/attempt`, {
           answers: entry.answers,
           attemptedAt: new Date(entry.attemptedAt).toISOString(),
+          startedAt: entry.startedAt ? new Date(entry.startedAt).toISOString() : undefined,
         }),
       );
       if (quizSynced > 0) {

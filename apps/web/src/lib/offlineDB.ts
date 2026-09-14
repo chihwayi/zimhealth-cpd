@@ -55,6 +55,7 @@ export interface PendingQuizAttempt {
   moduleId: string;
   answers: Record<string, string>;
   attemptedAt: number;
+  startedAt?: number;
   queuedAt: number;
 }
 
@@ -157,6 +158,7 @@ export async function queueQuizAttempt(
   courseId: string,
   moduleId: string,
   answers: Record<string, string>,
+  startedAt?: number,
 ): Promise<PendingQuizAttempt> {
   const db = await getDB();
   const attemptedAt = Date.now();
@@ -168,6 +170,7 @@ export async function queueQuizAttempt(
     moduleId,
     answers,
     attemptedAt,
+    startedAt,
     queuedAt,
   };
   await db.put('pending_quiz_attempts', entry);

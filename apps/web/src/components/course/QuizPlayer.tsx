@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, ChevronLeft, ChevronRight, Send } from 'lucide-react';
 import clsx from 'clsx';
@@ -48,6 +48,9 @@ export function QuizPlayer({ quizId, onPass }: { quizId: string; onPass?: () => 
   const [result, setResult] = useState<AttemptResult | null>(null);
   const [queuedOfflineAt, setQueuedOfflineAt] = useState<number | null>(null);
   const isOnline = useOnlineStatus();
+  // When the learner first saw this attempt's questions — sent to the
+  // backend as a soft signal for the implausibly-fast-submission flag.
+  const startedAtRef = useRef<number | null>(null);
 
   const { data: quiz, isLoading, error, refetch } = useQuery<Quiz>({
     queryKey: ['quiz', quizId, isOnline ? 'online' : 'offline'],
@@ -60,6 +63,10 @@ export function QuizPlayer({ quizId, onPass }: { quizId: string; onPass?: () => 
     },
     enabled: !!quizId,
   });
+
+  useEffect(() => {
+    if (quiz && startedAtRef.current === null) startedAtRef.current = Date.now();
+  }, [quiz]);
 
   const submitMutation = useMutation({
     mutationFn: async () => {
@@ -82,7 +89,7 @@ export function QuizPlayer({ quizId, onPass }: { quizId: string; onPass?: () => 
         const correctCount = feedback.filter((item) => item.isCorrect).length;
         const score = quiz.questions.length ? (correctCount / quiz.questions.length) * 100 : 0;
         const passed = score / 100 >= quiz.passMark;
-        const queued = await queueQuizAttempt(quizId, quiz.courseId, quiz.moduleId, answers);
+        const queued = await queueQuizAttempt(quizId, quiz.courseId, quiz.moduleId, answers, startedAtRef.current ?? undefined);
         setQueuedOfflineAt(queued.queuedAt);
         return {
           attemptId: `offline-${queued.key}`,
@@ -95,7 +102,10 @@ export function QuizPlayer({ quizId, onPass }: { quizId: string; onPass?: () => 
           feedback: quiz.showAnswersAfter ? feedback : [],
         } satisfies AttemptResult;
       }
-      return api.post<AttemptResult>(`/api/quizzes/${quizId}/attempt`, { answers });
+      return api.post<AttemptResult>(`/api/quizzes/${quizId}/attempt`, {
+        answers,
+        startedAt: startedAtRef.current ? new Date(startedAtRef.current).toISOString() : undefined,
+      });
     },
     onSuccess: (res) => {
       if (!isOnline) {
@@ -127,6 +137,7 @@ export function QuizPlayer({ quizId, onPass }: { quizId: string; onPass?: () => 
     setResult(null);
     setAnswers({});
     setIndex(0);
+    startedAtRef.current = null;
     await refetch();
   };
 

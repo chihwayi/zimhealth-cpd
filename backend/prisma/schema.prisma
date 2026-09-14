@@ -362,15 +362,20 @@ model QuestionOption {
 }
 
 model QuizAttempt {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   learnerId   String
-  learner     User     @relation(fields: [learnerId], references: [id])
+  learner     User      @relation(fields: [learnerId], references: [id])
   quizId      String
-  quiz        Quiz     @relation(fields: [quizId], references: [id])
+  quiz        Quiz      @relation(fields: [quizId], references: [id])
   score       Float
   passed      Boolean
-  answers     Json     // { questionId: optionId }
-  completedAt DateTime @default(now())
+  answers     Json      // { questionId: optionId }
+  // Client-reported time the learner began this attempt (quiz fetch/session
+  // start) — used only as a soft signal for the implausibly-fast-submission
+  // audit flag, never to block a submission on its own.
+  startedAt   DateTime?
+  flaggedFast Boolean   @default(false)
+  completedAt DateTime  @default(now())
 
   @@index([learnerId, quizId])
 }

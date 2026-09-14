@@ -33,6 +33,10 @@ const BotCreditSchema = z.object({
   moduleId: z.string().optional(),
   attemptKey: z.string().min(6),
   quizScore: z.number().min(0).max(100),
+  // Whether this quiz attempt passed — every completed attempt (pass or
+  // fail) is reported so attemptLimit enforcement matches the web path.
+  passed: z.boolean().default(true),
+  startedAt: z.coerce.date().optional(),
 });
 
 async function listLearnerCPDRecords(req: AuthRequest, defaultToCurrentYear: boolean) {
@@ -119,16 +123,66 @@ router.get('/bot/:phone', requireBotSecret, async (req, res) => {
   }
 });
 
-// POST /api/points/bot/credit — bot credits WhatsApp quiz points
+// POST /api/points/bot/credit — bot reports a completed WhatsApp quiz attempt
+// (pass or fail) and, if passed, credits points. Mirrors the web
+// POST /api/quizzes/:id/attempt path: every completed attempt is recorded
+// against the quiz's attemptLimit, not just passing ones.
 router.post('/bot/credit', requireBotSecret, async (req, res) => {
   try {
-    const { phone, quizId, courseId, attemptKey, quizScore } = BotCreditSchema.parse(req.body);
+    const { phone, quizId, courseId, moduleId, attemptKey, quizScore, passed, startedAt } = BotCreditSchema.parse(req.body);
     const learner = await db.user.findUnique({
       where: { phone },
       select: { id: true, fullName: true, phone: true, subscriptionTier: true },
     });
     if (!learner) return res.status(404).json({ error: 'Learner not found' });
     const cycleYear = new Date().getFullYear();
+
+    const quiz = await db.quiz.findUnique({
+      where: { id: quizId },
+      select: { attemptLimit: true, questions: { select: { id: true } } },
+    });
+    if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+
+    const attemptCount = await db.quizAttempt.count({ where: { learnerId: learner.id, quizId } });
+    if (attemptCount >= quiz.attemptLimit) {
+      return res.status(400).json({ error: 'Attempt limit reached' });
+    }
+
+    const totalQuestions = quiz.questions.length || 1;
+    const MIN_SECONDS_PER_QUESTION = 5;
+    const submittedAt = new Date();
+    const elapsedSeconds = startedAt ? (submittedAt.getTime() - startedAt.getTime()) / 1000 : null;
+    const minPlausibleSeconds = totalQuestions * MIN_SECONDS_PER_QUESTION;
+    const flaggedFast = elapsedSeconds !== null && elapsedSeconds >= 0 && elapsedSeconds < minPlausibleSeconds;
+
+    const attempt = await db.quizAttempt.create({
+      data: {
+        learnerId: learner.id,
+        quizId,
+        score: quizScore,
+        passed,
+        answers: {},
+        startedAt,
+        flaggedFast,
+        completedAt: submittedAt,
+      },
+    });
+
+    if (flaggedFast) {
+      await db.auditLog.create({
+        data: {
+          userId: learner.id,
+          action: 'QUIZ_SUBMISSION_FLAGGED_FAST',
+          entityType: 'QuizAttempt',
+          entityId: attempt.id,
+          meta: { quizId, elapsedSeconds, minPlausibleSeconds, totalQuestions, channel: 'WHATSAPP' },
+        },
+      });
+    }
+
+    if (!passed) {
+      return res.json({ attemptId: attempt.id, passed: false, pointsEarned: 0 });
+    }
 
     // Enforce FREE-tier WhatsApp CPD cap at the backend.
     const entitlementBeforeCredit = await getLearnerEntitlements(learner.id);
@@ -146,7 +200,7 @@ router.post('/bot/credit', requireBotSecret, async (req, res) => {
       where: { learnerId: learner.id, quizId, cycleYear, activityType: 'WHATSAPP_QUIZ' },
     });
     if (existing) {
-      return res.json({ recordId: existing.id, pointsEarned: 0, alreadyCredited: true });
+      return res.json({ attemptId: attempt.id, recordId: existing.id, passed: true, pointsEarned: 0, alreadyCredited: true });
     }
 
     const result = await creditPoints({
@@ -185,7 +239,7 @@ router.post('/bot/credit', requireBotSecret, async (req, res) => {
         action: 'WHATSAPP_QUIZ_ATTEMPT_CREDIT',
         entityType: 'Quiz',
         entityId: quizId,
-        meta: { attemptKey, pointsEarned: result.pointsEarned, courseId },
+        meta: { attemptKey, pointsEarned: result.pointsEarned, courseId, moduleId },
       },
     });
 
@@ -211,7 +265,7 @@ router.post('/bot/credit', requireBotSecret, async (req, res) => {
       })();
     }
 
-    res.json(result);
+    res.json({ attemptId: attempt.id, passed: true, ...result });
   } catch (err: any) {
     if (err.name === 'ZodError') return res.status(400).json({ error: err.errors });
     res.status(500).json({ error: 'Could not credit points' });

@@ -428,9 +428,37 @@ export async function handleLearn(msg: IncomingMessage, session: BotSession): Pr
 
 // ─── Start module quiz ────────────────────────────────────────────────────────
 
+async function fetchQuizStatus(phone: string, quizId: string): Promise<{ attemptsRemaining: number; attemptLimit: number } | null> {
+  try {
+    const res = await fetch(
+      `${API_URL}/api/bot/quiz/${quizId}/status?phone=${encodeURIComponent(phone)}`,
+      { headers: botHeaders },
+    );
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 async function startModuleQuiz(to: string, session: BotSession): Promise<void> {
   const ls = session.learningState;
   if (!ls?.quizId || !ls.quizQuestions?.length) return;
+
+  // Check attempts remaining before running the learner through the whole
+  // quiz, so a learner who's already exhausted their attempts finds out
+  // immediately instead of after answering every question.
+  const phone = to.replace('whatsapp:', '');
+  const status = await fetchQuizStatus(phone, ls.quizId);
+  if (status && status.attemptsRemaining <= 0) {
+    session.state = 'LEARNING';
+    await saveSession(session);
+    await sendMessage(
+      to,
+      `⚠️ You've used all ${status.attemptLimit} attempt${status.attemptLimit === 1 ? '' : 's'} for this quiz.\n\nReply *back* to pick another module or *menu* for the main menu.`,
+    );
+    return;
+  }
 
   session.quizState = {
     quizId: ls.quizId,
@@ -443,6 +471,7 @@ async function startModuleQuiz(to: string, session: BotSession): Promise<void> {
     answers: {},
     score: 0,
     returnToLearning: true,
+    startedAt: Date.now(),
   };
   session.state = 'QUIZ';
   await saveSession(session);

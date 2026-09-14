@@ -9,10 +9,37 @@ import { SubmitQuizAttemptSchema } from './quizzes.schema';
 import { creditPoints } from '../services/cpd-engine';
 import { generateQuestionsFromText } from '../services/ai-question-gen';
 
-function shuffle<T>(arr: T[]): T[] {
+// Deterministic string hash -> 32-bit seed (FNV-1a).
+function hashSeed(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+// mulberry32 PRNG — small, fast, deterministic given a seed.
+function mulberry32(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// A seeded Fisher-Yates shuffle: the same seed always produces the same
+// order — used so a learner sees a stable question order across
+// repeated fetches of an in-progress attempt, while still getting a fresh
+// order on their next attempt (the seed includes the attempt number).
+function seededShuffle<T>(arr: T[], seed: string): T[] {
+  const rng = mulberry32(hashSeed(seed));
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -48,7 +75,12 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
         where: { learnerId: req.user!.id, quizId: quiz.id },
       });
       const attemptsRemaining = Math.max(0, quiz.attemptLimit - attemptCount);
-      const questions = quiz.randomiseQuestions ? shuffle(quiz.questions) : quiz.questions;
+      // Seed by attemptCount (not a random call) so every fetch before the
+      // next submission returns the same order — reloading mid-attempt
+      // doesn't reshuffle, but the order changes again on the next attempt.
+      const questions = quiz.randomiseQuestions
+        ? seededShuffle(quiz.questions, `${req.user!.id}:${quiz.id}:${attemptCount}`)
+        : quiz.questions;
 
       if (offlineMode) {
         const enrollment = await db.enrollment.findUnique({
@@ -206,7 +238,7 @@ router.delete('/:id/questions/:qid', requireAuth, requireRole('CONTENT_MANAGER',
 // POST /api/quizzes/:id/attempt — submit answers
 router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: AuthRequest, res) => {
   try {
-    const { answers, attemptedAt, enrollmentId, sectionId } = SubmitQuizAttemptSchema.parse(req.body);
+    const { answers, attemptedAt, startedAt, enrollmentId, sectionId } = SubmitQuizAttemptSchema.parse(req.body);
 
     const quiz = await db.quiz.findUnique({
       where: { id: req.params.id },
@@ -240,6 +272,15 @@ router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: Aut
     const score = (correctCount / totalQuestions) * 100;
     const passed = score / 100 >= quiz.passMark;
 
+    // Soft anti-cheating signal, not a hard block: a real submission takes
+    // at least a few seconds per question to read and answer. Only flag
+    // when startedAt was actually supplied — never penalize a missing value.
+    const MIN_SECONDS_PER_QUESTION = 5;
+    const submittedAt = attemptedAt ?? new Date();
+    const elapsedSeconds = startedAt ? (submittedAt.getTime() - startedAt.getTime()) / 1000 : null;
+    const minPlausibleSeconds = totalQuestions * MIN_SECONDS_PER_QUESTION;
+    const flaggedFast = elapsedSeconds !== null && elapsedSeconds >= 0 && elapsedSeconds < minPlausibleSeconds;
+
     let attemptsRemaining = 0;
     const attempt = await db.$transaction(
       async (tx) => {
@@ -259,6 +300,8 @@ router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: Aut
             score,
             passed,
             answers,
+            startedAt,
+            flaggedFast,
             completedAt: attemptedAt,
           },
         });
@@ -269,6 +312,18 @@ router.post('/:id/attempt', requireAuth, requireRole('LEARNER'), async (req: Aut
         timeout: 10000,
       },
     );
+
+    if (flaggedFast) {
+      await db.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'QUIZ_SUBMISSION_FLAGGED_FAST',
+          entityType: 'QuizAttempt',
+          entityId: attempt.id,
+          meta: { quizId: quiz.id, elapsedSeconds, minPlausibleSeconds, totalQuestions },
+        },
+      });
+    }
 
     let pointsEarned = 0;
     if (passed) {

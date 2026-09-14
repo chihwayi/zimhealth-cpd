@@ -131,17 +131,21 @@ export async function handleQuiz(msg: IncomingMessage, session: BotSession): Pro
 
     let resultMsg = `${feedback}\n\n📊 *Quiz Result*\nScore: ${score}/${total} (${Math.round((score / total) * 100)}%)\n\n`;
 
-    if (passed) {
-      const isModuleQuiz = quizState.quizSource === 'MODULE_QUIZ' && quizState.quizId !== 'whatsapp-micro';
-      if (!isModuleQuiz) {
-        resultMsg += `🎉 You passed!\n\nThis was a practice quiz (no CPD credit).`;
-      } else {
-        try {
-          const phone = msg.from.replace('whatsapp:', '');
-          const attemptKey = shaLike(
-            `${phone}|${quizState.quizId}|${quizState.courseId ?? ''}|${quizState.moduleId ?? ''}|${score}/${total}`,
-          );
-          const res = await fetch(`${API_URL}/api/points/bot/credit`, {
+    const isModuleQuiz = quizState.quizSource === 'MODULE_QUIZ' && quizState.quizId !== 'whatsapp-micro';
+
+    if (!isModuleQuiz) {
+      resultMsg += passed
+        ? `🎉 You passed!\n\nThis was a practice quiz (no CPD credit).`
+        : `You need 70% to earn a CPD point. Keep practising!`;
+    } else {
+      // Report every completed module quiz attempt — pass or fail — so the
+      // backend can enforce attemptLimit consistently with the web path.
+      try {
+        const phone = msg.from.replace('whatsapp:', '');
+        const attemptKey = shaLike(
+          `${phone}|${quizState.quizId}|${quizState.courseId ?? ''}|${quizState.moduleId ?? ''}|${score}/${total}`,
+        );
+        const res = await fetch(`${API_URL}/api/points/bot/credit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-bot-secret': BOT_SECRET },
           body: JSON.stringify({
@@ -151,22 +155,34 @@ export async function handleQuiz(msg: IncomingMessage, session: BotSession): Pro
             moduleId: quizState.moduleId,
             attemptKey,
             quizScore: Math.round((score / total) * 100),
+            passed,
+            startedAt: quizState.startedAt ? new Date(quizState.startedAt).toISOString() : undefined,
           }),
-          });
-          const json = (await res.json().catch(() => ({}))) as { pointsEarned?: number; error?: unknown };
-          if (!res.ok) throw new Error(typeof json.error === 'string' ? json.error : 'Credit failed');
+        });
+        const json = (await res.json().catch(() => ({}))) as { pointsEarned?: number; error?: unknown };
+        if (!res.ok) {
+          if (typeof json.error === 'string' && json.error.includes('Attempt limit')) {
+            resultMsg += passed
+              ? `🎉 You passed, but you've used all your attempts for this quiz, so it can't be recorded.`
+              : `You need 70% to earn a CPD point, and you've used all your attempts for this quiz.`;
+          } else {
+            throw new Error(typeof json.error === 'string' ? json.error : 'Credit failed');
+          }
+        } else if (passed) {
           const earned = typeof json.pointsEarned === 'number' ? json.pointsEarned : 0;
           if (earned > 0) {
             resultMsg += `🎉 You passed! *+${earned} CPD point${earned !== 1 ? 's' : ''}* awarded.`;
           } else {
             resultMsg += `🎉 You passed, but this quiz was already credited for this cycle.`;
           }
-        } catch {
-          resultMsg += `🎉 You passed! (CPD credit could not be confirmed right now.)`;
+        } else {
+          resultMsg += `You need 70% to earn a CPD point. Keep practising!`;
         }
+      } catch {
+        resultMsg += passed
+          ? `🎉 You passed! (CPD credit could not be confirmed right now.)`
+          : `You need 70% to earn a CPD point. Keep practising!`;
       }
-    } else {
-      resultMsg += `You need 70% to earn a CPD point. Keep practising!`;
     }
 
     if (returnToLearning) {

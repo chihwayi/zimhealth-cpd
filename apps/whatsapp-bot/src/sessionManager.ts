@@ -101,6 +101,9 @@ export interface BotSession {
     score: number;
     // When set, return to LEARNING after quiz instead of MENU
     returnToLearning?: boolean;
+    // ms epoch when the quiz started — reported to the backend as a soft
+    // signal for the implausibly-fast-submission audit flag.
+    startedAt?: number;
   };
   lastActivity: number;
 }
