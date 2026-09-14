@@ -49,6 +49,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Badge } from '../../components/ui/Badge';
 import { toast } from '../../components/ui/Toast';
+import { Pagination } from '../../components/ui/Pagination';
 import { useAuthStore } from '../../store/auth.store';
 
 interface AdminStats {
@@ -302,14 +303,15 @@ export default function AdminDashboard() {
         </select>
       </div>
 
-      <div className="hidden sm:flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl w-full">
+      <div className="hidden sm:grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1 bg-slate-100 p-1 rounded-xl w-full">
         {ADMIN_SECTIONS.map((item) => (
           <Link
             key={item.key}
             to={item.path}
-            className={`px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`px-3 py-2 rounded-lg text-sm font-medium text-center truncate transition-all ${
               section === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-700'
             }`}
+            title={item.label}
           >
             {item.label}
           </Link>
@@ -448,6 +450,13 @@ function CreatorApprovalsSection() {
                   ))}
                 </tbody>
               </table>
+              <Pagination
+                page={pendingCreatorsQuery.data.page}
+                totalPages={pendingCreatorsQuery.data.totalPages}
+                total={pendingCreatorsQuery.data.total}
+                itemLabel="pending creators"
+                onPageChange={setPage}
+              />
             </div>
           )}
         </div>
@@ -1003,7 +1012,71 @@ function UsersSection() {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Cards on small screens — avoids a wide table forcing horizontal scroll */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {usersQuery.data.users.map((user) => (
+                <div key={user.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-slate-900 truncate">{user.fullName}</div>
+                      <div className="text-xs text-slate-500 mt-0.5 truncate">{user.email}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 flex-shrink-0">
+                      <Badge variant={user.isActive ? 'success' : 'error'}>
+                        {user.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                      <Badge variant={user.isApproved ? 'info' : 'warning'}>
+                        {user.isApproved ? 'Approved' : 'Pending'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={user.role}
+                      onChange={(event) => toggleMutation.mutate({ id: user.id, data: { role: event.target.value } })}
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    >
+                      {ROLE_OPTIONS.filter((option) => option !== 'ALL').map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={user.subscriptionTier}
+                      onChange={(event) => toggleMutation.mutate({ id: user.id, data: { subscriptionTier: event.target.value } })}
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    >
+                      {['FREE', 'STANDARD', 'INSTITUTION', 'DIASPORA'].map((tier) => (
+                        <option key={tier} value={tier}>{tier}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-xs text-slate-500">{user._count.cpdRecords} CPD records</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => toggleMutation.mutate({ id: user.id, data: { isApproved: !user.isApproved } })}
+                      className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      {user.isApproved ? 'Unapprove' : 'Approve'}
+                    </button>
+                    <button
+                      onClick={() => toggleMutation.mutate({ id: user.id, data: { isActive: !user.isActive } })}
+                      className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      {user.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button
+                      onClick={() => deactivateMutation.mutate(user.id)}
+                      className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+                    >
+                      Soft delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Table on medium+ screens */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50">
                   <tr>
@@ -1097,11 +1170,13 @@ function UsersSection() {
               </table>
             </div>
 
-            {usersQuery.data.totalPages > 1 && (
-              <div className="border-t border-slate-100 px-4 py-4 text-sm text-slate-500">
-                Page {usersQuery.data.page} of {usersQuery.data.totalPages} · {usersQuery.data.total} users
-              </div>
-            )}
+            <Pagination
+              page={usersQuery.data.page}
+              totalPages={usersQuery.data.totalPages}
+              total={usersQuery.data.total}
+              itemLabel="users"
+              onPageChange={setPage}
+            />
           </>
         )}
       </div>
@@ -1626,9 +1701,10 @@ function SettingsSection() {
 }
 
 function AuditSection() {
+  const [page, setPage] = useState(1);
   const auditQuery = useQuery<AuditResponse>({
-    queryKey: ['admin-audit'],
-    queryFn: () => api.get('/api/admin/audit'),
+    queryKey: ['admin-audit', page],
+    queryFn: () => api.get(`/api/admin/audit?page=${page}`),
   });
 
   return (
@@ -1657,24 +1733,33 @@ function AuditSection() {
           description="Administrative actions will be recorded here automatically."
         />
       ) : (
-        <div className="divide-y divide-slate-100">
-          {auditQuery.data.logs.map((log) => (
-            <div key={log.id} className="px-6 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{log.action.replace(/_/g, ' ')}</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {log.user.fullName} · {log.user.email}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {log.entityType ?? 'System'} {log.entityId ? `· ${log.entityId}` : ''}
-                  </p>
+        <>
+          <div className="divide-y divide-slate-100">
+            {auditQuery.data.logs.map((log) => (
+              <div key={log.id} className="px-6 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{log.action.replace(/_/g, ' ')}</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {log.user.fullName} · {log.user.email}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {log.entityType ?? 'System'} {log.entityId ? `· ${log.entityId}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-xs text-slate-500 whitespace-nowrap">{formatDateTime(log.createdAt)}</div>
                 </div>
-                <div className="text-xs text-slate-500 whitespace-nowrap">{formatDateTime(log.createdAt)}</div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <Pagination
+            page={auditQuery.data.page}
+            totalPages={auditQuery.data.totalPages}
+            total={auditQuery.data.total}
+            itemLabel="events"
+            onPageChange={setPage}
+          />
+        </>
       )}
     </div>
   );
