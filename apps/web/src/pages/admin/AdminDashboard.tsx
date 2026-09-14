@@ -223,21 +223,27 @@ interface IngestGuidelineResponse {
   message: string;
 }
 
+// `roles` mirrors the backend guard on the endpoint(s) that section actually
+// calls — see docs/rbac.md. Keep these in sync with the `requireRole(...)`
+// calls in backend/src/routes/admin.ts, vouchers.ts, councils.ts, etc.
+// COUNTRY_ADMIN today only has real backend access to Users and Vouchers;
+// everything else (stats, council CRUD, course approvals, config, secrets,
+// global audit log) is PLATFORM_OWNER-only.
 const ADMIN_SECTIONS = [
-  { key: 'dashboard', label: 'Dashboard', path: '/admin', icon: Users },
-  { key: 'councils', label: 'Councils', path: '/admin/councils', icon: Building2 },
-  { key: 'creator-approvals', label: 'Creator Approvals', path: '/admin/creator-approvals', icon: BadgeCheck },
-  { key: 'users', label: 'Users', path: '/admin/users', icon: Users },
-  { key: 'courses', label: 'Course Approvals', path: '/admin/courses', icon: BookOpen },
-  { key: 'guidelines', label: 'Guideline Lab', path: '/admin/guidelines', icon: Wand2 },
-  { key: 'analytics', label: 'Analytics', path: '/admin/analytics', icon: BarChart2 },
-  { key: 'payments', label: 'Payments', path: '/admin/payments', icon: CreditCard },
-  { key: 'vouchers', label: 'Vouchers', path: '/admin/vouchers', icon: Ticket },
-  { key: 'languages', label: 'Languages', path: '/admin/languages', icon: Languages },
-  { key: 'council-sync', label: 'Council Sync', path: '/admin/council-sync', icon: RefreshCw },
-  { key: 'audit', label: 'Audit Log', path: '/admin/audit', icon: ShieldAlert },
-  { key: 'release', label: 'Release Readiness', path: '/admin/release', icon: ClipboardCheck },
-  { key: 'settings', label: 'Settings', path: '/admin/settings', icon: Settings },
+  { key: 'dashboard', label: 'Dashboard', path: '/admin', icon: Users, roles: ['PLATFORM_OWNER'] },
+  { key: 'councils', label: 'Councils', path: '/admin/councils', icon: Building2, roles: ['PLATFORM_OWNER'] },
+  { key: 'creator-approvals', label: 'Creator Approvals', path: '/admin/creator-approvals', icon: BadgeCheck, roles: ['PLATFORM_OWNER'] },
+  { key: 'users', label: 'Users', path: '/admin/users', icon: Users, roles: ['PLATFORM_OWNER', 'COUNTRY_ADMIN'] },
+  { key: 'courses', label: 'Course Approvals', path: '/admin/courses', icon: BookOpen, roles: ['PLATFORM_OWNER'] },
+  { key: 'guidelines', label: 'Guideline Lab', path: '/admin/guidelines', icon: Wand2, roles: ['PLATFORM_OWNER'] },
+  { key: 'analytics', label: 'Analytics', path: '/admin/analytics', icon: BarChart2, roles: ['PLATFORM_OWNER'] },
+  { key: 'payments', label: 'Payments', path: '/admin/payments', icon: CreditCard, roles: ['PLATFORM_OWNER'] },
+  { key: 'vouchers', label: 'Vouchers', path: '/admin/vouchers', icon: Ticket, roles: ['PLATFORM_OWNER', 'COUNTRY_ADMIN'] },
+  { key: 'languages', label: 'Languages', path: '/admin/languages', icon: Languages, roles: ['PLATFORM_OWNER'] },
+  { key: 'council-sync', label: 'Council Sync', path: '/admin/council-sync', icon: RefreshCw, roles: ['PLATFORM_OWNER'] },
+  { key: 'audit', label: 'Audit Log', path: '/admin/audit', icon: ShieldAlert, roles: ['PLATFORM_OWNER'] },
+  { key: 'release', label: 'Release Readiness', path: '/admin/release', icon: ClipboardCheck, roles: ['PLATFORM_OWNER'] },
+  { key: 'settings', label: 'Settings', path: '/admin/settings', icon: Settings, roles: ['PLATFORM_OWNER'] },
 ] as const;
 
 const ROLE_OPTIONS = ['ALL', 'PLATFORM_OWNER', 'COUNTRY_ADMIN', 'CONTENT_MANAGER', 'COUNCIL_OFFICER', 'LEARNER', 'HELPDESK'] as const;
@@ -273,50 +279,78 @@ function getSection(pathname: string) {
 export default function AdminDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
+  const role = useAuthStore((s) => s.user?.role) ?? 'PLATFORM_OWNER';
   const section = getSection(location.pathname);
+
+  // Auto-filter the nav (and available routes) by what this role's backend
+  // endpoints actually allow — see the `roles` field on each ADMIN_SECTIONS
+  // entry and docs/rbac.md. A PLATFORM_OWNER sees everything; a
+  // COUNTRY_ADMIN only sees sections whose APIs it's actually authorized to
+  // call, so there's no dead tab that 403s on click.
+  const visibleSections = useMemo(
+    () => ADMIN_SECTIONS.filter((s) => (s.roles as readonly string[]).includes(role)),
+    [role],
+  );
+  const isSectionVisible = visibleSections.some((s) => s.key === section);
+
+  useEffect(() => {
+    if (!isSectionVisible && visibleSections.length) {
+      navigate(visibleSections[0].path, { replace: true });
+    }
+  }, [isSectionVisible, visibleSections, navigate]);
+
+  if (!isSectionVisible) return null;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
-          <p className="text-sm text-slate-500 mt-1">Platform operations, governance, analytics, and system configuration.</p>
+          <h1 className="text-2xl font-bold text-slate-900">{role === 'COUNTRY_ADMIN' ? 'Country Admin' : 'Admin'} Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {role === 'COUNTRY_ADMIN'
+              ? 'User management and voucher batches for your country.'
+              : 'Platform operations, governance, analytics, and system configuration.'}
+          </p>
         </div>
       </div>
 
       {/* On small screens, use a dropdown to avoid horizontal scrolling. */}
-      <div className="sm:hidden">
-        <label className="block text-xs font-medium text-slate-600 mb-1.5">Section</label>
-        <select
-          value={section}
-          onChange={(e) => {
-            const next = ADMIN_SECTIONS.find((s) => s.key === e.target.value)?.path ?? '/admin';
-            navigate(next);
-          }}
-          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
-        >
-          {ADMIN_SECTIONS.map((item) => (
-            <option key={item.key} value={item.key}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="hidden sm:grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1 bg-slate-100 p-1 rounded-xl w-full">
-        {ADMIN_SECTIONS.map((item) => (
-          <Link
-            key={item.key}
-            to={item.path}
-            className={`px-3 py-2 rounded-lg text-sm font-medium text-center truncate transition-all ${
-              section === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-700'
-            }`}
-            title={item.label}
+      {visibleSections.length > 1 && (
+        <div className="sm:hidden">
+          <label className="block text-xs font-medium text-slate-600 mb-1.5">Section</label>
+          <select
+            value={section}
+            onChange={(e) => {
+              const next = visibleSections.find((s) => s.key === e.target.value)?.path ?? visibleSections[0].path;
+              navigate(next);
+            }}
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
           >
-            {item.label}
-          </Link>
-        ))}
-      </div>
+            {visibleSections.map((item) => (
+              <option key={item.key} value={item.key}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {visibleSections.length > 1 && (
+        <div className="hidden sm:grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1 bg-slate-100 p-1 rounded-xl w-full">
+          {visibleSections.map((item) => (
+            <Link
+              key={item.key}
+              to={item.path}
+              className={`px-3 py-2 rounded-lg text-sm font-medium text-center truncate transition-all ${
+                section === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-700'
+              }`}
+              title={item.label}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {section === 'dashboard' && <OverviewSection />}
       {section === 'councils' && <CouncilsSection />}

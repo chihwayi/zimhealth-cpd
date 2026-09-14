@@ -78,13 +78,20 @@ The two rows worth calling out because they're easy to get wrong on a future cha
   `Course.status` could reach `PUBLISHED` with zero approvals, and `bot.ts` used to trust that
   flag directly instead of re-checking council approval.
 
+## Frontend nav auto-filters by role
+
+`AdminDashboard.tsx`'s `ADMIN_SECTIONS` array carries a `roles` field per tab that mirrors the
+backend `requireRole(...)` guard on the endpoint(s) that section actually calls. The component
+filters its own tab bar/dropdown to `visibleSections` for the current user's role and
+redirects away from any URL for a section outside that list (e.g. a `COUNTRY_ADMIN` landing on
+`/admin` gets redirected to `/admin/users`, the first section they can use). `Sidebar.tsx` has a
+matching `COUNTRY_ADMIN_NAV` (Dashboard/Users/Vouchers only) instead of reusing the full
+`ADMIN_NAV`. If you add a new admin section, add its `roles` in both places — the backend guard is
+the actual security boundary, these are just keeping the UI honest about what will succeed.
+
 ## Known gaps / deliberately deferred
 
 - Per-action audit attribution during an impersonation session (see above).
-- `AdminDashboard.tsx`'s tab navigation doesn't yet filter by role — a `COUNTRY_ADMIN` sees the
-  same tab list as `PLATFORM_OWNER` and gets a 403 from the backend on out-of-scope tabs
-  (config/secrets/council CRUD/global audit). The security boundary is real (enforced
-  server-side); this is a UX polish item, not a leak.
 - `HELPDESK` issue triage has no country scoping — this is intentional per product decision
   (helpdesk reports to Platform Owner directly, cross-country), not a gap.
 - `VoucherBatch` has no `countryCode` of its own; `COUNTRY_ADMIN` voucher scoping is by

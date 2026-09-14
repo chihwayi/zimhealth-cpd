@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   MessageSquareWarning,
   Languages,
+  Ticket,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth.store';
@@ -74,6 +75,16 @@ const ADMIN_NAV = [
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ];
 
+// COUNTRY_ADMIN's backend access today is limited to Users + Vouchers (see
+// docs/rbac.md and the `roles` field on AdminDashboard.tsx's ADMIN_SECTIONS)
+// — the sidebar only lists what that role can actually reach, so there's no
+// dead link to a page that just redirects away.
+const COUNTRY_ADMIN_NAV = [
+  { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/admin/users', icon: Users, label: 'Users' },
+  { to: '/admin/vouchers', icon: Ticket, label: 'Vouchers' },
+];
+
 const HELPDESK_NAV = [
   { to: '/helpdesk', icon: MessageSquareWarning, label: 'Issue Reports' },
 ];
@@ -83,7 +94,7 @@ const NAV_BY_ROLE: Record<string, typeof LEARNER_NAV> = {
   CONTENT_MANAGER: CREATOR_NAV,
   COUNCIL_OFFICER: COUNCIL_NAV,
   PLATFORM_OWNER: ADMIN_NAV,
-  COUNTRY_ADMIN: ADMIN_NAV,
+  COUNTRY_ADMIN: COUNTRY_ADMIN_NAV,
   HELPDESK: HELPDESK_NAV,
 };
 
