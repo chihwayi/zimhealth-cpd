@@ -52,6 +52,15 @@ export default function Landing() {
   });
   const supportedCouncils = councilsQuery.data?.councils ?? [];
 
+  // Grouped by country so the list reads as "here's who we're live with, per
+  // country" rather than a flat wall of acronyms that (today, with only one
+  // country seeded) would otherwise look Zimbabwe-specific.
+  const councilsByCountry = supportedCouncils.reduce<Record<string, typeof supportedCouncils>>((acc, c) => {
+    const key = c.countryName ?? 'Other';
+    (acc[key] ??= []).push(c);
+    return acc;
+  }, {});
+
   return (
     <main className="min-h-screen bg-[#030c1a] text-white overflow-x-hidden">
       {/* Ambient background — no static hero image, just soft animated light */}
@@ -119,25 +128,34 @@ export default function Landing() {
           </a>
         </div>
 
-        {/* Supported councils strip */}
-        <div className="mt-10">
-          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/35">
-            {supportedCouncils.length ? 'Supported councils' : councilsQuery.isLoading ? 'Loading councils…' : ''}
-          </div>
-          {supportedCouncils.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {supportedCouncils.map((c) => (
-                <span
-                  key={c.id}
-                  title={c.name}
-                  className="inline-flex items-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black tracking-wide text-blue-200"
-                >
-                  {c.acronym}
-                </span>
+        {/* Regulatory councils, grouped by country — every country keeps its
+            own council(s); this list grows as more countries come online. */}
+        {(supportedCouncils.length > 0 || councilsQuery.isLoading) && (
+          <div className="mt-10">
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/35">
+              {supportedCouncils.length ? 'Regulatory councils we work with, by country' : 'Loading councils…'}
+            </div>
+            <div className="mt-3 space-y-3">
+              {Object.entries(councilsByCountry).map(([country, councils]) => (
+                <div key={country} className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-white/45 mr-1">{country}:</span>
+                  {councils.map((c) => (
+                    <span
+                      key={c.id}
+                      title={c.name}
+                      className="inline-flex items-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black tracking-wide text-blue-200"
+                    >
+                      {c.acronym}
+                    </span>
+                  ))}
+                </div>
               ))}
             </div>
-          )}
-        </div>
+            <p className="mt-3 text-xs text-white/35">
+              Not registered with a council listed here yet? More countries and councils are being added regularly.
+            </p>
+          </div>
+        )}
       </section>
 
       {/* Feature grid */}
