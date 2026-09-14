@@ -14,6 +14,8 @@ import {
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { seedSpecialtyCourses } from './seed-courses';
+import { ensureAchievementsSeeded, checkAchievements } from '../src/services/engagement';
+import { getLearnerCPDSummary } from '../src/services/cpd-engine';
 
 const db = new PrismaClient();
 
@@ -584,6 +586,106 @@ async function main() {
     mdpczCouncilId: mdpczCouncil.id,
     reviewerId: ncz.id,
   });
+
+  // ─── 7. Rich demo data for Grace — enrollments, points history, streak,
+  // achievements, and a certificate — so the web/mobile app has something to
+  // show on every screen (QA account, not just a bare login).
+  const graceId = learners[0].id;
+  const now = new Date();
+  const cycleYear = now.getFullYear();
+  const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000);
+
+  const enrichCourses = await db.course.findMany({
+    where: { status: CourseStatus.PUBLISHED, id: { not: course.id } },
+    take: 6,
+    orderBy: { createdAt: 'asc' },
+    include: {
+      councilReviews: { where: { councilId: nczCouncil.id, status: 'APPROVED' }, select: { points: true } },
+    },
+  });
+
+  const completedCourses = enrichCourses.slice(0, 4);
+  const inProgressCourses = enrichCourses.slice(4, 6);
+
+  for (const [i, c] of completedCourses.entries()) {
+    const completedAt = daysAgo(20 - i * 5);
+    await db.enrollment.upsert({
+      where: { learnerId_courseId: { learnerId: graceId, courseId: c.id } },
+      update: { progress: 1, completedAt, lastAccessAt: completedAt },
+      create: { learnerId: graceId, courseId: c.id, progress: 1, completedAt, lastAccessAt: completedAt, enrolledAt: daysAgo(25 - i * 5) },
+    });
+
+    const pts = c.councilReviews[0]?.points ?? 2;
+    await db.cPDRecord.upsert({
+      where: { id: `cpd-demo-${i}` },
+      update: {},
+      create: {
+        id: `cpd-demo-${i}`,
+        learnerId: graceId,
+        courseId: c.id,
+        activityType: i % 2 === 0 ? ActivityType.QUIZ_PASS : ActivityType.READING,
+        pointsEarned: pts,
+        quizScore: i % 2 === 0 ? 0.85 : null,
+        cycleYear,
+        completedAt,
+        syncedToNcz: false,
+      },
+    });
+  }
+
+  for (const [i, c] of inProgressCourses.entries()) {
+    await db.enrollment.upsert({
+      where: { learnerId_courseId: { learnerId: graceId, courseId: c.id } },
+      update: { progress: 0.4 + i * 0.2, lastAccessAt: daysAgo(1) },
+      create: { learnerId: graceId, courseId: c.id, progress: 0.4 + i * 0.2, lastAccessAt: daysAgo(1), enrolledAt: daysAgo(6) },
+    });
+  }
+
+  // Standalone activity records (no course) for ledger variety + recent-day coverage.
+  await db.cPDRecord.upsert({
+    where: { id: 'cpd-demo-webinar' },
+    update: {},
+    create: { id: 'cpd-demo-webinar', learnerId: graceId, activityType: ActivityType.WEBINAR, pointsEarned: 2, cycleYear, completedAt: daysAgo(3), syncedToNcz: false },
+  });
+  await db.cPDRecord.upsert({
+    where: { id: 'cpd-demo-whatsapp' },
+    update: {},
+    create: { id: 'cpd-demo-whatsapp', learnerId: graceId, activityType: ActivityType.WHATSAPP_QUIZ, pointsEarned: 1, cycleYear, completedAt: daysAgo(1), syncedToNcz: false },
+  });
+
+  // Streak — 5-day current streak, 12-day longest (so STREAK_7_DAYS is earned
+  // but STREAK_30_DAYS stays locked, giving the badge grid both states to show).
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  await db.learnerStreak.upsert({
+    where: { learnerId: graceId },
+    update: { currentStreak: 5, longestStreak: 12, lastActivityDate: todayUtc },
+    create: { learnerId: graceId, currentStreak: 5, longestStreak: 12, lastActivityDate: todayUtc },
+  });
+
+  // Achievements — computed from the real data seeded above, via the same
+  // service the app uses, so this can never drift from actual unlock logic.
+  await ensureAchievementsSeeded();
+  await checkAchievements(graceId);
+
+  // Certificate — pdfUrl deliberately left null (matches the real "not yet
+  // generated" state; PDF+S3 generation needs real S3 credentials this seed
+  // script doesn't assume are configured).
+  const graceSummary = await getLearnerCPDSummary(graceId, cycleYear);
+  await db.certificate.upsert({
+    where: { id: 'cert-demo-grace' },
+    update: { totalPoints: graceSummary.totalPoints, coursesCompleted: completedCourses.map((c) => c.title) },
+    create: {
+      id: 'cert-demo-grace',
+      learnerId: graceId,
+      cycleYear,
+      totalPoints: graceSummary.totalPoints,
+      coursesCompleted: completedCourses.map((c) => c.title),
+      issuedAt: daysAgo(2),
+    },
+  });
+
+  console.log(`✅ Rich demo data seeded for grace@zimhealthcpd.co.zw — ${graceSummary.totalPoints}/${graceSummary.requiredPoints} pts, ${completedCourses.length} completed, ${inProgressCourses.length} in progress`);
+
   console.log('\n🎉 Seed complete!\n');
   console.log(`Dev credentials (all use password: ${DEMO_PASSWORD}):`);
   console.log('  Admin:    admin@zimhealthcpd.co.zw');

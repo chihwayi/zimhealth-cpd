@@ -109,7 +109,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             {/* ── Brand ── */}
             <View style={s.brand}>
               <View style={s.logoBadge}>
-                <Image source={require('../../../assets/brand-logo.png')} style={s.logo} resizeMode="contain" />
+                <Image source={require('../../../assets/icon-mark.png')} style={s.logo} resizeMode="contain" />
               </View>
               <Text style={s.headline}>Your CPD points, rising every day you show up.</Text>
               <Text style={s.sub}>One account for the app and WhatsApp — track hours, courses and your council renewal in one place.</Text>

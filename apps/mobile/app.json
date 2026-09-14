@@ -1,15 +1,16 @@
 {
   "expo": {
-    "name": "ZimHealth CPD",
+    "name": "CPD Hub",
     "slug": "zimhealth-cpd",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/zimhealthcpd.png",
+    "icon": "./assets/icon.png",
     "newArchEnabled": true,
     "scheme": "zimhealth",
     "userInterfaceStyle": "light",
     "splash": {
-      "backgroundColor": "#14b8a6",
+      "image": "./assets/splash-icon.png",
+      "backgroundColor": "#150a26",
       "resizeMode": "contain"
     },
     "ios": {
@@ -18,9 +19,13 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#14b8a6"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#150a26"
       },
       "package": "zw.co.zimhealthcpd.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "platforms": ["ios", "android"],
     "plugins": ["expo-font", "expo-secure-store", "expo-sqlite", "expo-background-fetch"]
