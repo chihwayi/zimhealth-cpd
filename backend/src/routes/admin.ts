@@ -442,9 +442,41 @@ router.get('/courses/pending', requireAuth, requireRole('PLATFORM_OWNER'), async
   }
 });
 
-router.get('/stats', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, res) => {
+router.get('/stats', requireAuth, requireRole('PLATFORM_OWNER', 'COUNTRY_ADMIN'), async (req: AuthRequest, res) => {
   try {
     const year = new Date().getFullYear();
+
+    if (req.user!.role === 'COUNTRY_ADMIN') {
+      const actor = await db.user.findUnique({ where: { id: req.user!.id }, select: { countryCode: true } });
+      if (!actor?.countryCode) {
+        return res.status(400).json({ error: 'Country Admin is not assigned to a country.' });
+      }
+      const learnerWhere: Prisma.UserWhereInput = { role: 'LEARNER', isActive: true, council: { countryCode: actor.countryCode } };
+
+      const [totalLearners, activeSubs, completedThisYear, totalPointsResult] = await Promise.all([
+        db.user.count({ where: learnerWhere }),
+        db.user.count({
+          where: { ...learnerWhere, subscriptionTier: { not: 'FREE' }, subscriptionExpiresAt: { gte: new Date() } },
+        }),
+        db.enrollment.count({
+          where: { completedAt: { not: null, gte: new Date(`${year}-01-01`) }, learner: { council: { countryCode: actor.countryCode } } },
+        }),
+        db.cPDRecord.aggregate({
+          where: { cycleYear: year, learner: { council: { countryCode: actor.countryCode } } },
+          _sum: { pointsEarned: true },
+        }),
+      ]);
+
+      return res.json({
+        scope: 'country',
+        countryCode: actor.countryCode,
+        totalLearners,
+        activeSubs,
+        completedThisYear,
+        totalPointsIssuedThisYear: totalPointsResult._sum.pointsEarned ?? 0,
+      });
+    }
+
     const [totalLearners, activeSubs, publishedCourses, pendingApprovals, totalPointsResult] =
       await Promise.all([
         db.user.count({ where: { role: 'LEARNER', isActive: true } }),
@@ -461,6 +493,7 @@ router.get('/stats', requireAuth, requireRole('PLATFORM_OWNER'), async (_req, re
       ]);
 
     return res.json({
+      scope: 'global',
       totalLearners,
       activeSubs,
       publishedCourses,

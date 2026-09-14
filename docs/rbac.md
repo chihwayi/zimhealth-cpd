@@ -84,10 +84,20 @@ The two rows worth calling out because they're easy to get wrong on a future cha
 backend `requireRole(...)` guard on the endpoint(s) that section actually calls. The component
 filters its own tab bar/dropdown to `visibleSections` for the current user's role and
 redirects away from any URL for a section outside that list (e.g. a `COUNTRY_ADMIN` landing on
-`/admin` gets redirected to `/admin/users`, the first section they can use). `Sidebar.tsx` has a
-matching `COUNTRY_ADMIN_NAV` (Dashboard/Users/Vouchers only) instead of reusing the full
-`ADMIN_NAV`. If you add a new admin section, add its `roles` in both places — the backend guard is
-the actual security boundary, these are just keeping the UI honest about what will succeed.
+an out-of-scope URL gets redirected to the first section they can use). `Sidebar.tsx` has a
+matching `COUNTRY_ADMIN_NAV` (Dashboard/Users/Vouchers) instead of reusing the full `ADMIN_NAV`.
+If you add a new admin section, add its `roles` in both places — the backend guard is the actual
+security boundary, these are just keeping the UI honest about what will succeed.
+
+`GET /api/admin/stats` now serves both roles from one endpoint, branching on `req.user.role`:
+`PLATFORM_OWNER` gets the original global figures (`scope: 'global'`, includes
+`publishedCourses`/`pendingApprovals`); `COUNTRY_ADMIN` gets `scope: 'country'` with
+`totalLearners`/`activeSubs`/`totalPointsIssuedThisYear` filtered to learners whose
+`council.countryCode` matches the admin's own `countryCode`, plus `completedThisYear` in place of
+the two content-governance fields (course approval isn't a Country Admin concern — see the
+"Publish course" row above). `OverviewSection` in `AdminDashboard.tsx` reads `scope` to decide
+which cards to render, including hiding the content-moderation queue (`ApprovalsSection`) for
+`COUNTRY_ADMIN` entirely.
 
 ## Known gaps / deliberately deferred
 

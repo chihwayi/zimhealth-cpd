@@ -142,6 +142,19 @@ describe('RBAC: role-assignment escalation guard + country scoping', () => {
 
     expect(res.status).toBe(403);
   });
+
+  it('GET /api/admin/stats returns country-scoped figures for COUNTRY_ADMIN, global for PLATFORM_OWNER', async () => {
+    const countryRes = await request(app).get('/api/admin/stats').set('Authorization', `Bearer ${zwCountryAdminToken}`);
+    expect(countryRes.status).toBe(200);
+    expect(countryRes.body.scope).toBe('country');
+    expect(countryRes.body.countryCode).toBe('ZW');
+    expect(countryRes.body).not.toHaveProperty('pendingApprovals');
+
+    const globalRes = await request(app).get('/api/admin/stats').set('Authorization', `Bearer ${platformOwnerToken}`);
+    expect(globalRes.status).toBe(200);
+    expect(globalRes.body.scope).toBe('global');
+    expect(globalRes.body).toHaveProperty('pendingApprovals');
+  });
 });
 
 describe('RBAC: impersonation', () => {

@@ -53,10 +53,13 @@ import { Pagination } from '../../components/ui/Pagination';
 import { useAuthStore } from '../../store/auth.store';
 
 interface AdminStats {
+  scope: 'global' | 'country';
+  countryCode?: string;
   totalLearners: number;
   activeSubs: number;
-  publishedCourses: number;
-  pendingApprovals: number;
+  publishedCourses?: number;
+  pendingApprovals?: number;
+  completedThisYear?: number;
   totalPointsIssuedThisYear: number;
 }
 
@@ -226,11 +229,11 @@ interface IngestGuidelineResponse {
 // `roles` mirrors the backend guard on the endpoint(s) that section actually
 // calls — see docs/rbac.md. Keep these in sync with the `requireRole(...)`
 // calls in backend/src/routes/admin.ts, vouchers.ts, councils.ts, etc.
-// COUNTRY_ADMIN today only has real backend access to Users and Vouchers;
-// everything else (stats, council CRUD, course approvals, config, secrets,
-// global audit log) is PLATFORM_OWNER-only.
+// COUNTRY_ADMIN today has real backend access to Dashboard (country-scoped
+// stats), Users, and Vouchers; everything else (council CRUD, course
+// approvals, config, secrets, global audit log) is PLATFORM_OWNER-only.
 const ADMIN_SECTIONS = [
-  { key: 'dashboard', label: 'Dashboard', path: '/admin', icon: Users, roles: ['PLATFORM_OWNER'] },
+  { key: 'dashboard', label: 'Dashboard', path: '/admin', icon: Users, roles: ['PLATFORM_OWNER', 'COUNTRY_ADMIN'] },
   { key: 'councils', label: 'Councils', path: '/admin/councils', icon: Building2, roles: ['PLATFORM_OWNER'] },
   { key: 'creator-approvals', label: 'Creator Approvals', path: '/admin/creator-approvals', icon: BadgeCheck, roles: ['PLATFORM_OWNER'] },
   { key: 'users', label: 'Users', path: '/admin/users', icon: Users, roles: ['PLATFORM_OWNER', 'COUNTRY_ADMIN'] },
@@ -737,6 +740,8 @@ function CouncilsSection() {
 }
 
 function OverviewSection() {
+  const role = useAuthStore((s) => s.user?.role);
+  const isCountryAdmin = role === 'COUNTRY_ADMIN';
   const statsQuery = useQuery<AdminStats>({
     queryKey: ['admin-stats'],
     queryFn: () => api.get('/api/admin/stats'),
@@ -744,11 +749,18 @@ function OverviewSection() {
 
   return (
     <div className="space-y-6">
+      {isCountryAdmin && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+          Showing {statsQuery.data?.countryCode ?? 'your country'}-only figures. Content approval and
+          platform-wide reporting stay with your regulatory council and the Platform Owner.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <StatCard
           title="Total Learners"
           value={statsQuery.data?.totalLearners ?? '–'}
-          subtitle="Active learner accounts"
+          subtitle={isCountryAdmin ? 'Active learners in your country' : 'Active learner accounts'}
           icon={<Users size={20} />}
           accent="blue"
         />
@@ -759,27 +771,41 @@ function OverviewSection() {
           icon={<Award size={20} />}
           accent="green"
         />
-        <StatCard
-          title="Published Courses"
-          value={statsQuery.data?.publishedCourses ?? '–'}
-          subtitle="Live content catalog"
-          icon={<BookOpen size={20} />}
-          accent="teal"
-        />
-        <StatCard
-          title="Pending Approvals"
-          value={statsQuery.data?.pendingApprovals ?? '–'}
-          subtitle="Awaiting admin decision"
-          icon={<Clock size={20} />}
-          accent="amber"
-        />
+        {isCountryAdmin ? (
+          <StatCard
+            title="Completions This Year"
+            value={statsQuery.data?.completedThisYear ?? '–'}
+            subtitle="Courses completed by your learners"
+            icon={<CheckCircle size={20} />}
+            accent="teal"
+          />
+        ) : (
+          <StatCard
+            title="Published Courses"
+            value={statsQuery.data?.publishedCourses ?? '–'}
+            subtitle="Live content catalog"
+            icon={<BookOpen size={20} />}
+            accent="teal"
+          />
+        )}
+        {!isCountryAdmin && (
+          <StatCard
+            title="Pending Approvals"
+            value={statsQuery.data?.pendingApprovals ?? '–'}
+            subtitle="Awaiting council decision"
+            icon={<Clock size={20} />}
+            accent="amber"
+          />
+        )}
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-slate-900">Points Issued This Year</h2>
-            <p className="text-sm text-slate-500 mt-1">Total CPD credit distributed across the platform.</p>
+            <p className="text-sm text-slate-500 mt-1">
+              {isCountryAdmin ? 'Total CPD credit earned by learners in your country.' : 'Total CPD credit distributed across the platform.'}
+            </p>
           </div>
           <div className="text-3xl font-bold tabular-nums text-rose-600">
             {statsQuery.data?.totalPointsIssuedThisYear ?? '–'}
@@ -787,7 +813,7 @@ function OverviewSection() {
         </div>
       </div>
 
-      <ApprovalsSection />
+      {!isCountryAdmin && <ApprovalsSection />}
     </div>
   );
 }
@@ -818,9 +844,12 @@ function ApprovalsSection({ standalone = false }: { standalone?: boolean }) {
       <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-slate-900">
-            {standalone ? 'Course Approval Queue' : 'Pending Course Approvals'}
+            {standalone ? 'Content Moderation Queue' : 'Courses Awaiting Council Review'}
           </h2>
-          <p className="text-sm text-slate-500 mt-1">Pending approvals remain the primary admin action item.</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Publishing is the approving council's decision — track it under Council Sync. Platform Owner
+            can only reject/withdraw a submission here (e.g. policy violations, spam).
+          </p>
         </div>
       </div>
 
@@ -897,36 +926,20 @@ function ApprovalsSection({ standalone = false }: { standalone?: boolean }) {
                     />
                   </td>
                   <td className="px-4 py-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() =>
-                          approveMutation.mutate({
-                            id: course.id,
-                            action: 'APPROVE',
-                            reviewerNotes: notesByCourseId[course.id]?.trim() || undefined,
-                          })
-                        }
-                        disabled={approveMutation.isPending}
-                        className="inline-flex items-center gap-1 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-60"
-                      >
-                        <CheckCircle size={12} />
-                        Approve
-                      </button>
-                      <button
-                        onClick={() =>
-                          approveMutation.mutate({
-                            id: course.id,
-                            action: 'REJECT',
-                            reviewerNotes: notesByCourseId[course.id]?.trim() || undefined,
-                          })
-                        }
-                        disabled={approveMutation.isPending}
-                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
-                      >
-                        <XCircle size={12} />
-                        Reject
-                      </button>
-                    </div>
+                    <button
+                      onClick={() =>
+                        approveMutation.mutate({
+                          id: course.id,
+                          action: 'REJECT',
+                          reviewerNotes: notesByCourseId[course.id]?.trim() || undefined,
+                        })
+                      }
+                      disabled={approveMutation.isPending}
+                      className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                    >
+                      <XCircle size={12} />
+                      Reject / withdraw
+                    </button>
                   </td>
                 </tr>
               ))}
