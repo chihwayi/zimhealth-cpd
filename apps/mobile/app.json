@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "zw.co.zimhealthcpd.app"
+      "bundleIdentifier": "com.cpdhub.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#150a26"
       },
-      "package": "zw.co.zimhealthcpd.app",
+      "package": "com.cpdhub.app",
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.WAKE_LOCK"
