@@ -29,6 +29,11 @@ void i18n
   .use(initReactI18next)
   .init({
     resources: { en: { translation: en } },
+    // i18next skips the backend entirely for any language it wasn't given
+    // upfront in `resources` unless this is set — without it, switching to
+    // "sn" silently fell back to English forever, with no network request
+    // ever made for /api/locales/sn.
+    partialBundledLanguages: true,
     lng: 'en',
     fallbackLng: 'en',
     ns: ['translation'],
