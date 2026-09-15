@@ -1,6 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { BG, SURFACE2, BORDER, ACCENT_L, TEXT3 } from '../theme';
 import DashboardScreen    from '../screens/learner/DashboardScreen';
 import CoursesScreen      from '../screens/learner/CoursesScreen';
@@ -68,6 +69,7 @@ const TAB_ICONS: Record<keyof AppTabParamList, { active: IconName; inactive: Ico
 };
 
 export default function AppNavigator() {
+  const { t } = useTranslation();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -94,11 +96,11 @@ export default function AppNavigator() {
         },
       })}
     >
-      <Tab.Screen name="DashboardTab"    component={DashboardScreen}    options={{ title: 'Home'         }} />
-      <Tab.Screen name="CoursesTab"      component={CoursesStack}        options={{ title: 'Courses'      }} />
-      <Tab.Screen name="PointsTab"       component={PointsScreen}       options={{ title: 'Points'       }} />
-      <Tab.Screen name="CertificatesTab" component={CertificatesScreen} options={{ title: 'Certificates' }} />
-      <Tab.Screen name="ProfileTab"      component={ProfileStack}       options={{ title: 'Profile'      }} />
+      <Tab.Screen name="DashboardTab"    component={DashboardScreen}    options={{ title: t('nav.dashboard')      }} />
+      <Tab.Screen name="CoursesTab"      component={CoursesStack}        options={{ title: t('nav.browseCourses')  }} />
+      <Tab.Screen name="PointsTab"       component={PointsScreen}       options={{ title: t('nav.myPoints')       }} />
+      <Tab.Screen name="CertificatesTab" component={CertificatesScreen} options={{ title: t('nav.certificates')   }} />
+      <Tab.Screen name="ProfileTab"      component={ProfileStack}       options={{ title: t('nav.profile')        }} />
     </Tab.Navigator>
   );
 }

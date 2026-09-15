@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useMutation } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/auth.store';
 import type { AuthUser } from '../../store/auth.store';
@@ -84,6 +85,7 @@ function DarkInput({
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function LoginScreen({ navigation }: LoginScreenProps) {
+  const { t } = useTranslation();
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -119,28 +121,28 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             <View style={s.form}>
               <DarkInput
                 icon="mail-outline"
-                placeholder="Email address"
+                placeholder={t('auth.email')}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
               />
               <DarkInput
                 icon="lock-closed-outline"
-                placeholder="Password"
+                placeholder={t('auth.password')}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
               />
 
               <Pressable style={s.forgotWrap} hitSlop={10}>
-                <Text style={s.forgotText}>Forgot password?</Text>
+                <Text style={s.forgotText}>{t('auth.forgotPassword')}</Text>
               </Pressable>
 
               {loginMutation.isError && (
                 <View style={s.errorBox}>
                   <Ionicons name="alert-circle-outline" size={15} color="#fecdd3" />
                   <Text style={s.errorText}>
-                    {loginMutation.error?.message ?? 'Login failed. Please try again.'}
+                    {loginMutation.error?.message ?? t('common.error')}
                   </Text>
                 </View>
               )}
@@ -152,7 +154,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                 disabled={!canSubmit || loginMutation.isPending}
               >
                 <Text style={s.btnText}>
-                  {loginMutation.isPending ? 'Signing in…' : 'Continue'}
+                  {loginMutation.isPending ? 'Signing in…' : t('common.continue')}
                 </Text>
               </Pressable>
 
@@ -174,9 +176,9 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 
             {/* ── Footer ── */}
             <View style={s.footer}>
-              <Text style={s.footerText}>Don't have an account? </Text>
+              <Text style={s.footerText}>{t('auth.dontHaveAccount')} </Text>
               <Pressable onPress={() => navigation.navigate('Register')} hitSlop={8}>
-                <Text style={s.footerLink}>Register here</Text>
+                <Text style={s.footerLink}>{t('auth.register')}</Text>
               </Pressable>
             </View>
           </ScrollView>
