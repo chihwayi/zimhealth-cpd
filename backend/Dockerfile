@@ -16,9 +16,12 @@ RUN pnpm install --frozen-lockfile=false
 # PATH via /etc/profile, dropping pnpm's node_modules/.bin. Symlinking the bins
 # directly breaks prisma's own realpath-based module resolution, so use exec
 # wrapper scripts instead — they resolve the real path the same way a direct
-# call would.
-RUN printf '#!/bin/sh\nexec /app/backend/node_modules/.bin/prisma "$@"\n' > /usr/local/bin/prisma \
-  && printf '#!/bin/sh\nexec /app/backend/node_modules/.bin/dotenv "$@"\n' > /usr/local/bin/dotenv \
+# call would. node-linker=hoisted (root .npmrc, needed for Expo/EAS Android
+# builds elsewhere in this monorepo) hoists bins to the workspace root's
+# node_modules/.bin instead of each package's own, so resolve there — with a
+# fallback to the per-package path in case linking mode changes again.
+RUN printf '#!/bin/sh\nif [ -x /app/node_modules/.bin/prisma ]; then exec /app/node_modules/.bin/prisma "$@"; else exec /app/backend/node_modules/.bin/prisma "$@"; fi\n' > /usr/local/bin/prisma \
+  && printf '#!/bin/sh\nif [ -x /app/node_modules/.bin/dotenv ]; then exec /app/node_modules/.bin/dotenv "$@"; else exec /app/backend/node_modules/.bin/dotenv "$@"; fi\n' > /usr/local/bin/dotenv \
   && chmod +x /usr/local/bin/prisma /usr/local/bin/dotenv
 # prisma generate reads schema.prisma's env("DATABASE_URL") but does not connect —
 # a placeholder is enough to satisfy it during the image build.
